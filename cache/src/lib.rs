@@ -1,6 +1,6 @@
 //! Cache module for Google Photos data.
 
-use rusqlite::{Connection, Result as SqlResult, params};
+use rusqlite::{Connection, params};
 use std::path::Path;
 use std::error::Error;
 use std::fmt;
@@ -38,14 +38,14 @@ impl CacheManager {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS media_items (
                 id TEXT PRIMARY KEY,
-                filename TEXT NOT NULL,
-                mime_type TEXT NOT NULL,
-                creation_time TEXT NOT NULL,
-                width INTEGER NOT NULL,
-                height INTEGER NOT NULL,
+                description TEXT,
                 product_url TEXT NOT NULL,
                 base_url TEXT NOT NULL,
-                data BLOB NOT NULL
+                mime_type TEXT NOT NULL,
+                creation_time TEXT NOT NULL,
+                width TEXT NOT NULL,
+                height TEXT NOT NULL,
+                filename TEXT NOT NULL
             )",
             [],
         ).map_err(|e| CacheError::DatabaseError(format!("Failed to create table: {}", e)))?;
@@ -54,50 +54,56 @@ impl CacheManager {
     }
 
     pub fn insert_media_item(&self, item: &api_client::MediaItem) -> Result<(), CacheError> {
-        let id = &item.id;
-        let filename = &item.filename;
-        let mime_type = &item.mime_type;
-        let creation_time = &item.media_metadata.creation_time;
-        let width = &item.media_metadata.width;
-        let height = &item.media_metadata.height;
-        let product_url = &item.product_url;
-        let base_url = &item.base_url;
-
-        let data = serde_json::to_vec(item)
-            .map_err(|e| CacheError::SerializationError(format!("Failed to serialize media item: {}", e)))?;
-
-        self.conn.execute(
-            "INSERT OR REPLACE INTO media_items (
-                id, filename, mime_type, creation_time, width, height, product_url, base_url, data
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![
-                id,
-                filename,
-                mime_type,
-                creation_time,
-                width,
-                height,
-                product_url,
-                base_url,
-                data
-            ],
-        ).map_err(|e| CacheError::DatabaseError(format!("Failed to insert media item: {}", e)))?;
+        self.conn
+            .execute(
+                "INSERT OR REPLACE INTO media_items (
+                    id, description, product_url, base_url, mime_type, creation_time, width, height, filename
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    item.id,
+                    item.description,
+                    item.product_url,
+                    item.base_url,
+                    item.mime_type,
+                    item.media_metadata.creation_time,
+                    item.media_metadata.width,
+                    item.media_metadata.height,
+                    item.filename
+                ],
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to insert media item: {}", e)))?;
 
         Ok(())
     }
 
     pub fn get_media_item(&self, id: &str) -> Result<Option<api_client::MediaItem>, CacheError> {
-        let mut stmt = self.conn.prepare("SELECT data FROM media_items WHERE id = ?1")
+        let mut stmt = self.conn
+            .prepare(
+                "SELECT id, description, product_url, base_url, mime_type, creation_time, width, height, filename FROM media_items WHERE id = ?1",
+            )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
-        let mut rows = stmt.query(params![id])
+        let mut rows = stmt
+            .query(params![id])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to query media item: {}", e)))?;
 
-        if let Some(row) = rows.next().map_err(|e| CacheError::DatabaseError(format!("Failed to get row: {}", e)))? {
-            let data: Vec<u8> = row.get(0)
-                .map_err(|e| CacheError::DatabaseError(format!("Failed to get data from row: {}", e)))?;
-            let item: api_client::MediaItem = serde_json::from_slice(&data)
-                .map_err(|e| CacheError::DeserializationError(format!("Failed to deserialize media item: {}", e)))?;
+        if let Some(row) = rows
+            .next()
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to get row: {}", e)))?
+        {
+            let item = api_client::MediaItem {
+                id: row.get(0).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                description: row.get(1).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                product_url: row.get(2).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                base_url: row.get(3).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                mime_type: row.get(4).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                media_metadata: api_client::MediaMetadata {
+                    creation_time: row.get(5).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                    width: row.get(6).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                    height: row.get(7).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                },
+                filename: row.get(8).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+            };
             Ok(Some(item))
         } else {
             Ok(None)
@@ -105,20 +111,104 @@ impl CacheManager {
     }
 
     pub fn get_all_media_items(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let mut stmt = self.conn.prepare("SELECT data FROM media_items")
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, description, product_url, base_url, mime_type, creation_time, width, height, filename FROM media_items",
+            )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
-        let media_item_iter = stmt.query_map([], |row| {
-            let data: Vec<u8> = row.get(0)?;
-            let item: api_client::MediaItem = serde_json::from_slice(&data)
-                .map_err(|e| rusqlite::Error::ExecuteReturnedResults)?; // A bit of a hack, but it works for now
-            Ok(item)
-        }).map_err(|e| CacheError::DatabaseError(format!("Failed to query all media items: {}", e)))?;
+        let media_item_iter = stmt
+            .query_map([], |row| {
+                Ok(api_client::MediaItem {
+                    id: row.get(0)?,
+                    description: row.get(1)?,
+                    product_url: row.get(2)?,
+                    base_url: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    media_metadata: api_client::MediaMetadata {
+                        creation_time: row.get(5)?,
+                        width: row.get(6)?,
+                        height: row.get(7)?,
+                    },
+                    filename: row.get(8)?,
+                })
+            })
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query all media items: {}", e)))?;
 
         let mut items = Vec::new();
         for item_result in media_item_iter {
-            items.push(item_result
-                .map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e)))?);
+            items.push(
+                item_result
+                    .map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e)))?,
+            );
+        }
+        Ok(items)
+    }
+
+    /// Retrieve all media items matching the given MIME type.
+    pub fn get_media_items_by_mime_type(&self, mime: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let mut stmt = self.conn
+            .prepare(
+                "SELECT id, description, product_url, base_url, mime_type, creation_time, width, height, filename FROM media_items WHERE mime_type = ?1",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let iter = stmt
+            .query_map(params![mime], |row| {
+                Ok(api_client::MediaItem {
+                    id: row.get(0)?,
+                    description: row.get(1)?,
+                    product_url: row.get(2)?,
+                    base_url: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    media_metadata: api_client::MediaMetadata {
+                        creation_time: row.get(5)?,
+                        width: row.get(6)?,
+                        height: row.get(7)?,
+                    },
+                    filename: row.get(8)?,
+                })
+            })
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
+
+        let mut items = Vec::new();
+        for item in iter {
+            items.push(item.map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e)))?);
+        }
+        Ok(items)
+    }
+
+    /// Retrieve media items where the filename contains the given pattern.
+    pub fn get_media_items_by_filename(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let like_pattern = format!("%{}%", pattern);
+        let mut stmt = self.conn
+            .prepare(
+                "SELECT id, description, product_url, base_url, mime_type, creation_time, width, height, filename FROM media_items WHERE filename LIKE ?1",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let iter = stmt
+            .query_map(params![like_pattern], |row| {
+                Ok(api_client::MediaItem {
+                    id: row.get(0)?,
+                    description: row.get(1)?,
+                    product_url: row.get(2)?,
+                    base_url: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    media_metadata: api_client::MediaMetadata {
+                        creation_time: row.get(5)?,
+                        width: row.get(6)?,
+                        height: row.get(7)?,
+                    },
+                    filename: row.get(8)?,
+                })
+            })
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
+
+        let mut items = Vec::new();
+        for item in iter {
+            items.push(item.map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e)))?);
         }
         Ok(items)
     }
@@ -143,8 +233,6 @@ mod tests {
     use tempfile::NamedTempFile;
 
     fn create_test_media_item(id: &str) -> MediaItem {
-        // This test helper needs to be updated to match the new MediaItem structure
-        // For now, we create a simplified version
         MediaItem {
             id: id.to_string(),
             description: None,
@@ -204,6 +292,35 @@ mod tests {
         assert_eq!(all_items.len(), 2);
         assert!(all_items.iter().any(|i| i.id == item1.id));
         assert!(all_items.iter().any(|i| i.id == item2.id));
+    }
+
+    #[test]
+    fn test_query_by_mime_type_and_filename() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let db_path = temp_file.path();
+        let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
+
+        let mut item1 = create_test_media_item("id1");
+        item1.mime_type = "image/png".to_string();
+        item1.filename = "holiday_photo.png".to_string();
+        let mut item2 = create_test_media_item("id2");
+        item2.mime_type = "image/jpeg".to_string();
+        item2.filename = "family.jpg".to_string();
+
+        cache_manager.insert_media_item(&item1).expect("Failed to insert item1");
+        cache_manager.insert_media_item(&item2).expect("Failed to insert item2");
+
+        let png_items = cache_manager
+            .get_media_items_by_mime_type("image/png")
+            .expect("Failed to query by mime type");
+        assert_eq!(png_items.len(), 1);
+        assert_eq!(png_items[0].id, item1.id);
+
+        let filename_items = cache_manager
+            .get_media_items_by_filename("family")
+            .expect("Failed to query by filename");
+        assert_eq!(filename_items.len(), 1);
+        assert_eq!(filename_items[0].id, item2.id);
     }
 
     #[test]
