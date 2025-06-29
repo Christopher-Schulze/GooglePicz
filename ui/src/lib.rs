@@ -4,16 +4,19 @@ mod image_loader;
 
 use iced::widget::{button, column, container, text, scrollable, row, image};
 use iced::widget::image::Handle;
-use iced::{executor, Application, Command, Element, Length, Settings, Theme};
+use iced::{executor, Application, Command, Element, Length, Settings, Theme, Subscription};
+use iced::subscription;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use cache::{CacheManager, CacheError};
+use cache::CacheManager;
 use api_client::MediaItem;
 use image_loader::ImageLoader;
+use tokio::sync::mpsc;
+use sync::SyncProgress;
 
-pub fn run() -> iced::Result {
-    GooglePiczUI::run(Settings::default())
+pub fn run(progress: Option<mpsc::UnboundedReceiver<SyncProgress>>) -> iced::Result {
+    GooglePiczUI::run(Settings::with_flags(progress))
 }
 
 #[derive(Debug, Clone)]
@@ -23,6 +26,7 @@ pub enum Message {
     RefreshPhotos,
     ThumbnailLoaded(String, Result<Handle, String>),
     LoadThumbnail(String, String), // media_id, base_url
+    SyncProgress(SyncProgress),
 }
 
 pub struct GooglePiczUI {
@@ -31,15 +35,18 @@ pub struct GooglePiczUI {
     cache_manager: Option<Arc<Mutex<CacheManager>>>,
     image_loader: Arc<Mutex<ImageLoader>>,
     thumbnails: std::collections::HashMap<String, Handle>,
+    progress_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<SyncProgress>>>>,
+    synced: u64,
+    syncing: bool,
 }
 
 impl Application for GooglePiczUI {
     type Executor = executor::Default;
     type Message = Message;
     type Theme = Theme;
-    type Flags = ();
+    type Flags = Option<mpsc::UnboundedReceiver<SyncProgress>>;
 
-    fn new(_flags: ()) -> (Self, Command<Message>) {
+    fn new(flags: Self::Flags) -> (Self, Command<Message>) {
         let cache_path = dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join(".googlepicz")
@@ -58,12 +65,17 @@ impl Application for GooglePiczUI {
 
         let image_loader = Arc::new(Mutex::new(ImageLoader::new(thumbnail_cache_path)));
 
+        let progress_receiver = flags.map(|rx| Arc::new(Mutex::new(rx)));
+
         let app = Self {
             photos: Vec::new(),
             loading: false,
             cache_manager,
             image_loader,
             thumbnails: std::collections::HashMap::new(),
+            progress_receiver,
+            synced: 0,
+            syncing: false,
         };
         
         (app, Command::perform(async {}, |_| Message::LoadPhotos))
@@ -133,14 +145,48 @@ impl Application for GooglePiczUI {
                     }
                 }
             }
+            Message::SyncProgress(progress) => {
+                match progress {
+                    SyncProgress::ItemSynced(count) => {
+                        self.synced = count;
+                        self.syncing = true;
+                    }
+                    SyncProgress::Finished(total) => {
+                        self.synced = total;
+                        self.syncing = false;
+                    }
+                }
+            }
         }
         Command::none()
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        if let Some(rx) = &self.progress_receiver {
+            let rx = rx.clone();
+            subscription::unfold("progress", rx, |rx| async move {
+                let mut lock = rx.lock().await;
+                let msg = match lock.recv().await {
+                    Some(p) => Message::SyncProgress(p),
+                    None => Message::SyncProgress(SyncProgress::Finished(0)),
+                };
+                drop(lock);
+                (msg, rx)
+            })
+        } else {
+            Subscription::none()
+        }
     }
 
     fn view(&self) -> Element<Message> {
         let header = row![
             text("GooglePicz").size(24),
             button("Refresh").on_press(Message::RefreshPhotos),
+            text(if self.syncing {
+                format!("Syncing {} items...", self.synced)
+            } else {
+                format!("Synced {} items", self.synced)
+            })
         ]
         .spacing(20)
         .align_items(iced::Alignment::Center);

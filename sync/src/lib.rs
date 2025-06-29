@@ -7,6 +7,7 @@ use std::path::Path;
 use std::error::Error;
 use std::fmt;
 use tokio::time::{sleep, Duration};
+use tokio::sync::mpsc;
 
 #[derive(Debug)]
 pub enum SyncError {
@@ -34,6 +35,12 @@ pub struct Syncer {
     cache_manager: CacheManager,
 }
 
+#[derive(Debug, Clone)]
+pub enum SyncProgress {
+    ItemSynced(u64),
+    Finished(u64),
+}
+
 impl Syncer {
     pub async fn new(db_path: &Path) -> Result<Self, SyncError> {
         let access_token = get_access_token()
@@ -47,7 +54,10 @@ impl Syncer {
         Ok(Syncer { api_client, cache_manager })
     }
 
-    pub async fn sync_media_items(&self) -> Result<(), SyncError> {
+    pub async fn sync_media_items(
+        &self,
+        progress: Option<mpsc::UnboundedSender<SyncProgress>>,
+    ) -> Result<(), SyncError> {
         println!("Starting media item synchronization...");
         let mut page_token: Option<String> = None;
         let mut total_synced = 0;
@@ -64,6 +74,9 @@ impl Syncer {
                 self.cache_manager.insert_media_item(&item)
                     .map_err(|e| SyncError::CacheError(format!("Failed to insert media item into cache: {}", e)))?;
                 total_synced += 1;
+                if let Some(tx) = &progress {
+                    let _ = tx.send(SyncProgress::ItemSynced(total_synced));
+                }
             }
 
             println!("Synced {} media items so far.", total_synced);
@@ -78,6 +91,9 @@ impl Syncer {
         }
 
         println!("Synchronization complete. Total media items synced: {}.", total_synced);
+        if let Some(tx) = progress {
+            let _ = tx.send(SyncProgress::Finished(total_synced));
+        }
         Ok(())
     }
 }
@@ -106,7 +122,7 @@ mod tests {
         let db_path = temp_file.path();
 
         let syncer = Syncer::new(db_path).await.expect("Failed to create syncer");
-        let result = syncer.sync_media_items().await;
+        let result = syncer.sync_media_items(None).await;
         assert!(result.is_ok(), "Synchronization failed: {:?}", result.err());
 
         let all_cached_items = syncer.cache_manager.get_all_media_items().expect("Failed to get all cached items");
