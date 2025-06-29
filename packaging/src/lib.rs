@@ -91,6 +91,7 @@ fn create_macos_installer() -> Result<(), PackagingError> {
             "xcrun",
             &["notarytool", "submit", app_path, "--apple-id", &apple_id, "--password", &password, "--wait"],
         )?;
+        run_command("xcrun", &["stapler", "staple", app_path])?;
     }
 
     Ok(())
@@ -98,7 +99,33 @@ fn create_macos_installer() -> Result<(), PackagingError> {
 
 fn create_windows_installer() -> Result<(), PackagingError> {
     tracing::info!("Creating Windows installer...");
-    run_command("makensis", &["packaging/installer.nsi"])
+    run_command("makensis", &["packaging/installer.nsi"])?;
+
+    let exe_path = "GooglePiczSetup.exe";
+    if let Ok(cert_path) = std::env::var("WINDOWS_CERT") {
+        if !cert_path.is_empty() {
+            let password = std::env::var("WINDOWS_CERT_PASSWORD").unwrap_or_default();
+            run_command(
+                "signtool",
+                &[
+                    "sign",
+                    "/f",
+                    &cert_path,
+                    "/p",
+                    &password,
+                    "/fd",
+                    "sha256",
+                    "/tr",
+                    "http://timestamp.digicert.com",
+                    "/td",
+                    "sha256",
+                    exe_path,
+                ],
+            )?;
+        }
+    }
+
+    Ok(())
 }
 
 pub fn create_installer() -> Result<(), PackagingError> {
