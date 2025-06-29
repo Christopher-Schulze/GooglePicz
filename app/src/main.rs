@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🔄 Initializing synchronization...");
     match Syncer::new(&db_path).await {
-        Ok(syncer) => {
+        Ok(mut syncer) => {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             let ui_thread = std::thread::spawn(move || {
                 if let Err(e) = ui::run(Some(rx)) {

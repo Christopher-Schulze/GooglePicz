@@ -73,6 +73,10 @@ impl ApiClient {
         }
     }
 
+    pub fn set_access_token(&mut self, token: String) {
+        self.access_token = token;
+    }
+
     pub async fn list_media_items(&self, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
         let mut url = format!("https://photoslibrary.googleapis.com/v1/mediaItems?pageSize={}", page_size);
         if let Some(token) = page_token {

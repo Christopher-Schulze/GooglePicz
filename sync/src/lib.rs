@@ -1,7 +1,7 @@
 //! Synchronization module for Google Photos data.
 
 use api_client::{ApiClient, ApiClientError};
-use auth::{get_access_token, refresh_access_token};
+use auth::{ensure_access_token_valid, get_access_token};
 use cache::{CacheManager, CacheError};
 use std::path::Path;
 use std::error::Error;
@@ -43,7 +43,7 @@ pub enum SyncProgress {
 
 impl Syncer {
     pub async fn new(db_path: &Path) -> Result<Self, SyncError> {
-        let access_token = get_access_token()
+        let access_token = ensure_access_token_valid().await
             .map_err(|e| SyncError::AuthenticationError(format!("Failed to get access token: {}", e)))?;
 
         let api_client = ApiClient::new(access_token);
@@ -55,7 +55,7 @@ impl Syncer {
     }
 
     pub async fn sync_media_items(
-        &self,
+        &mut self,
         progress: Option<mpsc::UnboundedSender<SyncProgress>>,
     ) -> Result<(), SyncError> {
         println!("Starting media item synchronization...");
@@ -63,6 +63,10 @@ impl Syncer {
         let mut total_synced = 0;
 
         loop {
+            let token = ensure_access_token_valid().await
+                .map_err(|e| SyncError::AuthenticationError(format!("Failed to refresh token: {}", e)))?;
+            self.api_client.set_access_token(token);
+
             let (media_items, next_page_token) = self.api_client.list_media_items(100, page_token.clone()).await
                 .map_err(|e| SyncError::ApiClientError(format!("Failed to list media items from API: {}", e)))?;
 
@@ -121,7 +125,7 @@ mod tests {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let db_path = temp_file.path();
 
-        let syncer = Syncer::new(db_path).await.expect("Failed to create syncer");
+        let mut syncer = Syncer::new(db_path).await.expect("Failed to create syncer");
         let result = syncer.sync_media_items(None).await;
         assert!(result.is_ok(), "Synchronization failed: {:?}", result.err());
 
