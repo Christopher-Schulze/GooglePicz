@@ -60,6 +60,18 @@ struct SearchMediaItemsRequest {
     page_token: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateAlbumRequest {
+    album: NewAlbum,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NewAlbum {
+    title: String,
+}
+
 #[derive(Debug)]
 pub enum ApiClientError {
     RequestError(String),
@@ -168,6 +180,36 @@ impl ApiClient {
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
 
         Ok((search_response.media_items.unwrap_or_default(), search_response.next_page_token))
+    }
+
+    /// Create a new album with the given title.
+    pub async fn create_album(&self, title: &str) -> Result<Album, ApiClientError> {
+        let url = "https://photoslibrary.googleapis.com/v1/albums";
+        let body = CreateAlbumRequest {
+            album: NewAlbum { title: title.to_string() },
+        };
+
+        let response = self.client.post(url)
+            .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
+            .header(CONTENT_TYPE, "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiClientError::GoogleApiError(error_text));
+        }
+
+        let album = response.json::<Album>().await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+        Ok(album)
+    }
+
+    /// Retrieve media items for a specific album using its ID.
+    pub async fn get_album_media_items(&self, album_id: &str, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
+        self.search_media_items(Some(album_id.to_string()), page_size, page_token).await
     }
 }
 

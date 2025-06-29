@@ -10,7 +10,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use cache::CacheManager;
-use api_client::MediaItem;
+use api_client::{MediaItem, Album, ApiClient};
+use auth;
 use image_loader::ImageLoader;
 use tokio::sync::mpsc;
 use sync::SyncProgress;
@@ -23,12 +24,15 @@ pub fn run(progress: Option<mpsc::UnboundedReceiver<SyncProgress>>) -> iced::Res
 pub enum Message {
     LoadPhotos,
     PhotosLoaded(Result<Vec<MediaItem>, String>),
+    LoadAlbums,
+    AlbumsLoaded(Result<Vec<Album>, String>),
     RefreshPhotos,
     ThumbnailLoaded(String, Result<Handle, String>),
     LoadThumbnail(String, String), // media_id, base_url
     LoadFullImage(String, String),
     FullImageLoaded(String, Result<Handle, String>),
     SelectPhoto(MediaItem),
+    SelectAlbum(Option<String>),
     ClosePhoto,
     SyncProgress(SyncProgress),
 }
@@ -41,6 +45,7 @@ enum ViewState {
 
 pub struct GooglePiczUI {
     photos: Vec<MediaItem>,
+    albums: Vec<Album>,
     loading: bool,
     cache_manager: Option<Arc<Mutex<CacheManager>>>,
     image_loader: Arc<Mutex<ImageLoader>>,
@@ -50,6 +55,7 @@ pub struct GooglePiczUI {
     synced: u64,
     syncing: bool,
     state: ViewState,
+    selected_album: Option<String>,
     errors: Vec<String>,
 }
 
@@ -82,6 +88,7 @@ impl Application for GooglePiczUI {
 
         let app = Self {
             photos: Vec::new(),
+            albums: Vec::new(),
             loading: false,
             cache_manager,
             image_loader,
@@ -91,10 +98,17 @@ impl Application for GooglePiczUI {
             synced: 0,
             syncing: false,
             state: ViewState::Grid,
+            selected_album: None,
             errors: Vec::new(),
         };
-        
-        (app, Command::perform(async {}, |_| Message::LoadPhotos))
+
+        (
+            app,
+            Command::batch(vec![
+                Command::perform(async {}, |_| Message::LoadPhotos),
+                Command::perform(async {}, |_| Message::LoadAlbums),
+            ]),
+        )
     }
 
     fn title(&self) -> String {
@@ -104,8 +118,17 @@ impl Application for GooglePiczUI {
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::LoadPhotos => {
-                if let Some(cache_manager) = &self.cache_manager {
-                    self.loading = true;
+                self.loading = true;
+                if let Some(album_id) = &self.selected_album {
+                    let album_id = album_id.clone();
+                    return Command::perform(async move {
+                        let token = auth::ensure_access_token_valid().await.map_err(|e| e.to_string())?;
+                        let client = ApiClient::new(token);
+                        client.get_album_media_items(&album_id, 100, None).await
+                            .map(|r| r.0)
+                            .map_err(|e| e.to_string())
+                    }, Message::PhotosLoaded);
+                } else if let Some(cache_manager) = &self.cache_manager {
                     let cache_manager = cache_manager.clone();
                     return Command::perform(
                         async move {
@@ -136,8 +159,26 @@ impl Application for GooglePiczUI {
                     }
                 }
             }
+            Message::LoadAlbums => {
+                return Command::perform(async {
+                    let token = auth::ensure_access_token_valid().await.map_err(|e| e.to_string())?;
+                    let client = ApiClient::new(token);
+                    client.list_albums(50, None).await
+                        .map(|r| r.0)
+                        .map_err(|e| e.to_string())
+                }, Message::AlbumsLoaded);
+            }
+            Message::AlbumsLoaded(result) => {
+                match result {
+                    Ok(albums) => { self.albums = albums; }
+                    Err(err) => { self.errors.push(format!("Failed to load albums: {}", err)); }
+                }
+            }
             Message::RefreshPhotos => {
-                return Command::perform(async {}, |_| Message::LoadPhotos);
+                return Command::batch(vec![
+                    Command::perform(async {}, |_| Message::LoadPhotos),
+                    Command::perform(async {}, |_| Message::LoadAlbums),
+                ]);
             }
             Message::LoadThumbnail(media_id, base_url) => {
                 let image_loader = self.image_loader.clone();
@@ -169,6 +210,10 @@ impl Application for GooglePiczUI {
                 let url = photo.base_url.clone();
                 self.state = ViewState::SelectedPhoto(photo);
                 return Command::perform(async {}, move |_| Message::LoadFullImage(id.clone(), url.clone()));
+            }
+            Message::SelectAlbum(album_id) => {
+                self.selected_album = album_id;
+                return Command::perform(async {}, |_| Message::LoadPhotos);
             }
             Message::LoadFullImage(media_id, base_url) => {
                 let loader = self.image_loader.clone();
@@ -258,6 +303,12 @@ impl Application for GooglePiczUI {
                         text("No photos found. Make sure you have authenticated and synced your photos.").size(16),
                     ]
                 } else {
+                    let mut album_row = row![button(text("All")).on_press(Message::SelectAlbum(None))].spacing(10);
+                    for album in &self.albums {
+                        let title = album.title.clone().unwrap_or_else(|| "Untitled".to_string());
+                        album_row = album_row.push(button(text(title)).on_press(Message::SelectAlbum(Some(album.id.clone()))));
+                    }
+
                     let mut rows = column![].spacing(10);
                     let mut current = row![].spacing(10);
                     let mut count = 0;
@@ -287,6 +338,7 @@ impl Application for GooglePiczUI {
                     }
                     column![
                         header,
+                        scrollable(album_row).height(Length::Shrink),
                         text(format!("Found {} photos", self.photos.len())).size(16),
                         scrollable(rows).height(Length::Fill),
                     ]
