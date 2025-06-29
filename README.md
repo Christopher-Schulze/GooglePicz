@@ -54,6 +54,17 @@ GooglePicz/
 
 See [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) for detailed technical documentation.
 
+## Packaging & Signing
+
+The `packager` binary produces installers for macOS and Windows. Signing on macOS
+requires the following environment variables:
+
+- `MAC_SIGN_ID` – identity passed to `codesign`.
+- `APPLE_ID` – Apple ID used for notarization.
+- `APPLE_PASSWORD` – app-specific password for notarization.
+
+Set these variables in your shell or CI environment before running `cargo run --package packaging --bin packager`.
+
 ## 📄 License
 
 MIT - See [LICENSE](LICENSE) for details.

@@ -1,4 +1,10 @@
 //! Packaging module for GooglePicz.
+//!
+//! The packager can sign and notarize macOS builds when the following
+//! environment variables are provided:
+//! - `MAC_SIGN_ID`: identity passed to `codesign`.
+//! - `APPLE_ID`: Apple ID used for notarization.
+//! - `APPLE_PASSWORD`: app-specific password for notarization.
 
 use std::error::Error;
 use std::fmt;
