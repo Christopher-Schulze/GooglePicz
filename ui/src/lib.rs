@@ -2,7 +2,9 @@
 
 mod image_loader;
 
-use iced::widget::{button, column, container, text, scrollable, row, image};
+use iced::widget::{
+    button, column, container, text, scrollable, row, image, Column
+};
 use iced::widget::image::Handle;
 use iced::{executor, Application, Command, Element, Length, Settings, Theme, Subscription};
 use iced::subscription;
@@ -36,6 +38,7 @@ pub enum Message {
     SelectAlbum(Option<String>),
     ClosePhoto,
     SyncProgress(SyncProgress),
+    DismissError(usize),
 }
 
 #[derive(Debug, Clone)]
@@ -261,6 +264,11 @@ impl Application for GooglePiczUI {
                     }
                 }
             }
+            Message::DismissError(index) => {
+                if index < self.errors.len() {
+                    self.errors.remove(index);
+                }
+            }
         }
         Command::none()
     }
@@ -301,9 +309,25 @@ impl Application for GooglePiczUI {
         .spacing(20)
         .align_items(iced::Alignment::Center);
 
-        let error_banner = self.errors.last().map(|msg| {
-            container(text(msg)).style(iced::theme::Container::Box).padding(10)
-        });
+        let mut error_column = Column::new().spacing(5);
+        for (i, msg) in self.errors.iter().enumerate() {
+            let row = row![
+                text(msg.clone()).size(16),
+                button("Dismiss").on_press(Message::DismissError(i))
+            ]
+            .spacing(10)
+            .align_items(iced::Alignment::Center);
+            error_column = error_column.push(
+                container(row)
+                    .style(iced::theme::Container::Box)
+                    .padding(10),
+            );
+        }
+        let error_banner = if self.errors.is_empty() {
+            None
+        } else {
+            Some(error_column)
+        };
 
         let content = match &self.state {
             ViewState::Grid => {
