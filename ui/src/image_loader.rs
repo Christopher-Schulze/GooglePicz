@@ -1,6 +1,5 @@
 //! Image loading and caching functionality for GooglePicz UI.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::fs;
 use reqwest;
@@ -11,7 +10,6 @@ use api_client;
 pub struct ImageLoader {
     cache_dir: PathBuf,
     client: reqwest::Client,
-    loaded_images: HashMap<String, Handle>,
 }
 
 impl ImageLoader {
@@ -20,7 +18,6 @@ impl ImageLoader {
         Self {
             cache_dir,
             client,
-            loaded_images: HashMap::new(),
         }
     }
 
@@ -75,10 +72,12 @@ impl ImageLoader {
         Ok(Handle::from_path(&cache_path))
     }
 
-    pub fn get_cached_thumbnail(&self, media_id: &str) -> Option<Handle> {
+    #[allow(dead_code)]
+    pub fn get_cached_thumbnail(&self, _media_id: &str) -> Option<Handle> {
         None // Since we are not caching in memory anymore
     }
 
+    #[allow(dead_code)]
     pub async fn preload_thumbnails(&self, media_items: &[api_client::MediaItem], count: usize) {
         for item in media_items.iter().take(count) {
             if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {
