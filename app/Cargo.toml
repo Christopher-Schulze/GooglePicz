@@ -10,7 +10,9 @@ dirs = { workspace = true }
 auth = { workspace = true }
 sync = { workspace = true }
 ui = { workspace = true }
-config = "0.13"
+config = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+toml = "0.7"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 

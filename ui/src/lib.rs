@@ -2,18 +2,67 @@
 
 mod image_loader;
 
-use iced::widget::{button, column, container, text, scrollable, row, image};
+use iced::widget::{button, column, container, text, scrollable, row, image, text_input};
 use iced::widget::image::Handle;
 use iced::{executor, Application, Command, Element, Length, Settings, Theme, Subscription};
 use iced::subscription;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::fs;
 use tokio::sync::Mutex;
 use cache::CacheManager;
 use api_client::MediaItem;
 use image_loader::ImageLoader;
 use tokio::sync::mpsc;
 use sync::SyncProgress;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AppConfig {
+    client_id: String,
+    client_secret: String,
+    sync_interval_minutes: u64,
+    cache_dir: PathBuf,
+    log_level: String,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            client_id: String::new(),
+            client_secret: String::new(),
+            sync_interval_minutes: 5,
+            cache_dir: dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")).join(".googlepicz"),
+            log_level: "info".into(),
+        }
+    }
+}
+
+impl AppConfig {
+    fn load() -> Self {
+        let path = dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".googlepicz")
+            .join("config.toml");
+        if let Ok(contents) = fs::read_to_string(&path) {
+            if let Ok(cfg) = toml::from_str::<AppConfig>(&contents) {
+                return cfg;
+            }
+        }
+        Self::default()
+    }
+
+    fn save(&self) -> std::io::Result<()> {
+        if let Some(home) = dirs::home_dir() {
+            let dir = home.join(".googlepicz");
+            fs::create_dir_all(&dir)?;
+            let file = dir.join("config.toml");
+            let data = toml::to_string_pretty(self).unwrap();
+            fs::write(file, data)?;
+        }
+        Ok(())
+    }
+}
 
 pub fn run(progress: Option<mpsc::UnboundedReceiver<SyncProgress>>) -> iced::Result {
     GooglePiczUI::run(Settings::with_flags(progress))
@@ -30,6 +79,11 @@ pub enum Message {
     FullImageLoaded(String, Result<Handle, String>),
     SelectPhoto(MediaItem),
     ClosePhoto,
+    OpenSettings,
+    SaveSettings,
+    CancelSettings,
+    CacheDirChanged(String),
+    IntervalChanged(String),
     SyncProgress(SyncProgress),
 }
 
@@ -37,6 +91,7 @@ pub enum Message {
 enum ViewState {
     Grid,
     SelectedPhoto(MediaItem),
+    Settings,
 }
 
 pub struct GooglePiczUI {
@@ -51,6 +106,9 @@ pub struct GooglePiczUI {
     syncing: bool,
     state: ViewState,
     errors: Vec<String>,
+    config: AppConfig,
+    edit_cache: String,
+    edit_interval: String,
 }
 
 impl Application for GooglePiczUI {
@@ -60,10 +118,9 @@ impl Application for GooglePiczUI {
     type Flags = Option<mpsc::UnboundedReceiver<SyncProgress>>;
 
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
-        let cache_path = dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".googlepicz")
-            .join("cache.sqlite");
+        let cfg = AppConfig::load();
+
+        let cache_path = cfg.cache_dir.join("cache.sqlite");
 
         let cache_manager = if let Ok(cm) = CacheManager::new(&cache_path) {
             Some(Arc::new(Mutex::new(cm)))
@@ -71,10 +128,7 @@ impl Application for GooglePiczUI {
             None
         };
 
-        let thumbnail_cache_path = dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".googlepicz")
-            .join("thumbnails");
+        let thumbnail_cache_path = cfg.cache_dir.join("thumbnails");
 
         let image_loader = Arc::new(Mutex::new(ImageLoader::new(thumbnail_cache_path)));
 
@@ -92,6 +146,9 @@ impl Application for GooglePiczUI {
             syncing: false,
             state: ViewState::Grid,
             errors: Vec::new(),
+            config: cfg.clone(),
+            edit_cache: cfg.cache_dir.to_string_lossy().into(),
+            edit_interval: cfg.sync_interval_minutes.to_string(),
         };
         
         (app, Command::perform(async {}, |_| Message::LoadPhotos))
@@ -195,6 +252,30 @@ impl Application for GooglePiczUI {
             Message::ClosePhoto => {
                 self.state = ViewState::Grid;
             }
+            Message::OpenSettings => {
+                self.edit_cache = self.config.cache_dir.to_string_lossy().into();
+                self.edit_interval = self.config.sync_interval_minutes.to_string();
+                self.state = ViewState::Settings;
+            }
+            Message::CancelSettings => {
+                self.state = ViewState::Grid;
+            }
+            Message::CacheDirChanged(val) => {
+                self.edit_cache = val;
+            }
+            Message::IntervalChanged(val) => {
+                self.edit_interval = val;
+            }
+            Message::SaveSettings => {
+                if let Ok(v) = self.edit_interval.parse::<u64>() {
+                    self.config.sync_interval_minutes = v;
+                }
+                self.config.cache_dir = PathBuf::from(self.edit_cache.clone());
+                if let Err(e) = self.config.save() {
+                    self.errors.push(format!("Failed to save settings: {}", e));
+                }
+                self.state = ViewState::Grid;
+            }
             Message::SyncProgress(progress) => {
                 match progress {
                     SyncProgress::ItemSynced(count) => {
@@ -232,6 +313,7 @@ impl Application for GooglePiczUI {
         let header = row![
             text("GooglePicz").size(24),
             button("Refresh").on_press(Message::RefreshPhotos),
+            button("Settings").on_press(Message::OpenSettings),
             text(if self.syncing {
                 format!("Syncing {} items...", self.synced)
             } else {
@@ -302,6 +384,23 @@ impl Application for GooglePiczUI {
                     header,
                     button("Close").on_press(Message::ClosePhoto),
                     img
+                ]
+            }
+            ViewState::Settings => {
+                column![
+                    header,
+                    row![
+                        text("Sync interval (minutes):"),
+                        text_input("", &self.edit_interval).on_input(Message::IntervalChanged)
+                    ],
+                    row![
+                        text("Cache directory:"),
+                        text_input("", &self.edit_cache).on_input(Message::CacheDirChanged)
+                    ],
+                    row![
+                        button("Save").on_press(Message::SaveSettings),
+                        button("Cancel").on_press(Message::CancelSettings)
+                    ]
                 ]
             }
         };

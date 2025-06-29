@@ -18,35 +18,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_env_filter(EnvFilter::new(cfg.log_level.clone()))
         .init();
 
+    // make credentials available for auth crate
+    if !cfg.client_id.is_empty() {
+        std::env::set_var("GOOGLE_CLIENT_ID", &cfg.client_id);
+    }
+    if !cfg.client_secret.is_empty() {
+        std::env::set_var("GOOGLE_CLIENT_SECRET", &cfg.client_secret);
+    }
+
     let local = LocalSet::new();
-    local.run_until(main_inner()).await
+    local.run_until(main_inner(cfg)).await
 }
 
-async fn main_inner() -> Result<(), Box<dyn std::error::Error>> {
+async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Error>> {
     info!("🚀 Starting GooglePicz - Google Photos Manager");
     
-    // Ensure environment variables are set for client ID and secret
-    if std::env::var("GOOGLE_CLIENT_ID").is_err() || std::env::var("GOOGLE_CLIENT_SECRET").is_err() {
-        error!("❌ Error: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables must be set.");
-        error!("📝 Please visit https://console.developers.google.com/ to create OAuth 2.0 credentials.");
-        error!("💡 Set them using:");
-        error!("   export GOOGLE_CLIENT_ID=your_client_id");
-        error!("   export GOOGLE_CLIENT_SECRET=your_client_secret");
+    // Ensure credentials are present
+    if cfg.client_id.is_empty() || cfg.client_secret.is_empty() {
+        error!("❌ Error: client_id and client_secret must be configured in ~/.googlepicz/config.toml");
         return Ok(());
     }
 
     // Setup cache directory
-    let cache_dir = dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".googlepicz");
-    
+    let cache_dir = cfg.cache_dir.clone();
     let db_path = cache_dir.join("cache.sqlite");
     
     // Ensure the directory exists
-    if let Some(parent) = db_path.parent() {
-        fs::create_dir_all(parent).await?;
-        info!("📁 Cache directory: {:?}", parent);
-    }
+    fs::create_dir_all(&cache_dir).await?;
+    info!("📁 Cache directory: {:?}", cache_dir);
 
     // Check if we have a valid token
     let needs_auth = match get_access_token() {
@@ -83,11 +82,7 @@ async fn main_inner() -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
 
-            let interval_minutes: u64 = std::env::var("GOOGLEPICZ_SYNC_INTERVAL_MINUTES")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(5);
-            let interval = Duration::from_secs(interval_minutes * 60);
+            let interval = Duration::from_secs(cfg.sync_interval_minutes * 60);
 
             info!("📥 Starting synchronization...");
             if let Err(e) = syncer.sync_media_items(Some(tx.clone())).await {

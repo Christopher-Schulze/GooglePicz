@@ -21,6 +21,8 @@ google-photos1 = "0.1"
 rusqlite = "0.34"
 rusqlite_migration = "2"
 dirs = "5.0"
+config = "0.13"
+serde = { version = "1.0", features = ["derive"] }
 
 auth = { path = "auth" }
 sync = { path = "sync" }
