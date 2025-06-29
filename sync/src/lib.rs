@@ -59,7 +59,7 @@ impl Syncer {
         &mut self,
         progress: Option<mpsc::UnboundedSender<SyncProgress>>,
     ) -> Result<(), SyncError> {
-        println!("Starting media item synchronization...");
+        tracing::info!("Starting media item synchronization...");
         let mut page_token: Option<String> = None;
         let mut total_synced = 0;
 
@@ -84,7 +84,7 @@ impl Syncer {
                 }
             }
 
-            println!("Synced {} media items so far.", total_synced);
+            tracing::info!("Synced {} media items so far.", total_synced);
 
             if next_page_token.is_none() {
                 break;
@@ -95,7 +95,7 @@ impl Syncer {
             sleep(Duration::from_millis(500)).await;
         }
 
-        println!("Synchronization complete. Total media items synced: {}.", total_synced);
+        tracing::info!("Synchronization complete. Total media items synced: {}.", total_synced);
         if let Some(tx) = progress {
             let _ = tx.send(SyncProgress::Finished(total_synced));
         }
@@ -108,10 +108,10 @@ impl Syncer {
         tx: mpsc::UnboundedSender<SyncProgress>,
     ) -> JoinHandle<()> {
         spawn_local(async move {
-            let syncer = self;
+            let mut syncer = self;
             loop {
                 if let Err(e) = syncer.sync_media_items(Some(tx.clone())).await {
-                    eprintln!("Periodic sync failed: {}", e);
+                    tracing::error!("Periodic sync failed: {}", e);
                 }
                 sleep(interval).await;
             }
@@ -135,7 +135,7 @@ mod tests {
 
         // Attempt to authenticate if no token is found
         if get_access_token().is_err() {
-            eprintln!("No access token found. Attempting to authenticate...");
+            tracing::error!("No access token found. Attempting to authenticate...");
             authenticate().await.expect("Failed to authenticate for sync test");
         }
 
@@ -147,7 +147,7 @@ mod tests {
         assert!(result.is_ok(), "Synchronization failed: {:?}", result.err());
 
         let all_cached_items = syncer.cache_manager.get_all_media_items().expect("Failed to get all cached items");
-        println!("Total items in cache after sync: {}", all_cached_items.len());
+        tracing::info!("Total items in cache after sync: {}", all_cached_items.len());
         assert!(!all_cached_items.is_empty());
     }
 }
