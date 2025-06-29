@@ -1,0 +1,22 @@
+[package]
+name = "googlepicz"
+version.workspace = true
+edition.workspace = true
+description = "Google Photos Desktop Client"
+
+[dependencies]
+tokio = { workspace = true }
+dirs = { workspace = true }
+auth = { workspace = true }
+sync = { workspace = true }
+ui = { workspace = true }
+
+[build-dependencies]
+cargo-bundle-licenses = "0.4"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

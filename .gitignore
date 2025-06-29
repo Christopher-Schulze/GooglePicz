@@ -1,0 +1,48 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Debug files
+*.pdb
+*.ilk
+*.dll
+*.so
+*.dylib
+*.lib
+*.exp
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment variables
+.env
+
+# Local development files
+*.local
+
+# Build output
+build/
+dist/
+*.app
+*.msi
+*.exe
+
+# Cargo lock file
+Cargo.lock
+
+# Temporary files
+*.tmp
+*.bak
+*~

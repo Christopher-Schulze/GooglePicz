@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "app",
+    "auth",
+    "api_client",
+    "ui",
+    "cache",
+    "sync",
+    "packaging",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+oauth2 = "4.4"
+google-photos1 = "0.1"
+rusqlite = "0.29"
+dirs = "5.0"
+
+auth = { path = "auth" }
+sync = { path = "sync" }
+ui = { path = "ui" }
+cache = { path = "cache" }
+api_client = { path = "api_client" }
+packaging = { path = "packaging" }

@@ -1,0 +1,69 @@
+//! Image loading and caching functionality for GooglePicz UI.
+
+use std::collections::HashMap;
+use std::path::PathBuf;
+use tokio::fs;
+use reqwest;
+use iced::widget::image::{Handle, self};
+use api_client;
+
+#[derive(Debug, Clone)]
+pub struct ImageLoader {
+    cache_dir: PathBuf,
+    client: reqwest::Client,
+    loaded_images: HashMap<String, Handle>,
+}
+
+impl ImageLoader {
+    pub fn new(cache_dir: PathBuf) -> Self {
+        let client = reqwest::Client::new();
+        Self {
+            cache_dir,
+            client,
+            loaded_images: HashMap::new(),
+        }
+    }
+
+    pub async fn load_thumbnail(&self, media_id: &str, base_url: &str) -> Result<Handle, Box<dyn std::error::Error>> {
+
+        // Create thumbnail URL (150x150 pixels)
+        let thumbnail_url = format!("{}=w150-h150-c", base_url);
+        
+        // Check if cached on disk
+        let cache_path = self.cache_dir.join("thumbnails").join(format!("{}.jpg", media_id));
+        
+        if cache_path.exists() {
+            let handle = Handle::from_path(&cache_path);
+            return Ok(handle);
+        }
+
+        // Download thumbnail
+        let response = self.client.get(&thumbnail_url).send().await?;
+        let bytes = response.bytes().await?;
+
+        // Ensure cache directory exists
+        if let Some(parent) = cache_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+
+        // Save to cache
+        fs::write(&cache_path, &bytes).await?;
+
+        // Create handle
+        let handle = Handle::from_path(&cache_path);
+        
+        Ok(handle)
+    }
+
+    pub fn get_cached_thumbnail(&self, media_id: &str) -> Option<Handle> {
+        None // Since we are not caching in memory anymore
+    }
+
+    pub async fn preload_thumbnails(&self, media_items: &[api_client::MediaItem]) {
+        for item in media_items.iter().take(20) { // Preload first 20 thumbnails
+            if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {
+                eprintln!("Failed to preload thumbnail for {}: {}", &item.id, e);
+            }
+        }
+    }
+}

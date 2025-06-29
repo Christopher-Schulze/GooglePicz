@@ -1,0 +1,116 @@
+//! Synchronization module for Google Photos data.
+
+use api_client::{ApiClient, ApiClientError};
+use auth::{get_access_token, refresh_access_token};
+use cache::{CacheManager, CacheError};
+use std::path::Path;
+use std::error::Error;
+use std::fmt;
+use tokio::time::{sleep, Duration};
+
+#[derive(Debug)]
+pub enum SyncError {
+    AuthenticationError(String),
+    ApiClientError(String),
+    CacheError(String),
+    Other(String),
+}
+
+impl fmt::Display for SyncError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SyncError::AuthenticationError(msg) => write!(f, "Authentication Error: {}", msg),
+            SyncError::ApiClientError(msg) => write!(f, "API Client Error: {}", msg),
+            SyncError::CacheError(msg) => write!(f, "Cache Error: {}", msg),
+            SyncError::Other(msg) => write!(f, "Other Error: {}", msg),
+        }
+    }
+}
+
+impl Error for SyncError {}
+
+pub struct Syncer {
+    api_client: ApiClient,
+    cache_manager: CacheManager,
+}
+
+impl Syncer {
+    pub async fn new(db_path: &Path) -> Result<Self, SyncError> {
+        let access_token = get_access_token()
+            .map_err(|e| SyncError::AuthenticationError(format!("Failed to get access token: {}", e)))?;
+
+        let api_client = ApiClient::new(access_token);
+
+        let cache_manager = CacheManager::new(db_path)
+            .map_err(|e| SyncError::CacheError(format!("Failed to create cache manager: {}", e)))?;
+
+        Ok(Syncer { api_client, cache_manager })
+    }
+
+    pub async fn sync_media_items(&self) -> Result<(), SyncError> {
+        println!("Starting media item synchronization...");
+        let mut page_token: Option<String> = None;
+        let mut total_synced = 0;
+
+        loop {
+            let (media_items, next_page_token) = self.api_client.list_media_items(100, page_token.clone()).await
+                .map_err(|e| SyncError::ApiClientError(format!("Failed to list media items from API: {}", e)))?;
+
+            if media_items.is_empty() {
+                break;
+            }
+
+            for item in media_items {
+                self.cache_manager.insert_media_item(&item)
+                    .map_err(|e| SyncError::CacheError(format!("Failed to insert media item into cache: {}", e)))?;
+                total_synced += 1;
+            }
+
+            println!("Synced {} media items so far.", total_synced);
+
+            if next_page_token.is_none() {
+                break;
+            }
+            page_token = next_page_token;
+
+            // Be a good API citizen: wait a bit between pages
+            sleep(Duration::from_millis(500)).await;
+        }
+
+        println!("Synchronization complete. Total media items synced: {}.", total_synced);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use auth::{authenticate, get_access_token};
+    use tempfile::NamedTempFile;
+
+    #[tokio::test]
+    #[ignore] // Requires manual authentication and environment variables
+    async fn test_sync_media_items() {
+        // Ensure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in your environment
+        // and you have authenticated at least once.
+        // For testing, you might need to call `authenticate().await` or ensure a valid token exists.
+        // For a real application, you'd have a proper token management system.
+
+        // Attempt to authenticate if no token is found
+        if get_access_token().is_err() {
+            eprintln!("No access token found. Attempting to authenticate...");
+            authenticate().await.expect("Failed to authenticate for sync test");
+        }
+
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let db_path = temp_file.path();
+
+        let syncer = Syncer::new(db_path).await.expect("Failed to create syncer");
+        let result = syncer.sync_media_items().await;
+        assert!(result.is_ok(), "Synchronization failed: {:?}", result.err());
+
+        let all_cached_items = syncer.cache_manager.get_all_media_items().expect("Failed to get all cached items");
+        println!("Total items in cache after sync: {}", all_cached_items.len());
+        assert!(!all_cached_items.is_empty());
+    }
+}

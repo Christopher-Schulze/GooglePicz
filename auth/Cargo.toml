@@ -1,0 +1,11 @@
+[package]
+name = "auth"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+oauth2 = "4.4"
+keyring = "2.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+url = "2.2"
+webbrowser = "0.8"
