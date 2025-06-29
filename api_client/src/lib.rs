@@ -219,7 +219,7 @@ impl ApiClient {
 
     /// Retrieve media items for a specific album using its ID.
     pub async fn get_album_media_items(&self, album_id: &str, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
-        self.search_media_items(Some(album_id.to_string()), page_size, page_token).await
+        self.search_media_items(Some(album_id.to_string()), page_size, page_token, None).await
     }
 }
 
