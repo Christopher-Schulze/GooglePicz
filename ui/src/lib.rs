@@ -8,7 +8,7 @@ use iced::{executor, Application, Command, Element, Length, Settings, Theme};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use cache::{CacheManager, CacheError};
+use cache::CacheManager;
 use api_client::MediaItem;
 use image_loader::ImageLoader;
 

@@ -1,8 +1,8 @@
 //! Synchronization module for Google Photos data.
 
-use api_client::{ApiClient, ApiClientError};
-use auth::{get_access_token, refresh_access_token};
-use cache::{CacheManager, CacheError};
+use api_client::ApiClient;
+use auth::get_access_token;
+use cache::CacheManager;
 use std::path::Path;
 use std::error::Error;
 use std::fmt;

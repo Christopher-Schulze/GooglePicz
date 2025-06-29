@@ -1,6 +1,6 @@
 //! Cache module for Google Photos data.
 
-use rusqlite::{Connection, Result as SqlResult, params};
+use rusqlite::{Connection, params};
 use std::path::Path;
 use std::error::Error;
 use std::fmt;
@@ -111,7 +111,7 @@ impl CacheManager {
         let media_item_iter = stmt.query_map([], |row| {
             let data: Vec<u8> = row.get(0)?;
             let item: api_client::MediaItem = serde_json::from_slice(&data)
-                .map_err(|e| rusqlite::Error::ExecuteReturnedResults)?; // A bit of a hack, but it works for now
+                .map_err(|_| rusqlite::Error::ExecuteReturnedResults)?; // A bit of a hack, but it works for now
             Ok(item)
         }).map_err(|e| CacheError::DatabaseError(format!("Failed to query all media items: {}", e)))?;
 
