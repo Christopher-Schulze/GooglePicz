@@ -148,10 +148,15 @@ mod tests {
     use super::*;
     use auth::{authenticate, get_access_token};
     use tempfile::NamedTempFile;
+    use serial_test::serial;
 
     #[tokio::test]
-    #[ignore] // Requires manual authentication and environment variables
+    #[serial]
     async fn test_sync_media_items() {
+        std::env::set_var("MOCK_KEYRING", "1");
+        std::env::set_var("MOCK_ACCESS_TOKEN", "token");
+        std::env::set_var("MOCK_REFRESH_TOKEN", "refresh");
+        std::env::set_var("MOCK_API_CLIENT", "1");
         // Ensure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in your environment
         // and you have authenticated at least once.
         // For testing, you might need to call `authenticate().await` or ensure a valid token exists.
@@ -159,7 +164,6 @@ mod tests {
 
         // Attempt to authenticate if no token is found
         if get_access_token().is_err() {
-            tracing::error!("No access token found. Attempting to authenticate...");
             authenticate(8080).await.expect("Failed to authenticate for sync test");
         }
 
@@ -173,5 +177,9 @@ mod tests {
         let all_cached_items = syncer.cache_manager.get_all_media_items().expect("Failed to get all cached items");
         tracing::info!("Total items in cache after sync: {}", all_cached_items.len());
         assert!(!all_cached_items.is_empty());
+        std::env::remove_var("MOCK_KEYRING");
+        std::env::remove_var("MOCK_ACCESS_TOKEN");
+        std::env::remove_var("MOCK_REFRESH_TOKEN");
+        std::env::remove_var("MOCK_API_CLIENT");
     }
 }

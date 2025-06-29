@@ -8,11 +8,52 @@ use std::time::{SystemTime, Duration, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use url::Url;
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
+use std::sync::Mutex;
 
 const KEYRING_SERVICE_NAME: &str = "GooglePicz";
 const ACCESS_TOKEN_EXPIRY_KEY: &str = "access_token_expiry";
 
+static MOCK_STORE: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+fn store_value(key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::var("MOCK_KEYRING").is_ok() {
+        MOCK_STORE.lock().unwrap().insert(key.to_string(), value.to_string());
+        Ok(())
+    } else {
+        let entry = Entry::new(KEYRING_SERVICE_NAME, key)?;
+        entry.set_password(value)?;
+        Ok(())
+    }
+}
+
+fn get_value(key: &str) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    if std::env::var("MOCK_KEYRING").is_ok() {
+        Ok(MOCK_STORE.lock().unwrap().get(key).cloned())
+    } else {
+        let entry = Entry::new(KEYRING_SERVICE_NAME, key)?;
+        match entry.get_password() {
+            Ok(v) => Ok(Some(v)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(Box::new(e)),
+        }
+    }
+}
+
 pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::Error>> {
+    if let Ok(mock_token) = std::env::var("MOCK_ACCESS_TOKEN") {
+        store_value("access_token", &mock_token)?;
+        if let Ok(refresh) = std::env::var("MOCK_REFRESH_TOKEN") {
+            store_value("refresh_token", &refresh)?;
+        }
+        let expiry = SystemTime::now() + Duration::from_secs(3600);
+        store_value(
+            ACCESS_TOKEN_EXPIRY_KEY,
+            &expiry.duration_since(UNIX_EPOCH)?.as_secs().to_string(),
+        )?;
+        return Ok(());
+    }
     let client_id = ClientId::new(std::env::var("GOOGLE_CLIENT_ID")?);
     let client_secret = ClientSecret::new(std::env::var("GOOGLE_CLIENT_SECRET")?);
     let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())?;
@@ -73,14 +114,11 @@ pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::
     let expiry_secs = expiry.duration_since(UNIX_EPOCH)?.as_secs();
 
     // Store tokens securely
-    let entry = Entry::new(KEYRING_SERVICE_NAME, "access_token")?;
-    entry.set_password(access_token)?;
-    let exp_entry = Entry::new(KEYRING_SERVICE_NAME, ACCESS_TOKEN_EXPIRY_KEY)?;
-    exp_entry.set_password(&expiry_secs.to_string())?;
+    store_value("access_token", access_token)?;
+    store_value(ACCESS_TOKEN_EXPIRY_KEY, &expiry_secs.to_string())?;
 
     if let Some(refresh_token) = refresh_token {
-        let entry = Entry::new(KEYRING_SERVICE_NAME, "refresh_token")?;
-        entry.set_password(&refresh_token)?;
+        store_value("refresh_token", &refresh_token)?;
     }
 
     tracing::info!("Authentication successful!");
@@ -88,26 +126,19 @@ pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::
 }
 
 pub fn get_access_token() -> Result<String, Box<dyn std::error::Error>> {
-    let entry = Entry::new(KEYRING_SERVICE_NAME, "access_token")?;
-    Ok(entry.get_password()?)
+    if let Some(val) = get_value("access_token")? {
+        Ok(val)
+    } else {
+        Err("No access token".into())
+    }
 }
 
 pub fn get_refresh_token() -> Result<Option<String>, Box<dyn std::error::Error>> {
-    let entry = Entry::new(KEYRING_SERVICE_NAME, "refresh_token")?;
-    match entry.get_password() {
-        Ok(token) => Ok(Some(token)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(Box::new(e)),
-    }
+    Ok(get_value("refresh_token")?)
 }
 
 fn get_access_token_expiry() -> Result<Option<u64>, Box<dyn std::error::Error>> {
-    let entry = Entry::new(KEYRING_SERVICE_NAME, ACCESS_TOKEN_EXPIRY_KEY)?;
-    match entry.get_password() {
-        Ok(val) => Ok(Some(val.parse().unwrap_or(0))),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(Box::new(e)),
-    }
+    Ok(get_value(ACCESS_TOKEN_EXPIRY_KEY)?.map(|v| v.parse().unwrap_or(0)))
 }
 
 pub async fn refresh_access_token() -> Result<String, Box<dyn std::error::Error>> {
@@ -115,10 +146,8 @@ pub async fn refresh_access_token() -> Result<String, Box<dyn std::error::Error>
         let new_token = mock_token;
         let expiry = SystemTime::now() + Duration::from_secs(3600);
         let expiry_secs = expiry.duration_since(UNIX_EPOCH)?.as_secs();
-        let entry = Entry::new(KEYRING_SERVICE_NAME, "access_token")?;
-        entry.set_password(&new_token)?;
-        let exp_entry = Entry::new(KEYRING_SERVICE_NAME, ACCESS_TOKEN_EXPIRY_KEY)?;
-        exp_entry.set_password(&expiry_secs.to_string())?;
+        store_value("access_token", &new_token)?;
+        store_value(ACCESS_TOKEN_EXPIRY_KEY, &expiry_secs.to_string())?;
         return Ok(new_token);
     }
     let client_id = ClientId::new(std::env::var("GOOGLE_CLIENT_ID")?);
@@ -143,10 +172,8 @@ pub async fn refresh_access_token() -> Result<String, Box<dyn std::error::Error>
     let expires_in = token_response.expires_in().unwrap_or_else(|| Duration::from_secs(3600));
     let expiry = SystemTime::now() + expires_in;
     let expiry_secs = expiry.duration_since(UNIX_EPOCH)?.as_secs();
-    let entry = Entry::new(KEYRING_SERVICE_NAME, "access_token")?;
-    entry.set_password(access_token)?;
-    let exp_entry = Entry::new(KEYRING_SERVICE_NAME, ACCESS_TOKEN_EXPIRY_KEY)?;
-    exp_entry.set_password(&expiry_secs.to_string())?;
+    store_value("access_token", access_token)?;
+    store_value(ACCESS_TOKEN_EXPIRY_KEY, &expiry_secs.to_string())?;
 
     Ok(access_token.to_string())
 }
@@ -167,68 +194,79 @@ pub async fn ensure_access_token_valid() -> Result<String, Box<dyn std::error::E
 mod tests {
     use super::*;
     use tokio;
+    use serial_test::serial;
 
     // Note: These tests require GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to be set
     // and may require manual interaction for the initial authentication flow.
     // They are primarily for demonstrating the functionality.
 
     #[tokio::test]
-    #[ignore] // Requires manual interaction and environment variables
+    #[serial]
     async fn test_authenticate() {
-        // Set dummy env vars for testing, replace with actual ones for real run
-        std::env::set_var("GOOGLE_CLIENT_ID", "YOUR_CLIENT_ID");
-        std::env::set_var("GOOGLE_CLIENT_SECRET", "YOUR_CLIENT_SECRET");
+        std::env::set_var("MOCK_KEYRING", "1");
+        std::env::set_var("MOCK_ACCESS_TOKEN", "token1");
+        std::env::set_var("MOCK_REFRESH_TOKEN", "refresh1");
 
         let result = authenticate(8080).await;
         assert!(result.is_ok(), "Authentication failed: {:?}", result.err());
         let token = get_access_token();
         assert!(token.is_ok());
         tracing::info!("Access Token: {}", token.unwrap());
+        std::env::remove_var("MOCK_KEYRING");
+        std::env::remove_var("MOCK_ACCESS_TOKEN");
+        std::env::remove_var("MOCK_REFRESH_TOKEN");
     }
 
     #[tokio::test]
-    #[ignore] // Requires a valid refresh token to be present in keyring
+    #[serial]
     async fn test_refresh_access_token() {
-        // Set dummy env vars for testing, replace with actual ones for real run
-        std::env::set_var("GOOGLE_CLIENT_ID", "YOUR_CLIENT_ID");
-        std::env::set_var("GOOGLE_CLIENT_SECRET", "YOUR_CLIENT_SECRET");
+        std::env::set_var("MOCK_KEYRING", "1");
+        std::env::set_var("MOCK_REFRESH_TOKEN", "new_token");
 
         let result = refresh_access_token().await;
         assert!(result.is_ok(), "Refresh token failed: {:?}", result.err());
         let new_token = result.unwrap();
         tracing::info!("New Access Token: {}", new_token);
         assert!(!new_token.is_empty());
+        std::env::remove_var("MOCK_KEYRING");
+        std::env::remove_var("MOCK_REFRESH_TOKEN");
     }
 
     #[tokio::test]
-    #[ignore]
+    #[serial]
     async fn test_ensure_access_token_valid_no_refresh_needed() {
+        std::env::set_var("MOCK_KEYRING", "1");
         std::env::set_var("MOCK_REFRESH_TOKEN", "unused");
-        let entry = Entry::new(KEYRING_SERVICE_NAME, "access_token").unwrap();
-        entry.set_password("valid_token").unwrap();
+        store_value("access_token", "valid_token").unwrap();
         let expiry = SystemTime::now() + Duration::from_secs(3600);
-        let exp_entry = Entry::new(KEYRING_SERVICE_NAME, ACCESS_TOKEN_EXPIRY_KEY).unwrap();
-        exp_entry.set_password(&expiry.duration_since(UNIX_EPOCH).unwrap().as_secs().to_string()).unwrap();
+        store_value(
+            ACCESS_TOKEN_EXPIRY_KEY,
+            &expiry.duration_since(UNIX_EPOCH).unwrap().as_secs().to_string(),
+        ).unwrap();
 
         let token = ensure_access_token_valid().await.unwrap();
         assert_eq!(token, "valid_token");
         std::env::remove_var("MOCK_REFRESH_TOKEN");
+        std::env::remove_var("MOCK_KEYRING");
     }
 
     #[tokio::test]
-    #[ignore]
+    #[serial]
     async fn test_ensure_access_token_valid_with_refresh() {
+        std::env::set_var("MOCK_KEYRING", "1");
         std::env::set_var("MOCK_REFRESH_TOKEN", "new_token");
-        let entry = Entry::new(KEYRING_SERVICE_NAME, "access_token").unwrap();
-        entry.set_password("old_token").unwrap();
+        store_value("access_token", "old_token").unwrap();
         let expiry = SystemTime::now() - Duration::from_secs(10);
-        let exp_entry = Entry::new(KEYRING_SERVICE_NAME, ACCESS_TOKEN_EXPIRY_KEY).unwrap();
-        exp_entry.set_password(&expiry.duration_since(UNIX_EPOCH).unwrap().as_secs().to_string()).unwrap();
+        store_value(
+            ACCESS_TOKEN_EXPIRY_KEY,
+            &expiry.duration_since(UNIX_EPOCH).unwrap().as_secs().to_string(),
+        ).unwrap();
 
         let token = ensure_access_token_valid().await.unwrap();
         assert_eq!(token, "new_token");
-        let stored = Entry::new(KEYRING_SERVICE_NAME, "access_token").unwrap().get_password().unwrap();
+        let stored = get_access_token().unwrap();
         assert_eq!(stored, "new_token");
         std::env::remove_var("MOCK_REFRESH_TOKEN");
+        std::env::remove_var("MOCK_KEYRING");
     }
 }
