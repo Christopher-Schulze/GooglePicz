@@ -9,3 +9,7 @@ keyring = "2.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 url = "2.2"
 webbrowser = "0.8"
+
+[dev-dependencies]
+mocks = { path = "../mocks" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

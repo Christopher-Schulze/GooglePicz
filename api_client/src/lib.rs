@@ -63,18 +63,24 @@ impl Error for ApiClientError {}
 pub struct ApiClient {
     client: reqwest::Client,
     access_token: String,
+    base_url: String,
 }
 
 impl ApiClient {
     pub fn new(access_token: String) -> Self {
+        Self::new_with_base_url(access_token, "https://photoslibrary.googleapis.com/v1")
+    }
+
+    pub fn new_with_base_url(access_token: String, base_url: impl Into<String>) -> Self {
         ApiClient {
             client: reqwest::Client::new(),
             access_token,
+            base_url: base_url.into(),
         }
     }
 
     pub async fn list_media_items(&self, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
-        let mut url = format!("https://photoslibrary.googleapis.com/v1/mediaItems?pageSize={}", page_size);
+        let mut url = format!("{}/mediaItems?pageSize={}", self.base_url, page_size);
         if let Some(token) = page_token {
             url.push_str(&format!("&pageToken={}", token));
         }
@@ -97,7 +103,7 @@ impl ApiClient {
     }
 
     pub async fn search_media_items(&self, album_id: Option<String>, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
-        let url = "https://photoslibrary.googleapis.com/v1/mediaItems:search";
+        let url = format!("{}/mediaItems:search", self.base_url);
         
         let request_body = SearchMediaItemsRequest {
             album_id,
@@ -122,5 +128,35 @@ impl ApiClient {
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
 
         Ok((search_response.media_items.unwrap_or_default(), search_response.next_page_token))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mocks::{photos_server, expect_list, expect_search};
+
+    #[tokio::test]
+    async fn test_list_media_items() {
+        let server = photos_server();
+        expect_list(&server);
+        let client = ApiClient::new_with_base_url("token".into(), server.url_str("/v1"));
+
+        let (items, next) = client.list_media_items(1, None).await.unwrap();
+        assert_eq!(items.len(), 1);
+        assert!(next.is_none());
+        assert_eq!(items[0].id, "1");
+    }
+
+    #[tokio::test]
+    async fn test_search_media_items() {
+        let server = photos_server();
+        expect_search(&server);
+        let client = ApiClient::new_with_base_url("token".into(), server.url_str("/v1"));
+
+        let (items, next) = client.search_media_items(None, 1, None).await.unwrap();
+        assert_eq!(items.len(), 1);
+        assert!(next.is_none());
+        assert_eq!(items[0].filename, "file.jpg");
     }
 }

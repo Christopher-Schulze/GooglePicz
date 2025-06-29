@@ -7,7 +7,7 @@ members = [
     "ui",
     "cache",
     "sync",
-    "packaging",
+    "packaging", "mocks",
 ]
 
 [workspace.package]
