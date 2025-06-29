@@ -18,7 +18,8 @@ edition = "2021"
 tokio = { version = "1", features = ["full"] }
 oauth2 = "4.4"
 google-photos1 = "0.1"
-rusqlite = "0.29"
+rusqlite = "0.34"
+rusqlite_migration = "2"
 dirs = "5.0"
 
 auth = { path = "auth" }

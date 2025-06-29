@@ -1,6 +1,7 @@
 //! Cache module for Google Photos data.
 
 use rusqlite::{Connection, params};
+use rusqlite_migration::{Migrations, M};
 use std::path::Path;
 use std::error::Error;
 use std::fmt;
@@ -30,25 +31,40 @@ pub struct CacheManager {
     conn: Connection,
 }
 
+fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
+    let migrations = Migrations::new(vec![
+        M::up(
+            "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);\n\
+             INSERT INTO schema_version (version) VALUES (1);\n\
+             CREATE TABLE IF NOT EXISTS media_items (\n\
+                 id TEXT PRIMARY KEY,\n\
+                 description TEXT,\n\
+                 product_url TEXT NOT NULL,\n\
+                 base_url TEXT NOT NULL,\n\
+                 mime_type TEXT NOT NULL,\n\
+                 creation_time TEXT NOT NULL,\n\
+                 width TEXT NOT NULL,\n\
+                 height TEXT NOT NULL,\n\
+                 filename TEXT NOT NULL\n\
+             );"
+        ),
+        M::up(
+            "ALTER TABLE media_items ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0;\n\
+             UPDATE schema_version SET version = 2;"
+        ),
+    ]);
+    migrations
+        .to_latest(conn)
+        .map_err(|e| CacheError::DatabaseError(format!("Failed to apply migrations: {}", e)))?
+        ;
+    Ok(())
+}
+
 impl CacheManager {
     pub fn new(db_path: &Path) -> Result<Self, CacheError> {
-        let conn = Connection::open(db_path)
+        let mut conn = Connection::open(db_path)
             .map_err(|e| CacheError::DatabaseError(format!("Failed to open database: {}", e)))?;
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS media_items (
-                id TEXT PRIMARY KEY,
-                description TEXT,
-                product_url TEXT NOT NULL,
-                base_url TEXT NOT NULL,
-                mime_type TEXT NOT NULL,
-                creation_time TEXT NOT NULL,
-                width TEXT NOT NULL,
-                height TEXT NOT NULL,
-                filename TEXT NOT NULL
-            )",
-            [],
-        ).map_err(|e| CacheError::DatabaseError(format!("Failed to create table: {}", e)))?;
+        apply_migrations(&mut conn)?;
 
         Ok(CacheManager { conn })
     }
@@ -230,6 +246,7 @@ impl CacheManager {
 mod tests {
     use super::*;
     use api_client::{MediaItem, MediaMetadata};
+    use rusqlite::Connection;
     use tempfile::NamedTempFile;
 
     fn create_test_media_item(id: &str) -> MediaItem {
@@ -352,5 +369,49 @@ mod tests {
         cache_manager.clear_cache().expect("Failed to clear cache");
         let all_items = cache_manager.get_all_media_items().expect("Failed to get all items after clear");
         assert!(all_items.is_empty());
+    }
+
+    #[test]
+    fn test_apply_migrations_from_old_version() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let db_path = temp_file.path();
+
+        {
+            let conn = Connection::open(db_path).unwrap();
+            conn.execute(
+                "CREATE TABLE media_items (
+                    id TEXT PRIMARY KEY,
+                    description TEXT,
+                    product_url TEXT NOT NULL,
+                    base_url TEXT NOT NULL,
+                    mime_type TEXT NOT NULL,
+                    creation_time TEXT NOT NULL,
+                    width TEXT NOT NULL,
+                    height TEXT NOT NULL,
+                    filename TEXT NOT NULL
+                )",
+                [],
+            ).unwrap();
+            conn.execute(
+                "CREATE TABLE schema_version (version INTEGER NOT NULL)",
+                [],
+            ).unwrap();
+            conn.execute("INSERT INTO schema_version (version) VALUES (1)", []).unwrap();
+            conn.pragma_update(None, "user_version", &1).unwrap();
+        }
+
+        let _cm = CacheManager::new(db_path).expect("Failed to open cache manager");
+
+        let conn = Connection::open(db_path).unwrap();
+        let version: i32 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(version, 2);
+
+        let mut stmt = conn.prepare("PRAGMA table_info(media_items)").unwrap();
+        let cols: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        assert!(cols.contains(&"is_favorite".to_string()));
     }
 }

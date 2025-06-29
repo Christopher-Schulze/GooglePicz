@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rusqlite = { version = "0.29", features = ["bundled"] }
+rusqlite = { version = "0.34", features = ["bundled"] }
+rusqlite_migration = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde_json = "1.0"
 api_client = { path = "../api_client" }
