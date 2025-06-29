@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use tokio::fs;
 use reqwest;
 use iced::widget::image::Handle;
+use tracing::error;
 use api_client;
 
 #[derive(Debug, Clone)]
@@ -62,7 +63,7 @@ impl ImageLoader {
     pub async fn preload_thumbnails(&self, media_items: &[api_client::MediaItem]) {
         for item in media_items.iter().take(20) { // Preload first 20 thumbnails
             if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {
-                eprintln!("Failed to preload thumbnail for {}: {}", &item.id, e);
+                error!("Failed to preload thumbnail for {}: {}", &item.id, e);
             }
         }
     }

@@ -8,6 +8,7 @@ use std::error::Error;
 use std::fmt;
 use tokio::time::{sleep, Duration};
 use tokio::sync::mpsc;
+use tracing::{error, info};
 
 #[derive(Debug)]
 pub enum SyncError {
@@ -58,7 +59,7 @@ impl Syncer {
         &self,
         progress: Option<mpsc::UnboundedSender<SyncProgress>>,
     ) -> Result<(), SyncError> {
-        println!("Starting media item synchronization...");
+        info!("Starting media item synchronization...");
         let mut page_token: Option<String> = None;
         let mut total_synced = 0;
 
@@ -79,7 +80,7 @@ impl Syncer {
                 }
             }
 
-            println!("Synced {} media items so far.", total_synced);
+            info!("Synced {} media items so far.", total_synced);
 
             if next_page_token.is_none() {
                 break;
@@ -90,7 +91,7 @@ impl Syncer {
             sleep(Duration::from_millis(500)).await;
         }
 
-        println!("Synchronization complete. Total media items synced: {}.", total_synced);
+        info!("Synchronization complete. Total media items synced: {}.", total_synced);
         if let Some(tx) = progress {
             let _ = tx.send(SyncProgress::Finished(total_synced));
         }
@@ -114,7 +115,7 @@ mod tests {
 
         // Attempt to authenticate if no token is found
         if get_access_token().is_err() {
-            eprintln!("No access token found. Attempting to authenticate...");
+            error!("No access token found. Attempting to authenticate...");
             authenticate().await.expect("Failed to authenticate for sync test");
         }
 
@@ -126,7 +127,7 @@ mod tests {
         assert!(result.is_ok(), "Synchronization failed: {:?}", result.err());
 
         let all_cached_items = syncer.cache_manager.get_all_media_items().expect("Failed to get all cached items");
-        println!("Total items in cache after sync: {}", all_cached_items.len());
+        info!("Total items in cache after sync: {}", all_cached_items.len());
         assert!(!all_cached_items.is_empty());
     }
 }

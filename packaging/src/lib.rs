@@ -3,6 +3,7 @@
 use std::error::Error;
 use std::fmt;
 use std::process::Command;
+use tracing::{error, info};
 
 #[derive(Debug)]
 pub enum PackagingError {
@@ -36,42 +37,44 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
 }
 
 pub fn bundle_licenses() -> Result<(), PackagingError> {
-    println!("Bundling licenses...");
+    info!("Bundling licenses...");
     let output = Command::new("cargo")
         .args(&["bundle-licenses", "--format", "json", "--output", "licenses.json"])
         .output()
         .map_err(|e| PackagingError::CommandError(format!("Failed to execute cargo bundle-licenses: {}", e)))?;
 
     if output.status.success() {
-        println!("Licenses bundled successfully.");
+        info!("Licenses bundled successfully.");
         Ok(())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        error!("cargo bundle-licenses failed: {}", stderr);
         Err(PackagingError::CommandError(format!("cargo bundle-licenses failed: {}", stderr)))
     }
 }
 
 pub fn build_release() -> Result<(), PackagingError> {
-    println!("Building release binary...");
+    info!("Building release binary...");
     let output = Command::new("cargo")
         .args(&["build", "--release"])
         .output()
         .map_err(|e| PackagingError::CommandError(format!("Failed to execute cargo build --release: {}", e)))?;
 
     if output.status.success() {
-        println!("Release binary built successfully.");
+        info!("Release binary built successfully.");
         Ok(())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        error!("cargo build --release failed: {}", stderr);
         Err(PackagingError::CommandError(format!("cargo build --release failed: {}", stderr)))
     }
 }
 
 fn create_macos_installer() -> Result<(), PackagingError> {
-    println!("Bundling macOS app...");
+    info!("Bundling macOS app...");
     run_command("cargo", &["bundle", "--release"])?;
 
-    println!("Signing macOS app...");
+    info!("Signing macOS app...");
     let identity = std::env::var("MAC_SIGN_ID").unwrap_or_default();
     let app_path = "target/release/bundle/osx/GooglePicz.app";
     if !identity.is_empty() {
@@ -91,7 +94,7 @@ fn create_macos_installer() -> Result<(), PackagingError> {
 }
 
 fn create_windows_installer() -> Result<(), PackagingError> {
-    println!("Creating Windows installer...");
+    info!("Creating Windows installer...");
     run_command("makensis", &["packaging/installer.nsi"])
 }
 
@@ -101,7 +104,7 @@ pub fn create_installer() -> Result<(), PackagingError> {
     } else if cfg!(target_os = "windows") {
         create_windows_installer()
     } else {
-        println!("Installer creation not supported on this OS");
+        info!("Installer creation not supported on this OS");
         Ok(())
     }
 }

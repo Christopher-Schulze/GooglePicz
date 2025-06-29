@@ -14,6 +14,7 @@ use api_client::MediaItem;
 use image_loader::ImageLoader;
 use tokio::sync::mpsc;
 use sync::SyncProgress;
+use tracing::error;
 
 pub fn run(progress: Option<mpsc::UnboundedReceiver<SyncProgress>>) -> iced::Result {
     GooglePiczUI::run(Settings::with_flags(progress))
@@ -116,7 +117,7 @@ impl Application for GooglePiczUI {
                         return Command::batch(commands);
                     }
                     Err(error) => {
-                        eprintln!("Failed to load photos: {}", error);
+                        error!("Failed to load photos: {}", error);
                     }
                 }
             }
@@ -141,7 +142,7 @@ impl Application for GooglePiczUI {
                         self.thumbnails.insert(media_id, handle);
                     }
                     Err(error) => {
-                        eprintln!("Failed to load thumbnail for {}: {}", media_id, error);
+                        error!("Failed to load thumbnail for {}: {}", media_id, error);
                     }
                 }
             }
