@@ -12,6 +12,7 @@ use api_client;
 pub struct ImageLoader {
     cache_dir: PathBuf,
     client: reqwest::Client,
+    #[allow(dead_code)]
     loaded_images: HashMap<String, Handle>,
 }
 
@@ -56,10 +57,12 @@ impl ImageLoader {
         Ok(handle)
     }
 
-    pub fn get_cached_thumbnail(&self, media_id: &str) -> Option<Handle> {
+    #[allow(dead_code)]
+    pub fn get_cached_thumbnail(&self, _media_id: &str) -> Option<Handle> {
         None // Since we are not caching in memory anymore
     }
 
+    #[allow(dead_code)]
     pub async fn preload_thumbnails(&self, media_items: &[api_client::MediaItem]) {
         for item in media_items.iter().take(20) { // Preload first 20 thumbnails
             if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {

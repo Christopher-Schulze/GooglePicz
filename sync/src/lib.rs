@@ -1,14 +1,14 @@
 //! Synchronization module for Google Photos data.
 
-use api_client::{ApiClient, ApiClientError};
-use auth::{get_access_token, refresh_access_token};
-use cache::{CacheManager, CacheError};
+use api_client::ApiClient;
+use auth::get_access_token;
+use cache::CacheManager;
 use std::path::Path;
 use std::error::Error;
 use std::fmt;
 use tokio::time::{sleep, Duration};
 use tokio::sync::mpsc;
-use tracing::{error, info};
+use tracing::info;
 
 #[derive(Debug)]
 pub enum SyncError {
@@ -103,6 +103,7 @@ impl Syncer {
 mod tests {
     use super::*;
     use auth::{authenticate, get_access_token};
+    use tracing::error;
     use tempfile::NamedTempFile;
 
     #[tokio::test]
