@@ -29,10 +29,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let local = LocalSet::new();
-    local.run_until(main_inner()).await
+    local.run_until(main_inner(cfg)).await
 }
 
-async fn main_inner() -> Result<(), Box<dyn std::error::Error>> {
+async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Error>> {
     info!("🚀 Starting GooglePicz - Google Photos Manager");
     
     // Ensure environment variables are set for client ID and secret
@@ -73,7 +73,7 @@ async fn main_inner() -> Result<(), Box<dyn std::error::Error>> {
     // Authenticate if needed
     if needs_auth {
         info!("🔑 Starting authentication process...");
-        match authenticate().await {
+        match authenticate(cfg.oauth_redirect_port).await {
             Ok(_) => info!("✅ Authentication successful!"),
             Err(e) => {
                 error!("❌ Authentication failed: {}", e);
@@ -87,17 +87,14 @@ async fn main_inner() -> Result<(), Box<dyn std::error::Error>> {
     match Syncer::new(&db_path).await {
         Ok(mut syncer) => {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            let preload = cfg.thumbnails_preload;
             let ui_thread = std::thread::spawn(move || {
-                if let Err(e) = ui::run(Some(rx)) {
+                if let Err(e) = ui::run(Some(rx), preload) {
                     error!("UI error: {}", e);
                 }
             });
 
-            let interval_minutes: u64 = std::env::var("GOOGLEPICZ_SYNC_INTERVAL_MINUTES")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(5);
-            let interval = Duration::from_secs(interval_minutes * 60);
+            let interval = Duration::from_secs(cfg.sync_interval_minutes * 60);
 
             info!("📥 Starting synchronization...");
             if let Err(e) = syncer.sync_media_items(Some(tx.clone())).await {
@@ -111,7 +108,7 @@ async fn main_inner() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => {
             error!("❌ Failed to initialize syncer: {}", e);
             error!("💡 The UI will still start, but photos may not be available until sync is working.");
-            ui::run(None)?;
+            ui::run(None, cfg.thumbnails_preload)?;
         }
     }
 

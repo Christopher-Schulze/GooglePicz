@@ -160,7 +160,7 @@ mod tests {
         // Attempt to authenticate if no token is found
         if get_access_token().is_err() {
             tracing::error!("No access token found. Attempting to authenticate...");
-            authenticate().await.expect("Failed to authenticate for sync test");
+            authenticate(8080).await.expect("Failed to authenticate for sync test");
         }
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");

@@ -79,8 +79,8 @@ impl ImageLoader {
         None // Since we are not caching in memory anymore
     }
 
-    pub async fn preload_thumbnails(&self, media_items: &[api_client::MediaItem]) {
-        for item in media_items.iter().take(20) { // Preload first 20 thumbnails
+    pub async fn preload_thumbnails(&self, media_items: &[api_client::MediaItem], count: usize) {
+        for item in media_items.iter().take(count) {
             if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {
                 tracing::error!("Failed to preload thumbnail for {}: {}", &item.id, e);
             }

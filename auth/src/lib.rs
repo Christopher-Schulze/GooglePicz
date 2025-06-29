@@ -12,11 +12,13 @@ use url::Url;
 const KEYRING_SERVICE_NAME: &str = "GooglePicz";
 const ACCESS_TOKEN_EXPIRY_KEY: &str = "access_token_expiry";
 
-pub async fn authenticate() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let client_id = ClientId::new(std::env::var("GOOGLE_CLIENT_ID")?);
     let client_secret = ClientSecret::new(std::env::var("GOOGLE_CLIENT_SECRET")?);
     let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())?;
     let token_url = TokenUrl::new("https://oauth2.googleapis.com/token".to_string())?;
+
+    let redirect_uri = format!("http://127.0.0.1:{}", redirect_port);
 
     let client = BasicClient::new(
         client_id,
@@ -24,7 +26,7 @@ pub async fn authenticate() -> Result<(), Box<dyn std::error::Error>> {
         auth_url,
         Some(token_url),
     )
-    .set_redirect_uri(RedirectUrl::new("http://127.0.0.1:8080".to_string())?);
+    .set_redirect_uri(RedirectUrl::new(redirect_uri.clone())?);
 
     // PKCE code challenge
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
@@ -40,7 +42,7 @@ pub async fn authenticate() -> Result<(), Box<dyn std::error::Error>> {
     webbrowser::open(authorize_url.as_str())?;
 
     // Await the redirect from the browser
-    let listener = TcpListener::bind("127.0.0.1:8080").await?;
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", redirect_port)).await?;
     let (stream, _) = listener.accept().await?;
     let mut stream = BufReader::new(stream);
 
@@ -48,7 +50,7 @@ pub async fn authenticate() -> Result<(), Box<dyn std::error::Error>> {
     stream.read_line(&mut request_line).await?;
 
     let redirect_url = request_line.split_whitespace().nth(1).ok_or("No redirect URL found")?;
-    let redirect_url = Url::parse(&format!("http://127.0.0.1:8080{}", redirect_url))?;
+    let redirect_url = Url::parse(&format!("{}{}", redirect_uri, redirect_url))?;
 
     let code = AuthorizationCode::new(
         redirect_url
@@ -177,7 +179,7 @@ mod tests {
         std::env::set_var("GOOGLE_CLIENT_ID", "YOUR_CLIENT_ID");
         std::env::set_var("GOOGLE_CLIENT_SECRET", "YOUR_CLIENT_SECRET");
 
-        let result = authenticate().await;
+        let result = authenticate(8080).await;
         assert!(result.is_ok(), "Authentication failed: {:?}", result.err());
         let token = get_access_token();
         assert!(token.is_ok());

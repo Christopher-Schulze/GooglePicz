@@ -19,8 +19,8 @@ use tokio::sync::mpsc;
 use sync::SyncProgress;
 use chrono::{DateTime, Utc};
 
-pub fn run(progress: Option<mpsc::UnboundedReceiver<SyncProgress>>) -> iced::Result {
-    GooglePiczUI::run(Settings::with_flags(progress))
+pub fn run(progress: Option<mpsc::UnboundedReceiver<SyncProgress>>, preload: usize) -> iced::Result {
+    GooglePiczUI::run(Settings::with_flags((progress, preload)))
 }
 
 #[derive(Debug, Clone)]
@@ -62,15 +62,17 @@ pub struct GooglePiczUI {
     state: ViewState,
     selected_album: Option<String>,
     errors: Vec<String>,
+    preload_count: usize,
 }
 
 impl Application for GooglePiczUI {
     type Executor = executor::Default;
     type Message = Message;
     type Theme = Theme;
-    type Flags = Option<mpsc::UnboundedReceiver<SyncProgress>>;
+    type Flags = (Option<mpsc::UnboundedReceiver<SyncProgress>>, usize);
 
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
+        let (progress_flag, preload_count) = flags;
         let cache_path = dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join(".googlepicz")
@@ -94,7 +96,7 @@ impl Application for GooglePiczUI {
 
         let image_loader = Arc::new(Mutex::new(ImageLoader::new(thumbnail_cache_path)));
 
-        let progress_receiver = flags.map(|rx| Arc::new(Mutex::new(rx)));
+        let progress_receiver = progress_flag.map(|rx| Arc::new(Mutex::new(rx)));
 
         let app = Self {
             photos: Vec::new(),
@@ -111,6 +113,7 @@ impl Application for GooglePiczUI {
             state: ViewState::Grid,
             selected_album: None,
             errors: Vec::new(),
+            preload_count,
         };
 
         (
@@ -156,9 +159,9 @@ impl Application for GooglePiczUI {
                 match result {
                     Ok(photos) => {
                         self.photos = photos;
-                        // Start loading thumbnails for all photos
+                        // Start loading thumbnails for configured number of photos
                         let mut commands = Vec::new();
-                        for photo in &self.photos {
+                        for photo in self.photos.iter().take(self.preload_count) {
                             let media_id = photo.id.clone();
                             let base_url = photo.base_url.clone();
                             commands.push(Command::perform(async {}, move |_| Message::LoadThumbnail(media_id.clone(), base_url.clone())));
