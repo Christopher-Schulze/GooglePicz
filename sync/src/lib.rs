@@ -1,14 +1,16 @@
 //! Synchronization module for Google Photos data.
 
-use api_client::{ApiClient, ApiClientError};
-use auth::{ensure_access_token_valid, get_access_token};
-use cache::{CacheManager, CacheError};
+use api_client::ApiClient;
+use auth::ensure_access_token_valid;
+use cache::{CacheError, CacheManager};
 use std::path::Path;
 use std::error::Error;
 use std::fmt;
 use tokio::time::{sleep, Duration};
 use tokio::sync::mpsc;
 use tokio::task::{spawn_local, JoinHandle};
+use chrono::{DateTime, Utc, Datelike};
+use serde_json::json;
 
 #[derive(Debug)]
 pub enum SyncError {
@@ -63,12 +65,31 @@ impl Syncer {
         let mut page_token: Option<String> = None;
         let mut total_synced = 0;
 
+        let last_sync = match self.cache_manager.get_last_sync() {
+            Ok(ts) => ts,
+            Err(_) => DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH),
+        };
+        let filter = json!({
+            "dateFilter": {
+                "ranges": [{
+                    "startDate": {
+                        "year": last_sync.year(),
+                        "month": last_sync.month(),
+                        "day": last_sync.day()
+                    }
+                }]
+            }
+        });
+
         loop {
             let token = ensure_access_token_valid().await
                 .map_err(|e| SyncError::AuthenticationError(format!("Failed to refresh token: {}", e)))?;
             self.api_client.set_access_token(token);
 
-            let (media_items, next_page_token) = self.api_client.list_media_items(100, page_token.clone()).await
+            let (media_items, next_page_token) = self
+                .api_client
+                .search_media_items(None, 100, page_token.clone(), Some(filter.clone()))
+                .await
                 .map_err(|e| SyncError::ApiClientError(format!("Failed to list media items from API: {}", e)))?;
 
             if media_items.is_empty() {
@@ -99,6 +120,9 @@ impl Syncer {
         if let Some(tx) = progress {
             let _ = tx.send(SyncProgress::Finished(total_synced));
         }
+        self.cache_manager
+            .update_last_sync(Utc::now())
+            .map_err(|e| SyncError::CacheError(format!("Failed to update last sync: {}", e)))?;
         Ok(())
     }
 

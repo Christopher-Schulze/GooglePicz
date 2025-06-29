@@ -1,6 +1,7 @@
 //! API client module for Google Photos.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use std::error::Error;
 use std::fmt;
@@ -58,6 +59,8 @@ struct SearchMediaItemsRequest {
     album_id: Option<String>,
     page_size: i32,
     page_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    filters: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -154,13 +157,20 @@ impl ApiClient {
         Ok((list_response.albums.unwrap_or_default(), list_response.next_page_token))
     }
 
-    pub async fn search_media_items(&self, album_id: Option<String>, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
+    pub async fn search_media_items(
+        &self,
+        album_id: Option<String>,
+        page_size: i32,
+        page_token: Option<String>,
+        filters: Option<Value>,
+    ) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
         let url = "https://photoslibrary.googleapis.com/v1/mediaItems:search";
-        
+
         let request_body = SearchMediaItemsRequest {
             album_id,
             page_size,
             page_token,
+            filters,
         };
 
         let response = self.client.post(url)

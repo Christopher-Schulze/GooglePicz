@@ -9,6 +9,8 @@ auth = { path = "../auth" }
 api_client = { path = "../api_client" }
 cache = { path = "../cache" }
 tracing = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
+serde_json = "1.0"
 
 [dev-dependencies]
 tempfile = "3"

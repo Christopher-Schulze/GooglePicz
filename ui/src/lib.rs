@@ -15,6 +15,7 @@ use auth;
 use image_loader::ImageLoader;
 use tokio::sync::mpsc;
 use sync::SyncProgress;
+use chrono::{DateTime, Utc};
 
 pub fn run(progress: Option<mpsc::UnboundedReceiver<SyncProgress>>) -> iced::Result {
     GooglePiczUI::run(Settings::with_flags(progress))
@@ -54,6 +55,7 @@ pub struct GooglePiczUI {
     progress_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<SyncProgress>>>>,
     synced: u64,
     syncing: bool,
+    last_synced: Option<DateTime<Utc>>,
     state: ViewState,
     selected_album: Option<String>,
     errors: Vec<String>,
@@ -77,6 +79,11 @@ impl Application for GooglePiczUI {
             None
         };
 
+        let last_synced = if let Some(cm) = &cache_manager {
+            let cache = cm.blocking_lock();
+            cache.get_last_sync().ok()
+        } else { None };
+
         let thumbnail_cache_path = dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join(".googlepicz")
@@ -97,6 +104,7 @@ impl Application for GooglePiczUI {
             progress_receiver,
             synced: 0,
             syncing: false,
+            last_synced,
             state: ViewState::Grid,
             selected_album: None,
             errors: Vec::new(),
@@ -249,6 +257,7 @@ impl Application for GooglePiczUI {
                     SyncProgress::Finished(total) => {
                         self.synced = total;
                         self.syncing = false;
+                        self.last_synced = Some(Utc::now());
                     }
                 }
             }
@@ -281,7 +290,13 @@ impl Application for GooglePiczUI {
                 format!("Syncing {} items...", self.synced)
             } else {
                 format!("Synced {} items", self.synced)
-            })
+            }),
+            text(
+                match self.last_synced {
+                    Some(ts) => format!("Last synced {}", ts.to_rfc3339()),
+                    None => "Never synced".to_string(),
+                }
+            )
         ]
         .spacing(20)
         .align_items(iced::Alignment::Center);
