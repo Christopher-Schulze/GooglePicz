@@ -55,6 +55,26 @@ impl ImageLoader {
         Ok(handle)
     }
 
+    pub async fn load_full_image(&self, media_id: &str, base_url: &str) -> Result<Handle, Box<dyn std::error::Error>> {
+        let full_url = format!("{}=d", base_url);
+        let cache_path = self.cache_dir.join("full").join(format!("{}.jpg", media_id));
+
+        if cache_path.exists() {
+            return Ok(Handle::from_path(&cache_path));
+        }
+
+        let response = self.client.get(&full_url).send().await?;
+        let bytes = response.bytes().await?;
+
+        if let Some(parent) = cache_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+
+        fs::write(&cache_path, &bytes).await?;
+
+        Ok(Handle::from_path(&cache_path))
+    }
+
     pub fn get_cached_thumbnail(&self, media_id: &str) -> Option<Handle> {
         None // Since we are not caching in memory anymore
     }

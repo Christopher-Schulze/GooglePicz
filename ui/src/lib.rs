@@ -26,7 +26,17 @@ pub enum Message {
     RefreshPhotos,
     ThumbnailLoaded(String, Result<Handle, String>),
     LoadThumbnail(String, String), // media_id, base_url
+    LoadFullImage(String, String),
+    FullImageLoaded(String, Result<Handle, String>),
+    SelectPhoto(MediaItem),
+    ClosePhoto,
     SyncProgress(SyncProgress),
+}
+
+#[derive(Debug, Clone)]
+enum ViewState {
+    Grid,
+    SelectedPhoto(MediaItem),
 }
 
 pub struct GooglePiczUI {
@@ -35,9 +45,12 @@ pub struct GooglePiczUI {
     cache_manager: Option<Arc<Mutex<CacheManager>>>,
     image_loader: Arc<Mutex<ImageLoader>>,
     thumbnails: std::collections::HashMap<String, Handle>,
+    full_images: std::collections::HashMap<String, Handle>,
     progress_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<SyncProgress>>>>,
     synced: u64,
     syncing: bool,
+    state: ViewState,
+    errors: Vec<String>,
 }
 
 impl Application for GooglePiczUI {
@@ -73,9 +86,12 @@ impl Application for GooglePiczUI {
             cache_manager,
             image_loader,
             thumbnails: std::collections::HashMap::new(),
+            full_images: std::collections::HashMap::new(),
             progress_receiver,
             synced: 0,
             syncing: false,
+            state: ViewState::Grid,
+            errors: Vec::new(),
         };
         
         (app, Command::perform(async {}, |_| Message::LoadPhotos))
@@ -116,7 +132,7 @@ impl Application for GooglePiczUI {
                         return Command::batch(commands);
                     }
                     Err(error) => {
-                        eprintln!("Failed to load photos: {}", error);
+                        self.errors.push(format!("Failed to load photos: {}", error));
                     }
                 }
             }
@@ -141,9 +157,43 @@ impl Application for GooglePiczUI {
                         self.thumbnails.insert(media_id, handle);
                     }
                     Err(error) => {
-                        eprintln!("Failed to load thumbnail for {}: {}", media_id, error);
+                        self.errors.push(format!(
+                            "Failed to load thumbnail for {}: {}",
+                            media_id, error
+                        ));
                     }
                 }
+            }
+            Message::SelectPhoto(photo) => {
+                let id = photo.id.clone();
+                let url = photo.base_url.clone();
+                self.state = ViewState::SelectedPhoto(photo);
+                return Command::perform(async {}, move |_| Message::LoadFullImage(id.clone(), url.clone()));
+            }
+            Message::LoadFullImage(media_id, base_url) => {
+                let loader = self.image_loader.clone();
+                let id_clone = media_id.clone();
+                let base_clone = base_url.clone();
+                return Command::perform(
+                    async move {
+                        let loader = loader.lock().await;
+                        loader.load_full_image(&id_clone, &base_clone).await
+                    },
+                    move |res| Message::FullImageLoaded(media_id, res.map_err(|e| e.to_string())),
+                );
+            }
+            Message::FullImageLoaded(media_id, result) => {
+                match result {
+                    Ok(handle) => {
+                        self.full_images.insert(media_id, handle);
+                    }
+                    Err(error) => {
+                        self.errors.push(format!("Failed to load image: {}", error));
+                    }
+                }
+            }
+            Message::ClosePhoto => {
+                self.state = ViewState::Grid;
             }
             Message::SyncProgress(progress) => {
                 match progress {
@@ -191,59 +241,76 @@ impl Application for GooglePiczUI {
         .spacing(20)
         .align_items(iced::Alignment::Center);
 
-        let content = if self.loading {
-            column![
-                header,
-                text("Loading photos...").size(16),
-            ]
-        } else if self.photos.is_empty() {
-            column![
-                header,
-                text("No photos found. Make sure you have authenticated and synced your photos.").size(16),
-            ]
-        } else {
-            let photo_list = self.photos.iter().enumerate().fold(
-                column![].spacing(10),
-                |col, (index, photo)| {
-                    let filename = &photo.filename;
-                    let dimensions = format!("{}x{}",
-                        photo.media_metadata.width,
-                        photo.media_metadata.height
-                    );
-                    
-                    let creation_time = &photo.media_metadata.creation_time;
-                    
-                    let photo_info = column![
-                        text(format!("#{}: {}", index + 1, filename)).size(14),
-                        text(format!("Dimensions: {}", dimensions)).size(12),
-                        text(format!("Created: {}", creation_time)).size(12),
-                    ]
-                    .spacing(2);
-                    
-                    let thumbnail_view: Element<Message> = if let Some(handle) = self.thumbnails.get(&photo.id) {
-                        image(handle.clone())
-                            .width(Length::Fixed(150.0))
-                            .height(Length::Fixed(150.0))
-                            .into()
-                    } else {
-                        container(text("Loading..."))
-                            .width(Length::Fixed(150.0))
-                            .height(Length::Fixed(150.0))
-                            .into()
-                    };
+        let error_banner = self.errors.last().map(|msg| {
+            container(text(msg)).style(iced::theme::Container::Box).padding(10)
+        });
 
-                    col.push(row![thumbnail_view, container(photo_info).padding(10).style(iced::theme::Container::Box)].spacing(10))
+        let content = match &self.state {
+            ViewState::Grid => {
+                if self.loading {
+                    column![
+                        header,
+                        text("Loading photos...").size(16),
+                    ]
+                } else if self.photos.is_empty() {
+                    column![
+                        header,
+                        text("No photos found. Make sure you have authenticated and synced your photos.").size(16),
+                    ]
+                } else {
+                    let mut rows = column![].spacing(10);
+                    let mut current = row![].spacing(10);
+                    let mut count = 0;
+                    for photo in &self.photos {
+                        let thumb: Element<Message> = if let Some(handle) = self.thumbnails.get(&photo.id) {
+                            image(handle.clone())
+                                .width(Length::Fixed(150.0))
+                                .height(Length::Fixed(150.0))
+                                .into()
+                        } else {
+                            container(text("Loading...") )
+                                .width(Length::Fixed(150.0))
+                                .height(Length::Fixed(150.0))
+                                .into()
+                        };
+                        let btn = button(thumb).on_press(Message::SelectPhoto(photo.clone()));
+                        current = current.push(btn);
+                        count += 1;
+                        if count == 4 {
+                            rows = rows.push(current);
+                            current = row![].spacing(10);
+                            count = 0;
+                        }
+                    }
+                    if count > 0 {
+                        rows = rows.push(current);
+                    }
+                    column![
+                        header,
+                        text(format!("Found {} photos", self.photos.len())).size(16),
+                        scrollable(rows).height(Length::Fill),
+                    ]
                 }
-            );
-            
-            column![
-                header,
-                text(format!("Found {} photos", self.photos.len())).size(16),
-                scrollable(photo_list).height(Length::Fill),
-            ]
+            }
+            ViewState::SelectedPhoto(photo) => {
+                let img: Element<Message> = if let Some(handle) = self.full_images.get(&photo.id) {
+                    image(handle.clone()).width(Length::Fill).height(Length::Fill).into()
+                } else {
+                    container(text("Loading...")).width(Length::Fill).height(Length::Fill).into()
+                };
+                column![
+                    header,
+                    button("Close").on_press(Message::ClosePhoto),
+                    img
+                ]
+            }
         };
 
-        container(content.spacing(20))
+        let mut base = column![].spacing(20);
+        if let Some(b) = error_banner { base = base.push(b); }
+        base = base.push(content);
+
+        container(base)
             .width(Length::Fill)
             .height(Length::Fill)
             .padding(20)
