@@ -35,7 +35,7 @@ pub async fn authenticate() -> Result<(), Box<dyn std::error::Error>> {
         .set_pkce_challenge(pkce_challenge)
         .url();
 
-    println!("Opening browser for authentication: {}", authorize_url);
+    tracing::info!("Opening browser for authentication: {}", authorize_url);
     // Open the URL in the default browser
     webbrowser::open(authorize_url.as_str())?;
 
@@ -81,7 +81,7 @@ pub async fn authenticate() -> Result<(), Box<dyn std::error::Error>> {
         entry.set_password(&refresh_token)?;
     }
 
-    println!("Authentication successful!");
+    tracing::info!("Authentication successful!");
     Ok(())
 }
 
@@ -181,7 +181,7 @@ mod tests {
         assert!(result.is_ok(), "Authentication failed: {:?}", result.err());
         let token = get_access_token();
         assert!(token.is_ok());
-        println!("Access Token: {}", token.unwrap());
+        tracing::info!("Access Token: {}", token.unwrap());
     }
 
     #[tokio::test]
@@ -194,7 +194,7 @@ mod tests {
         let result = refresh_access_token().await;
         assert!(result.is_ok(), "Refresh token failed: {:?}", result.err());
         let new_token = result.unwrap();
-        println!("New Access Token: {}", new_token);
+        tracing::info!("New Access Token: {}", new_token);
         assert!(!new_token.is_empty());
     }
 
