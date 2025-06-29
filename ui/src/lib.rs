@@ -11,6 +11,9 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use cache::CacheManager;
 use api_client::MediaItem;
+use api_client::ApiClient;
+use auth::ensure_access_token_valid;
+use rfd::AsyncFileDialog;
 use image_loader::ImageLoader;
 use tokio::sync::mpsc;
 use sync::SyncProgress;
@@ -31,6 +34,9 @@ pub enum Message {
     SelectPhoto(MediaItem),
     ClosePhoto,
     SyncProgress(SyncProgress),
+    ChooseFile,
+    FileChosen(Option<PathBuf>),
+    UploadFinished(Result<MediaItem, String>),
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +57,8 @@ pub struct GooglePiczUI {
     syncing: bool,
     state: ViewState,
     errors: Vec<String>,
+    uploading: bool,
+    upload_message: Option<String>,
 }
 
 impl Application for GooglePiczUI {
@@ -92,6 +100,8 @@ impl Application for GooglePiczUI {
             syncing: false,
             state: ViewState::Grid,
             errors: Vec::new(),
+            uploading: false,
+            upload_message: None,
         };
         
         (app, Command::perform(async {}, |_| Message::LoadPhotos))
@@ -138,6 +148,46 @@ impl Application for GooglePiczUI {
             }
             Message::RefreshPhotos => {
                 return Command::perform(async {}, |_| Message::LoadPhotos);
+            }
+            Message::ChooseFile => {
+                return Command::perform(async {
+                    AsyncFileDialog::new().pick_file().await.map(|f| f.path().to_path_buf())
+                }, Message::FileChosen);
+            }
+            Message::FileChosen(path_opt) => {
+                if let Some(path) = path_opt {
+                    self.uploading = true;
+                    let cache_manager = self.cache_manager.clone();
+                    return Command::perform(
+                        async move {
+                            let token = ensure_access_token_valid().await.map_err(|e| e.to_string())?;
+                            let client = ApiClient::new(token);
+                            let item = client.upload_media_item(&path, None).await.map_err(|e| e.to_string())?;
+                            if let Some(cm) = cache_manager {
+                                let cm = cm.lock().await;
+                                let _ = cm.insert_media_item(&item);
+                            }
+                            Ok(item)
+                        },
+                        |res| match res {
+                            Ok(item) => Message::UploadFinished(Ok(item)),
+                            Err(e) => Message::UploadFinished(Err(e)),
+                        },
+                    );
+                }
+            }
+            Message::UploadFinished(result) => {
+                self.uploading = false;
+                match result {
+                    Ok(item) => {
+                        self.upload_message = Some(format!("Uploaded {}", item.filename));
+                        self.photos.insert(0, item);
+                    }
+                    Err(err) => {
+                        self.errors.push(format!("Upload failed: {}", err));
+                        self.upload_message = None;
+                    }
+                }
             }
             Message::LoadThumbnail(media_id, base_url) => {
                 let image_loader = self.image_loader.clone();
@@ -232,6 +282,11 @@ impl Application for GooglePiczUI {
         let header = row![
             text("GooglePicz").size(24),
             button("Refresh").on_press(Message::RefreshPhotos),
+            {
+                let mut btn = button(if self.uploading { "Uploading..." } else { "Upload" });
+                if !self.uploading { btn = btn.on_press(Message::ChooseFile); }
+                btn
+            },
             text(if self.syncing {
                 format!("Syncing {} items...", self.synced)
             } else {
@@ -308,6 +363,7 @@ impl Application for GooglePiczUI {
 
         let mut base = column![].spacing(20);
         if let Some(b) = error_banner { base = base.push(b); }
+        if let Some(msg) = &self.upload_message { base = base.push(container(text(msg))); }
         base = base.push(content);
 
         container(base)
