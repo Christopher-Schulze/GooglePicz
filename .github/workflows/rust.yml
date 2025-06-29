@@ -53,6 +53,10 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
+    env:
+      MAC_SIGN_ID: ${{ secrets.MAC_SIGN_ID }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -101,6 +105,9 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
+    env:
+      WINDOWS_CERT: ${{ secrets.WINDOWS_CERT }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
