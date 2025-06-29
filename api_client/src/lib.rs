@@ -100,6 +100,21 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
+    fn mock_media_item(id: &str) -> MediaItem {
+        MediaItem {
+            id: id.to_string(),
+            description: None,
+            product_url: "http://example.com".into(),
+            base_url: "http://example.com/base".into(),
+            mime_type: "image/jpeg".into(),
+            media_metadata: MediaMetadata {
+                creation_time: "2023-01-01T00:00:00Z".into(),
+                width: "1".into(),
+                height: "1".into(),
+            },
+            filename: format!("{}.jpg", id),
+        }
+    }
     pub fn new(access_token: String) -> Self {
         ApiClient {
             client: reqwest::Client::new(),
@@ -112,6 +127,10 @@ impl ApiClient {
     }
 
     pub async fn list_media_items(&self, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
+        if std::env::var("MOCK_API_CLIENT").is_ok() {
+            let items = vec![Self::mock_media_item("1"), Self::mock_media_item("2")];
+            return Ok((items, None));
+        }
         let mut url = format!("https://photoslibrary.googleapis.com/v1/mediaItems?pageSize={}", page_size);
         if let Some(token) = page_token {
             url.push_str(&format!("&pageToken={}", token));
@@ -135,6 +154,18 @@ impl ApiClient {
     }
 
     pub async fn list_albums(&self, page_size: i32, page_token: Option<String>) -> Result<(Vec<Album>, Option<String>), ApiClientError> {
+        if std::env::var("MOCK_API_CLIENT").is_ok() {
+            let album = Album {
+                id: "1".into(),
+                title: Some("Test Album".into()),
+                product_url: None,
+                is_writeable: None,
+                media_items_count: None,
+                cover_photo_base_url: None,
+                cover_photo_media_item_id: None,
+            };
+            return Ok((vec![album], None));
+        }
         let mut url = format!("https://photoslibrary.googleapis.com/v1/albums?pageSize={}", page_size);
         if let Some(token) = page_token {
             url.push_str(&format!("&pageToken={}", token));
@@ -164,6 +195,10 @@ impl ApiClient {
         page_token: Option<String>,
         filters: Option<Value>,
     ) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
+        if std::env::var("MOCK_API_CLIENT").is_ok() {
+            let items = vec![Self::mock_media_item("3")];
+            return Ok((items, None));
+        }
         let url = "https://photoslibrary.googleapis.com/v1/mediaItems:search";
 
         let request_body = SearchMediaItemsRequest {
@@ -194,6 +229,17 @@ impl ApiClient {
 
     /// Create a new album with the given title.
     pub async fn create_album(&self, title: &str) -> Result<Album, ApiClientError> {
+        if std::env::var("MOCK_API_CLIENT").is_ok() {
+            return Ok(Album {
+                id: "1".into(),
+                title: Some(title.to_string()),
+                product_url: None,
+                is_writeable: None,
+                media_items_count: None,
+                cover_photo_base_url: None,
+                cover_photo_media_item_id: None,
+            });
+        }
         let url = "https://photoslibrary.googleapis.com/v1/albums";
         let body = CreateAlbumRequest {
             album: NewAlbum { title: title.to_string() },
