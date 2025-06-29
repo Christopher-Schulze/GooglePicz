@@ -9,13 +9,23 @@ use std::path::PathBuf;
 use tokio::fs;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
+use tracing_appender::rolling;
+use tracing_subscriber::fmt::writer::MakeWriterExt;
 mod config;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = config::AppConfig::load();
+    let log_dir = dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".googlepicz");
+    std::fs::create_dir_all(&log_dir)?;
+    let file_appender = rolling::daily(&log_dir, "googlepicz.log");
+    let (file_writer, _guard) = tracing_appender::non_blocking(file_appender);
+
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::new(cfg.log_level.clone()))
+        .with_writer(std::io::stdout.and(file_writer))
         .init();
 
     let local = LocalSet::new();

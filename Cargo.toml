@@ -21,6 +21,9 @@ google-photos1 = "0.1"
 rusqlite = "0.34"
 rusqlite_migration = "2"
 dirs = "5.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
 
 auth = { path = "auth" }
 sync = { path = "sync" }

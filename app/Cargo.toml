@@ -11,8 +11,9 @@ auth = { workspace = true }
 sync = { workspace = true }
 ui = { workspace = true }
 config = "0.13"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
 
 [build-dependencies]
 cargo-bundle-licenses = "0.4"
