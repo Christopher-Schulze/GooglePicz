@@ -82,13 +82,19 @@ impl Error for ApiClientError {}
 pub struct ApiClient {
     client: reqwest::Client,
     access_token: String,
+    base_url: String,
 }
 
 impl ApiClient {
     pub fn new(access_token: String) -> Self {
+        Self::new_with_base_url(access_token, "https://photoslibrary.googleapis.com".to_string())
+    }
+
+    pub fn new_with_base_url(access_token: String, base_url: String) -> Self {
         ApiClient {
             client: reqwest::Client::new(),
             access_token,
+            base_url,
         }
     }
 
@@ -97,7 +103,7 @@ impl ApiClient {
     }
 
     pub async fn list_media_items(&self, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
-        let mut url = format!("https://photoslibrary.googleapis.com/v1/mediaItems?pageSize={}", page_size);
+        let mut url = format!("{}/v1/mediaItems?pageSize={}", self.base_url, page_size);
         if let Some(token) = page_token {
             url.push_str(&format!("&pageToken={}", token));
         }
@@ -120,7 +126,7 @@ impl ApiClient {
     }
 
     pub async fn list_albums(&self, page_size: i32, page_token: Option<String>) -> Result<(Vec<Album>, Option<String>), ApiClientError> {
-        let mut url = format!("https://photoslibrary.googleapis.com/v1/albums?pageSize={}", page_size);
+        let mut url = format!("{}/v1/albums?pageSize={}", self.base_url, page_size);
         if let Some(token) = page_token {
             url.push_str(&format!("&pageToken={}", token));
         }
@@ -143,7 +149,7 @@ impl ApiClient {
     }
 
     pub async fn search_media_items(&self, album_id: Option<String>, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
-        let url = "https://photoslibrary.googleapis.com/v1/mediaItems:search";
+        let url = format!("{}/v1/mediaItems:search", self.base_url);
         
         let request_body = SearchMediaItemsRequest {
             album_id,
@@ -175,6 +181,9 @@ impl ApiClient {
 mod tests {
     use super::*;
 
+    use mocks::*;
+    use wiremock::matchers::{method, path};
+
     #[test]
     fn test_parse_list_albums_response() {
         let json = r#"{
@@ -198,5 +207,63 @@ mod tests {
         assert_eq!(albums[0].id, "1");
         assert_eq!(albums[0].title.as_deref(), Some("Test Album"));
         assert_eq!(parsed.next_page_token, Some("token123".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_list_albums_mock() {
+        let server = start_mock_server().await;
+        let body = serde_json::json!({
+            "albums": [{"id": "1", "title": "Album"}],
+            "nextPageToken": "n"
+        });
+        Mock::given(method("GET")).and(path("/v1/albums"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .mount(&server)
+            .await;
+        let client = ApiClient::new_with_base_url("t".into(), server.uri());
+        let (albums, token) = client.list_albums(10, None).await.unwrap();
+        assert_eq!(albums.len(), 1);
+        assert_eq!(token, Some("n".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_list_media_items_mock() {
+        let server = start_mock_server().await;
+        let body = serde_json::json!({
+            "mediaItems": [{
+                "id": "1",
+                "description": null,
+                "productUrl": "u",
+                "baseUrl": "b",
+                "mimeType": "image/jpeg",
+                "mediaMetadata": {"creationTime": "t", "width": "1", "height": "1"},
+                "filename": "f"
+            }]
+        });
+        Mock::given(method("GET")).and(path("/v1/mediaItems"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .mount(&server)
+            .await;
+        let client = ApiClient::new_with_base_url("t".into(), server.uri());
+        let (items, token) = client.list_media_items(10, None).await.unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, "1");
+        assert!(token.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_search_media_items_mock() {
+        let server = start_mock_server().await;
+        let body = serde_json::json!({
+            "mediaItems": [],
+            "nextPageToken": "x"
+        });
+        Mock::given(method("POST")).and(path("/v1/mediaItems:search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .mount(&server)
+            .await;
+        let client = ApiClient::new_with_base_url("t".into(), server.uri());
+        let (_, token) = client.search_media_items(None, 10, None).await.unwrap();
+        assert_eq!(token, Some("x".to_string()));
     }
 }

@@ -3,7 +3,10 @@
 use oauth2::basic::BasicClient;
 use oauth2::reqwest::async_http_client;
 use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl, Scope, TokenResponse, TokenUrl};
-use keyring::Entry;
+#[cfg(test)]
+use mocks::{Entry, Error as KeyringError};
+#[cfg(not(test))]
+use keyring::{Entry, Error as KeyringError};
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
@@ -94,7 +97,7 @@ pub fn get_refresh_token() -> Result<Option<String>, Box<dyn std::error::Error>>
     let entry = Entry::new(KEYRING_SERVICE_NAME, "refresh_token")?;
     match entry.get_password() {
         Ok(token) => Ok(Some(token)),
-        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(KeyringError::NoEntry) => Ok(None),
         Err(e) => Err(Box::new(e)),
     }
 }
@@ -103,7 +106,7 @@ fn get_access_token_expiry() -> Result<Option<u64>, Box<dyn std::error::Error>> 
     let entry = Entry::new(KEYRING_SERVICE_NAME, ACCESS_TOKEN_EXPIRY_KEY)?;
     match entry.get_password() {
         Ok(val) => Ok(Some(val.parse().unwrap_or(0))),
-        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(KeyringError::NoEntry) => Ok(None),
         Err(e) => Err(Box::new(e)),
     }
 }
@@ -165,42 +168,32 @@ pub async fn ensure_access_token_valid() -> Result<String, Box<dyn std::error::E
 mod tests {
     use super::*;
     use tokio;
+    use mocks;
 
     // Note: These tests require GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to be set
     // and may require manual interaction for the initial authentication flow.
     // They are primarily for demonstrating the functionality.
 
-    #[tokio::test]
-    #[ignore] // Requires manual interaction and environment variables
-    async fn test_authenticate() {
-        // Set dummy env vars for testing, replace with actual ones for real run
-        std::env::set_var("GOOGLE_CLIENT_ID", "YOUR_CLIENT_ID");
-        std::env::set_var("GOOGLE_CLIENT_SECRET", "YOUR_CLIENT_SECRET");
-
-        let result = authenticate().await;
-        assert!(result.is_ok(), "Authentication failed: {:?}", result.err());
-        let token = get_access_token();
-        assert!(token.is_ok());
-        tracing::info!("Access Token: {}", token.unwrap());
-    }
 
     #[tokio::test]
-    #[ignore] // Requires a valid refresh token to be present in keyring
+    #[serial_test::serial]
     async fn test_refresh_access_token() {
-        // Set dummy env vars for testing, replace with actual ones for real run
-        std::env::set_var("GOOGLE_CLIENT_ID", "YOUR_CLIENT_ID");
-        std::env::set_var("GOOGLE_CLIENT_SECRET", "YOUR_CLIENT_SECRET");
+        mocks::setup_mock_keyring();
+        std::env::set_var("MOCK_REFRESH_TOKEN", "refreshed");
 
         let result = refresh_access_token().await;
         assert!(result.is_ok(), "Refresh token failed: {:?}", result.err());
         let new_token = result.unwrap();
         tracing::info!("New Access Token: {}", new_token);
         assert!(!new_token.is_empty());
+        assert_eq!(new_token, "refreshed");
+        std::env::remove_var("MOCK_REFRESH_TOKEN");
     }
 
     #[tokio::test]
-    #[ignore]
+    #[serial_test::serial]
     async fn test_ensure_access_token_valid_no_refresh_needed() {
+        mocks::setup_mock_keyring();
         std::env::set_var("MOCK_REFRESH_TOKEN", "unused");
         let entry = Entry::new(KEYRING_SERVICE_NAME, "access_token").unwrap();
         entry.set_password("valid_token").unwrap();
@@ -214,8 +207,9 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[serial_test::serial]
     async fn test_ensure_access_token_valid_with_refresh() {
+        mocks::setup_mock_keyring();
         std::env::set_var("MOCK_REFRESH_TOKEN", "new_token");
         let entry = Entry::new(KEYRING_SERVICE_NAME, "access_token").unwrap();
         entry.set_password("old_token").unwrap();
