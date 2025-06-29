@@ -162,9 +162,9 @@ impl Application for GooglePiczUI {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        if let Some(rx) = &self.progress_receiver {
-            let rx = rx.clone();
-            subscription::unfold("progress", rx, |rx| async move {
+        if let Some(progress_rx) = &self.progress_receiver {
+            let progress_rx = progress_rx.clone();
+            subscription::unfold("progress", progress_rx, |rx| async move {
                 let mut lock = rx.lock().await;
                 let msg = match lock.recv().await {
                     Some(p) => Message::SyncProgress(p),

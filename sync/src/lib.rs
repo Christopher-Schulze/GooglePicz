@@ -8,6 +8,7 @@ use std::error::Error;
 use std::fmt;
 use tokio::time::{sleep, Duration};
 use tokio::sync::mpsc;
+use tokio::task::{spawn_local, JoinHandle};
 
 #[derive(Debug)]
 pub enum SyncError {
@@ -95,6 +96,22 @@ impl Syncer {
             let _ = tx.send(SyncProgress::Finished(total_synced));
         }
         Ok(())
+    }
+
+    pub fn start_periodic_sync(
+        self,
+        interval: Duration,
+        tx: mpsc::UnboundedSender<SyncProgress>,
+    ) -> JoinHandle<()> {
+        spawn_local(async move {
+            let syncer = self;
+            loop {
+                if let Err(e) = syncer.sync_media_items(Some(tx.clone())).await {
+                    eprintln!("Periodic sync failed: {}", e);
+                }
+                sleep(interval).await;
+            }
+        })
     }
 }
 

@@ -2,12 +2,19 @@
 
 use auth::{authenticate, get_access_token};
 use sync::Syncer;
+use tokio::time::Duration;
+use tokio::task::LocalSet;
 use ui;
 use std::path::PathBuf;
 use tokio::fs;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let local = LocalSet::new();
+    local.run_until(main_inner()).await
+}
+
+async fn main_inner() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Starting GooglePicz - Google Photos Manager");
     
     // Ensure environment variables are set for client ID and secret
@@ -68,10 +75,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
 
+            let interval_minutes: u64 = std::env::var("GOOGLEPICZ_SYNC_INTERVAL_MINUTES")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(5);
+            let interval = Duration::from_secs(interval_minutes * 60);
+
             println!("📥 Starting synchronization...");
-            if let Err(e) = syncer.sync_media_items(Some(tx)).await {
+            if let Err(e) = syncer.sync_media_items(Some(tx.clone())).await {
                 eprintln!("❌ Synchronization failed: {}", e);
             }
+
+            let _handle = syncer.start_periodic_sync(interval, tx);
 
             ui_thread.join().expect("UI thread panicked");
         }
