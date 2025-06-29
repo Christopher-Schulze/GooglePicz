@@ -6,7 +6,7 @@
 - **Refine Error Handling:** While error enums exist, the UI should display user-friendly error messages instead of printing to `stderr`. Implement a global error state or notification system in the UI.
 
 ## Medium Priority Tasks
-- **Optimize Caching:** The `cache` module stores the entire `MediaItem` as a JSON blob. This is inefficient for querying. The schema should be normalized to store individual metadata fields in their own columns to allow for faster lookups and filtering directly in SQL.
+- **Optimize Caching:** The cache now uses a normalized schema with separate `media_items`, `media_metadata`, `albums`, and `album_media_items` tables for efficient SQL queries.
 - **Implement Full Packaging:** The `packaging` module is currently a placeholder. Implement proper bundling for macOS (`.app`) and Windows (`.msi`/`.exe`) using `cargo-bundle` or other platform-specific tools.
 - **Background Sync Robustness:** The background sync in `main.rs` is started in a `tokio::spawn` task. Add more robust error handling and potentially a mechanism to communicate sync status back to the UI (e.g., via channels).
 

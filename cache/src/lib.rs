@@ -58,6 +58,36 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
              INSERT OR IGNORE INTO last_sync (id, timestamp) VALUES (1, '1970-01-01T00:00:00Z');\n\
              UPDATE schema_version SET version = 3;"
         ),
+        M::up(
+            "CREATE TABLE IF NOT EXISTS albums (\n\
+                 id TEXT PRIMARY KEY,\n\
+                 title TEXT,\n\
+                 product_url TEXT,\n\
+                 is_writeable INTEGER,\n\
+                 media_items_count TEXT,\n\
+                 cover_photo_base_url TEXT,\n\
+                 cover_photo_media_item_id TEXT\n\
+             );\n\
+             CREATE TABLE IF NOT EXISTS album_media_items (\n\
+                 album_id TEXT NOT NULL,\n\
+                 media_item_id TEXT NOT NULL,\n\
+                 PRIMARY KEY (album_id, media_item_id),\n\
+                 FOREIGN KEY(album_id) REFERENCES albums(id) ON DELETE CASCADE,\n\
+                 FOREIGN KEY(media_item_id) REFERENCES media_items(id) ON DELETE CASCADE\n\
+             );\n\
+             UPDATE schema_version SET version = 4;"
+        ),
+        M::up(
+            "CREATE TABLE IF NOT EXISTS media_metadata (\n\
+                 media_item_id TEXT PRIMARY KEY REFERENCES media_items(id) ON DELETE CASCADE,\n\
+                 creation_time TEXT NOT NULL,\n\
+                 width TEXT NOT NULL,\n\
+                 height TEXT NOT NULL\n\
+             );\n\
+             INSERT OR IGNORE INTO media_metadata (media_item_id, creation_time, width, height)\n\
+                 SELECT id, creation_time, width, height FROM media_items;\n\
+             UPDATE schema_version SET version = 5;"
+        ),
     ]);
     migrations
         .to_latest(conn)
@@ -94,6 +124,20 @@ impl CacheManager {
                 ],
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to insert media item: {}", e)))?;
+
+        self.conn
+            .execute(
+                "INSERT OR REPLACE INTO media_metadata (
+                    media_item_id, creation_time, width, height
+                ) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    item.id,
+                    item.media_metadata.creation_time,
+                    item.media_metadata.width,
+                    item.media_metadata.height
+                ],
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to insert metadata: {}", e)))?;
 
         Ok(())
     }
@@ -235,6 +279,112 @@ impl CacheManager {
         Ok(items)
     }
 
+    pub fn insert_album(&self, album: &api_client::Album) -> Result<(), CacheError> {
+        self.conn
+            .execute(
+                "INSERT OR REPLACE INTO albums (
+                    id, title, product_url, is_writeable, media_items_count, cover_photo_base_url, cover_photo_media_item_id
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![
+                    album.id,
+                    album.title,
+                    album.product_url,
+                    album.is_writeable.map(|b| if b { 1 } else { 0 }),
+                    album.media_items_count,
+                    album.cover_photo_base_url,
+                    album.cover_photo_media_item_id
+                ],
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to insert album: {}", e)))?;
+
+        Ok(())
+    }
+
+    pub fn associate_media_item_with_album(&self, media_item_id: &str, album_id: &str) -> Result<(), CacheError> {
+        self.conn
+            .execute(
+                "INSERT OR REPLACE INTO album_media_items (album_id, media_item_id) VALUES (?1, ?2)",
+                params![album_id, media_item_id],
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to associate media item with album: {}", e)))?;
+        Ok(())
+    }
+
+    pub fn get_media_items_by_album(&self, album_id: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let mut stmt = self.conn
+            .prepare(
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                 FROM media_items m
+                 JOIN album_media_items ami ON m.id = ami.media_item_id
+                 JOIN media_metadata md ON m.id = md.media_item_id
+                 WHERE ami.album_id = ?1",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let iter = stmt
+            .query_map(params![album_id], |row| {
+                Ok(api_client::MediaItem {
+                    id: row.get(0)?,
+                    description: row.get(1)?,
+                    product_url: row.get(2)?,
+                    base_url: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    media_metadata: api_client::MediaMetadata {
+                        creation_time: row.get(5)?,
+                        width: row.get(6)?,
+                        height: row.get(7)?,
+                    },
+                    filename: row.get(8)?,
+                })
+            })
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items by album: {}", e)))?;
+
+        let mut items = Vec::new();
+        for item in iter {
+            items.push(item.map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e)))?);
+        }
+        Ok(items)
+    }
+
+    pub fn get_media_items_by_date_range(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let mut stmt = self.conn
+            .prepare(
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                 FROM media_items m
+                 JOIN media_metadata md ON m.id = md.media_item_id
+                 WHERE datetime(md.creation_time) >= datetime(?1) AND datetime(md.creation_time) <= datetime(?2)",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let iter = stmt
+            .query_map(params![start.to_rfc3339(), end.to_rfc3339()], |row| {
+                Ok(api_client::MediaItem {
+                    id: row.get(0)?,
+                    description: row.get(1)?,
+                    product_url: row.get(2)?,
+                    base_url: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    media_metadata: api_client::MediaMetadata {
+                        creation_time: row.get(5)?,
+                        width: row.get(6)?,
+                        height: row.get(7)?,
+                    },
+                    filename: row.get(8)?,
+                })
+            })
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items by date: {}", e)))?;
+
+        let mut items = Vec::new();
+        for item in iter {
+            items.push(item.map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e)))?);
+        }
+        Ok(items)
+    }
+
     pub fn delete_media_item(&self, id: &str) -> Result<(), CacheError> {
         self.conn.execute("DELETE FROM media_items WHERE id = ?1", params![id])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to delete media item: {}", e)))?;
@@ -273,7 +423,7 @@ impl CacheManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use api_client::{MediaItem, MediaMetadata};
+    use api_client::{Album, MediaItem, MediaMetadata};
     use rusqlite::Connection;
     use tempfile::NamedTempFile;
     use chrono::{DateTime, Utc};
@@ -370,6 +520,52 @@ mod tests {
     }
 
     #[test]
+    fn test_query_by_album_and_date_range() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let db_path = temp_file.path();
+        let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
+
+        let album = Album {
+            id: "a1".to_string(),
+            title: Some("Test".to_string()),
+            product_url: None,
+            is_writeable: Some(true),
+            media_items_count: None,
+            cover_photo_base_url: None,
+            cover_photo_media_item_id: None,
+        };
+        cache_manager.insert_album(&album).expect("Failed to insert album");
+
+        let mut item1 = create_test_media_item("id1");
+        let mut item2 = create_test_media_item("id2");
+        item2.media_metadata.creation_time = "2023-02-01T12:00:00Z".to_string();
+
+        cache_manager.insert_media_item(&item1).expect("Failed to insert item1");
+        cache_manager.insert_media_item(&item2).expect("Failed to insert item2");
+        cache_manager
+            .associate_media_item_with_album("id1", "a1")
+            .expect("Failed to associate");
+
+        let album_items = cache_manager
+            .get_media_items_by_album("a1")
+            .expect("Failed to query by album");
+        assert_eq!(album_items.len(), 1);
+        assert_eq!(album_items[0].id, item1.id);
+
+        let start = DateTime::parse_from_rfc3339("2023-02-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let end = DateTime::parse_from_rfc3339("2023-03-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let date_items = cache_manager
+            .get_media_items_by_date_range(start, end)
+            .expect("Failed to query by date");
+        assert_eq!(date_items.len(), 1);
+        assert_eq!(date_items[0].id, item2.id);
+    }
+
+    #[test]
     fn test_delete_media_item() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let db_path = temp_file.path();
@@ -433,7 +629,7 @@ mod tests {
 
         let conn = Connection::open(db_path).unwrap();
         let version: i32 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 5);
 
         let mut stmt = conn.prepare("PRAGMA table_info(media_items)").unwrap();
         let cols: Vec<String> = stmt
@@ -446,6 +642,67 @@ mod tests {
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='last_sync'").unwrap();
         let has_table: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
         assert!(has_table.is_some());
+
+        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='albums'").unwrap();
+        assert!(stmt.query_row([], |row| row.get::<_, String>(0)).ok().is_some());
+
+        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='media_metadata'").unwrap();
+        assert!(stmt.query_row([], |row| row.get::<_, String>(0)).ok().is_some());
+    }
+
+    #[test]
+    fn test_apply_migrations_from_v3() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let db_path = temp_file.path();
+
+        {
+            let conn = Connection::open(db_path).unwrap();
+            conn.execute(
+                "CREATE TABLE media_items (
+                    id TEXT PRIMARY KEY,
+                    description TEXT,
+                    product_url TEXT NOT NULL,
+                    base_url TEXT NOT NULL,
+                    mime_type TEXT NOT NULL,
+                    creation_time TEXT NOT NULL,
+                    width TEXT NOT NULL,
+                    height TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    is_favorite INTEGER NOT NULL DEFAULT 0
+                )",
+                [],
+            ).unwrap();
+            conn.execute(
+                "CREATE TABLE last_sync (id INTEGER PRIMARY KEY, timestamp TEXT NOT NULL)",
+                [],
+            ).unwrap();
+            conn.execute(
+                "CREATE TABLE schema_version (version INTEGER NOT NULL)",
+                [],
+            ).unwrap();
+            conn.execute("INSERT INTO schema_version (version) VALUES (3)", []).unwrap();
+            conn.pragma_update(None, "user_version", &3).unwrap();
+        }
+
+        let _cm = CacheManager::new(db_path).expect("Failed to open cache manager");
+
+        let conn = Connection::open(db_path).unwrap();
+        let version: i32 = conn
+            .query_row("SELECT version FROM schema_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 5);
+
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='albums'")
+            .unwrap();
+        let has_albums: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
+        assert!(has_albums.is_some());
+
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='media_metadata'")
+            .unwrap();
+        let has_meta: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
+        assert!(has_meta.is_some());
     }
 
     #[test]
