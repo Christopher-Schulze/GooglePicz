@@ -27,3 +27,10 @@ ui = { path = "ui" }
 cache = { path = "cache" }
 api_client = { path = "api_client" }
 packaging = { path = "packaging" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

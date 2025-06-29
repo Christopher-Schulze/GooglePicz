@@ -13,10 +13,3 @@ ui = { workspace = true }
 
 [build-dependencies]
 cargo-bundle-licenses = "0.4"
-
-[profile.release]
-opt-level = "s"
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
