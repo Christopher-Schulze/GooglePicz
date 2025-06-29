@@ -62,14 +62,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔄 Initializing synchronization...");
     match Syncer::new(&db_path).await {
         Ok(syncer) => {
-            // Start synchronization in a separate task
-            tokio::spawn(async move {
-                println!("📥 Starting background synchronization...");
-                match syncer.sync_media_items().await {
-                    Ok(_) => println!("✅ Initial synchronization completed"),
-                    Err(e) => eprintln!("❌ Synchronization failed: {}", e),
-                }
-            });
+            println!("📥 Starting synchronization...");
+            match syncer.sync_media_items().await {
+                Ok(_) => println!("✅ Initial synchronization completed"),
+                Err(e) => eprintln!("❌ Synchronization failed: {}", e),
+            }
         }
         Err(e) => {
             eprintln!("❌ Failed to initialize syncer: {}", e);

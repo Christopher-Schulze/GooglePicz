@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::fs;
 use reqwest;
-use iced::widget::image::{Handle, self};
+use iced::widget::image::Handle;
 use api_client;
 
 #[derive(Debug, Clone)]
