@@ -2,8 +2,9 @@
 
 mod image_loader;
 
-use iced::widget::{button, column, container, text, scrollable, row};
-use iced::{executor, Application, Command, Element, Length, Settings, Theme, Size};
+use iced::widget::{button, column, container, text, scrollable, row, image};
+use iced::widget::image::Handle;
+use iced::{executor, Application, Command, Element, Length, Settings, Theme};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -96,7 +97,9 @@ impl Application for GooglePiczUI {
                         // Start loading thumbnails for all photos
                         let mut commands = Vec::new();
                         for photo in &self.photos {
-                            commands.push(Command::perform(async {}, move |_| Message::LoadThumbnail(photo.id.clone(), photo.base_url.clone())));
+                            let media_id = photo.id.clone();
+                            let base_url = photo.base_url.clone();
+                            commands.push(Command::perform(async {}, move |_| Message::LoadThumbnail(media_id.clone(), base_url.clone())));
                         }
                         return Command::batch(commands);
                     }
@@ -110,10 +113,12 @@ impl Application for GooglePiczUI {
             }
             Message::LoadThumbnail(media_id, base_url) => {
                 let image_loader = self.image_loader.clone();
+                let id_clone = media_id.clone();
+                let base_clone = base_url.clone();
                 return Command::perform(
                     async move {
                         let loader = image_loader.lock().await;
-                        loader.load_thumbnail(&media_id, &base_url).await
+                        loader.load_thumbnail(&id_clone, &base_clone).await
                     },
                     move |result| Message::ThumbnailLoaded(media_id, result.map_err(|e| e.to_string())),
                 );
@@ -169,14 +174,16 @@ impl Application for GooglePiczUI {
                     ]
                     .spacing(2);
                     
-                    let thumbnail_view = if let Some(handle) = self.thumbnails.get(&photo.id) {
+                    let thumbnail_view: Element<Message> = if let Some(handle) = self.thumbnails.get(&photo.id) {
                         image(handle.clone())
                             .width(Length::Fixed(150.0))
                             .height(Length::Fixed(150.0))
+                            .into()
                     } else {
                         container(text("Loading..."))
                             .width(Length::Fixed(150.0))
                             .height(Length::Fixed(150.0))
+                            .into()
                     };
 
                     col.push(row![thumbnail_view, container(photo_info).padding(10).style(iced::theme::Container::Box)].spacing(10))
