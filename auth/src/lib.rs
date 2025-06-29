@@ -6,6 +6,7 @@ use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, Pkce
 use keyring::Entry;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
+use tracing::info;
 use url::Url;
 
 const KEYRING_SERVICE_NAME: &str = "GooglePicz";
@@ -33,7 +34,7 @@ pub async fn authenticate() -> Result<(), Box<dyn std::error::Error>> {
         .set_pkce_challenge(pkce_challenge)
         .url();
 
-    println!("Opening browser for authentication: {}", authorize_url);
+    info!("Opening browser for authentication: {}", authorize_url);
     // Open the URL in the default browser
     webbrowser::open(authorize_url.as_str())?;
 
@@ -74,7 +75,7 @@ pub async fn authenticate() -> Result<(), Box<dyn std::error::Error>> {
         entry.set_password(&refresh_token)?;
     }
 
-    println!("Authentication successful!");
+    info!("Authentication successful!");
     Ok(())
 }
 
@@ -138,7 +139,7 @@ mod tests {
         assert!(result.is_ok(), "Authentication failed: {:?}", result.err());
         let token = get_access_token();
         assert!(token.is_ok());
-        println!("Access Token: {}", token.unwrap());
+        info!("Access Token: {}", token.unwrap());
     }
 
     #[tokio::test]
@@ -151,7 +152,7 @@ mod tests {
         let result = refresh_access_token().await;
         assert!(result.is_ok(), "Refresh token failed: {:?}", result.err());
         let new_token = result.unwrap();
-        println!("New Access Token: {}", new_token);
+        info!("New Access Token: {}", new_token);
         assert!(!new_token.is_empty());
     }
 }
