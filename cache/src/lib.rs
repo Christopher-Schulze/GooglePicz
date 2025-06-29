@@ -1,10 +1,11 @@
 //! Cache module for Google Photos data.
 
-use rusqlite::{Connection, params};
-use rusqlite_migration::{Migrations, M};
+use rusqlite::{params, Connection};
+use rusqlite_migration::{M, Migrations};
 use std::path::Path;
 use std::error::Error;
 use std::fmt;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug)]
 pub enum CacheError {
@@ -51,6 +52,11 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
         M::up(
             "ALTER TABLE media_items ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0;\n\
              UPDATE schema_version SET version = 2;"
+        ),
+        M::up(
+            "CREATE TABLE IF NOT EXISTS last_sync (id INTEGER PRIMARY KEY, timestamp TEXT NOT NULL);\n\
+             INSERT OR IGNORE INTO last_sync (id, timestamp) VALUES (1, '1970-01-01T00:00:00Z');\n\
+             UPDATE schema_version SET version = 3;"
         ),
     ]);
     migrations
@@ -240,6 +246,28 @@ impl CacheManager {
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear cache: {}", e)))?;
         Ok(())
     }
+
+    pub fn get_last_sync(&self) -> Result<DateTime<Utc>, CacheError> {
+        let mut stmt = self.conn
+            .prepare("SELECT timestamp FROM last_sync WHERE id = 1")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        let ts: String = stmt
+            .query_row([], |row| row.get(0))
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query last sync: {}", e)))?;
+        DateTime::parse_from_rfc3339(&ts)
+            .map_err(|e| CacheError::DeserializationError(e.to_string()))
+            .map(|dt| dt.with_timezone(&Utc))
+    }
+
+    pub fn update_last_sync(&self, ts: DateTime<Utc>) -> Result<(), CacheError> {
+        self.conn
+            .execute(
+                "UPDATE last_sync SET timestamp = ?1 WHERE id = 1",
+                params![ts.to_rfc3339()],
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to update last sync: {}", e)))?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -248,6 +276,7 @@ mod tests {
     use api_client::{MediaItem, MediaMetadata};
     use rusqlite::Connection;
     use tempfile::NamedTempFile;
+    use chrono::{DateTime, Utc};
 
     fn create_test_media_item(id: &str) -> MediaItem {
         MediaItem {
@@ -404,7 +433,7 @@ mod tests {
 
         let conn = Connection::open(db_path).unwrap();
         let version: i32 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
 
         let mut stmt = conn.prepare("PRAGMA table_info(media_items)").unwrap();
         let cols: Vec<String> = stmt
@@ -413,5 +442,25 @@ mod tests {
             .map(|r| r.unwrap())
             .collect();
         assert!(cols.contains(&"is_favorite".to_string()));
+
+        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='last_sync'").unwrap();
+        let has_table: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
+        assert!(has_table.is_some());
+    }
+
+    #[test]
+    fn test_last_sync_functions() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let db_path = temp_file.path();
+        let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
+
+        let ts = cache_manager.get_last_sync().expect("Failed to get last sync");
+        assert_eq!(ts, DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH));
+
+        let now = Utc::now();
+        cache_manager.update_last_sync(now).expect("Failed to update last sync");
+
+        let new_ts = cache_manager.get_last_sync().expect("Failed to read updated last sync");
+        assert!(new_ts >= now);
     }
 }
