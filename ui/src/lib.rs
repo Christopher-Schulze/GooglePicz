@@ -31,6 +31,7 @@ pub struct GooglePiczUI {
     cache_manager: Option<Arc<Mutex<CacheManager>>>,
     image_loader: Arc<Mutex<ImageLoader>>,
     thumbnails: std::collections::HashMap<String, Handle>,
+    error: Option<String>,
 }
 
 impl Application for GooglePiczUI {
@@ -64,6 +65,7 @@ impl Application for GooglePiczUI {
             cache_manager,
             image_loader,
             thumbnails: std::collections::HashMap::new(),
+            error: None,
         };
         
         (app, Command::perform(async {}, |_| Message::LoadPhotos))
@@ -78,6 +80,7 @@ impl Application for GooglePiczUI {
             Message::LoadPhotos => {
                 if let Some(cache_manager) = &self.cache_manager {
                     self.loading = true;
+                    self.error = None;
                     let cache_manager = cache_manager.clone();
                     return Command::perform(
                         async move {
@@ -94,6 +97,7 @@ impl Application for GooglePiczUI {
                 match result {
                     Ok(photos) => {
                         self.photos = photos;
+                        self.error = None;
                         // Start loading thumbnails for all photos
                         let mut commands = Vec::new();
                         for photo in &self.photos {
@@ -105,10 +109,12 @@ impl Application for GooglePiczUI {
                     }
                     Err(error) => {
                         eprintln!("Failed to load photos: {}", error);
+                        self.error = Some(error);
                     }
                 }
             }
             Message::RefreshPhotos => {
+                self.error = None;
                 return Command::perform(async {}, |_| Message::LoadPhotos);
             }
             Message::LoadThumbnail(media_id, base_url) => {
@@ -127,9 +133,11 @@ impl Application for GooglePiczUI {
                 match result {
                     Ok(handle) => {
                         self.thumbnails.insert(media_id, handle);
+                        self.error = None;
                     }
                     Err(error) => {
                         eprintln!("Failed to load thumbnail for {}: {}", media_id, error);
+                        self.error = Some(format!("Failed to load thumbnail: {}", error));
                     }
                 }
             }
@@ -145,16 +153,20 @@ impl Application for GooglePiczUI {
         .spacing(20)
         .align_items(iced::Alignment::Center);
 
-        let content = if self.loading {
-            column![
-                header,
-                text("Loading photos...").size(16),
-            ]
+        let mut base = column![header].spacing(20);
+
+        if let Some(err) = &self.error {
+            base = base.push(
+                container(text(err)).style(iced::theme::Container::Box).padding(10),
+            );
+        }
+
+        if self.loading {
+            base = base.push(text("Loading photos...").size(16));
         } else if self.photos.is_empty() {
-            column![
-                header,
+            base = base.push(
                 text("No photos found. Make sure you have authenticated and synced your photos.").size(16),
-            ]
+            );
         } else {
             let photo_list = self.photos.iter().enumerate().fold(
                 column![].spacing(10),
@@ -190,14 +202,12 @@ impl Application for GooglePiczUI {
                 }
             );
             
-            column![
-                header,
-                text(format!("Found {} photos", self.photos.len())).size(16),
-                scrollable(photo_list).height(Length::Fill),
-            ]
-        };
+            base = base
+                .push(text(format!("Found {} photos", self.photos.len())).size(16))
+                .push(scrollable(photo_list).height(Length::Fill));
+        }
 
-        container(content.spacing(20))
+        container(base)
             .width(Length::Fill)
             .height(Length::Fill)
             .padding(20)
