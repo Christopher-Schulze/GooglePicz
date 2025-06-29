@@ -101,6 +101,16 @@ cargo clippy
 cargo test
 ```
 
+## 🌎 Environment Variables
+
+The application and packaging scripts rely on several environment variables:
+
+- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` – OAuth 2.0 credentials required for authentication.
+- `MAC_SIGN_ID` – Signing identity used on macOS (optional).
+- `APPLE_ID` and `APPLE_PASSWORD` – Credentials for notarizing macOS builds (optional).
+- `WINDOWS_CERT` and `WINDOWS_CERT_PASSWORD` – Path and password for a Windows code signing certificate (optional).
+- `MOCK_REFRESH_TOKEN` – Used only for automated tests to bypass live authentication.
+
 ## 📝 Next Steps
 
 ### Short-term Goals
