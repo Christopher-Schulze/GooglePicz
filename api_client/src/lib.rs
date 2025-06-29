@@ -58,6 +58,37 @@ struct SearchMediaItemsRequest {
     album_id: Option<String>,
     page_size: i32,
     page_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    filters: Option<Filters>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Filters {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date_filter: Option<DateFilter>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DateFilter {
+    pub ranges: Vec<DateRange>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DateRange {
+    pub start_date: Date,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_date: Option<Date>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Date {
+    pub year: i32,
+    pub month: u32,
+    pub day: u32,
 }
 
 #[derive(Debug)]
@@ -142,13 +173,14 @@ impl ApiClient {
         Ok((list_response.albums.unwrap_or_default(), list_response.next_page_token))
     }
 
-    pub async fn search_media_items(&self, album_id: Option<String>, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
+    pub async fn search_media_items(&self, album_id: Option<String>, page_size: i32, page_token: Option<String>, filters: Option<Filters>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
         let url = "https://photoslibrary.googleapis.com/v1/mediaItems:search";
-        
+
         let request_body = SearchMediaItemsRequest {
             album_id,
             page_size,
             page_token,
+            filters,
         };
 
         let response = self.client.post(url)

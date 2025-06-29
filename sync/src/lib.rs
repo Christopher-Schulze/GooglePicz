@@ -1,12 +1,13 @@
 //! Synchronization module for Google Photos data.
 
-use api_client::{ApiClient, ApiClientError};
+use api_client::{ApiClient, ApiClientError, Filters, DateFilter, DateRange, Date};
 use auth::{ensure_access_token_valid, get_access_token};
 use cache::{CacheManager, CacheError};
 use std::path::Path;
 use std::error::Error;
 use std::fmt;
 use tokio::time::{sleep, Duration};
+use chrono::{DateTime, Utc, Datelike};
 use tokio::sync::mpsc;
 use tokio::task::{spawn_local, JoinHandle};
 
@@ -63,12 +64,40 @@ impl Syncer {
         let mut page_token: Option<String> = None;
         let mut total_synced = 0;
 
+        let last_sync = self.cache_manager
+            .get_last_sync()
+            .map_err(|e| SyncError::CacheError(format!("Failed to read last sync: {}", e)))?;
+
+        let filters = if let Some(ts) = &last_sync {
+            if let Ok(dt) = DateTime::parse_from_rfc3339(ts) {
+                let dt = dt.with_timezone(&Utc);
+                Some(Filters {
+                    date_filter: Some(DateFilter {
+                        ranges: vec![DateRange {
+                            start_date: Date {
+                                year: dt.year(),
+                                month: dt.month(),
+                                day: dt.day(),
+                            },
+                            end_date: None,
+                        }],
+                    }),
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         loop {
             let token = ensure_access_token_valid().await
                 .map_err(|e| SyncError::AuthenticationError(format!("Failed to refresh token: {}", e)))?;
             self.api_client.set_access_token(token);
 
-            let (media_items, next_page_token) = self.api_client.list_media_items(100, page_token.clone()).await
+            let (media_items, next_page_token) = self.api_client
+                .search_media_items(None, 100, page_token.clone(), filters.clone())
+                .await
                 .map_err(|e| SyncError::ApiClientError(format!("Failed to list media items from API: {}", e)))?;
 
             if media_items.is_empty() {
@@ -99,6 +128,9 @@ impl Syncer {
         if let Some(tx) = progress {
             let _ = tx.send(SyncProgress::Finished(total_synced));
         }
+        self.cache_manager
+            .set_last_sync(&Utc::now().to_rfc3339())
+            .map_err(|e| SyncError::CacheError(format!("Failed to update last sync: {}", e)))?;
         Ok(())
     }
 

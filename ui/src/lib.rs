@@ -31,6 +31,7 @@ pub enum Message {
     SelectPhoto(MediaItem),
     ClosePhoto,
     SyncProgress(SyncProgress),
+    LastSyncLoaded(Result<Option<String>, String>),
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +50,7 @@ pub struct GooglePiczUI {
     progress_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<SyncProgress>>>>,
     synced: u64,
     syncing: bool,
+    last_sync: Option<String>,
     state: ViewState,
     errors: Vec<String>,
 }
@@ -80,6 +82,8 @@ impl Application for GooglePiczUI {
 
         let progress_receiver = flags.map(|rx| Arc::new(Mutex::new(rx)));
 
+        let last_sync = None;
+
         let app = Self {
             photos: Vec::new(),
             loading: false,
@@ -90,11 +94,17 @@ impl Application for GooglePiczUI {
             progress_receiver,
             synced: 0,
             syncing: false,
+            last_sync,
             state: ViewState::Grid,
             errors: Vec::new(),
         };
         
-        (app, Command::perform(async {}, |_| Message::LoadPhotos))
+        let cmd_load = Command::perform(async {}, |_| Message::LoadPhotos);
+        let cmd_sync_time = if let Some(cm) = &app.cache_manager {
+            let cm = cm.clone();
+            Command::perform(async move { let cache = cm.lock().await; cache.get_last_sync().map_err(|e| e.to_string()) }, Message::LastSyncLoaded)
+        } else { Command::none() };
+        (app, Command::batch(vec![cmd_load, cmd_sync_time]))
     }
 
     fn title(&self) -> String {
@@ -204,7 +214,22 @@ impl Application for GooglePiczUI {
                     SyncProgress::Finished(total) => {
                         self.synced = total;
                         self.syncing = false;
+                        if let Some(cm) = &self.cache_manager {
+                            let cm = cm.clone();
+                            return Command::perform(
+                                async move {
+                                    let cache = cm.lock().await;
+                                    cache.get_last_sync().map_err(|e| e.to_string())
+                                },
+                                Message::LastSyncLoaded,
+                            );
+                        }
                     }
+                }
+            }
+            Message::LastSyncLoaded(res) => {
+                if let Ok(ts) = res {
+                    self.last_sync = ts;
                 }
             }
         }
@@ -236,6 +261,10 @@ impl Application for GooglePiczUI {
                 format!("Syncing {} items...", self.synced)
             } else {
                 format!("Synced {} items", self.synced)
+            }),
+            text(match &self.last_sync {
+                Some(ts) => format!("Last synced {}", ts),
+                None => String::from("Never synced"),
             })
         ]
         .spacing(20)

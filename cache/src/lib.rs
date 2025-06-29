@@ -52,6 +52,11 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
             "ALTER TABLE media_items ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0;\n\
              UPDATE schema_version SET version = 2;"
         ),
+        M::up(
+            "CREATE TABLE IF NOT EXISTS last_sync (timestamp TEXT NOT NULL);\n\
+             INSERT INTO last_sync (timestamp) VALUES ('');\n\
+             UPDATE schema_version SET version = 3;"
+        ),
     ]);
     migrations
         .to_latest(conn)
@@ -240,6 +245,40 @@ impl CacheManager {
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear cache: {}", e)))?;
         Ok(())
     }
+
+    pub fn get_last_sync(&self) -> Result<Option<String>, CacheError> {
+        let mut stmt = self.conn
+            .prepare("SELECT timestamp FROM last_sync LIMIT 1")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let mut rows = stmt
+            .query([])
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query last sync: {}", e)))?;
+
+        if let Some(row) = rows
+            .next()
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to get row: {}", e)))?
+        {
+            let ts: String = row.get(0).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
+            if ts.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(ts))
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn set_last_sync(&self, timestamp: &str) -> Result<(), CacheError> {
+        self.conn
+            .execute("DELETE FROM last_sync", [])
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to clear last_sync table: {}", e)))?;
+        self.conn
+            .execute("INSERT INTO last_sync (timestamp) VALUES (?1)", params![timestamp])
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to insert last sync: {}", e)))?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -404,7 +443,11 @@ mod tests {
 
         let conn = Connection::open(db_path).unwrap();
         let version: i32 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
+
+        let mut stmt = conn.prepare("SELECT COUNT(*) FROM last_sync").unwrap();
+        let count: i32 = stmt.query_row([], |r| r.get(0)).unwrap();
+        assert_eq!(count, 1);
 
         let mut stmt = conn.prepare("PRAGMA table_info(media_items)").unwrap();
         let cols: Vec<String> = stmt
@@ -413,5 +456,17 @@ mod tests {
             .map(|r| r.unwrap())
             .collect();
         assert!(cols.contains(&"is_favorite".to_string()));
+    }
+
+    #[test]
+    fn test_last_sync_roundtrip() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let db_path = temp_file.path();
+        let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
+
+        let ts = "2023-01-02T03:04:05Z";
+        cache_manager.set_last_sync(ts).expect("Failed to set last sync");
+        let fetched = cache_manager.get_last_sync().expect("Failed to get last sync");
+        assert_eq!(fetched, Some(ts.to_string()));
     }
 }
