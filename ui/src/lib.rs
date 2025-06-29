@@ -31,6 +31,9 @@ pub enum Message {
     SelectPhoto(MediaItem),
     ClosePhoto,
     SyncProgress(SyncProgress),
+    UploadFile,
+    FileChosen(Option<PathBuf>),
+    UploadFinished(Result<(), String>),
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +53,7 @@ pub struct GooglePiczUI {
     synced: u64,
     syncing: bool,
     state: ViewState,
+    uploading: bool,
     errors: Vec<String>,
 }
 
@@ -91,6 +95,7 @@ impl Application for GooglePiczUI {
             synced: 0,
             syncing: false,
             state: ViewState::Grid,
+            uploading: false,
             errors: Vec::new(),
         };
         
@@ -207,6 +212,25 @@ impl Application for GooglePiczUI {
                     }
                 }
             }
+            Message::UploadFile => {
+                return Command::perform(async {
+                    rfd::AsyncFileDialog::new().pick_file().await.map(|f| f.path().to_path_buf())
+                }, Message::FileChosen);
+            }
+            Message::FileChosen(path) => {
+                if let Some(p) = path {
+                    self.uploading = true;
+                    return Command::perform(upload_media(p), Message::UploadFinished);
+                }
+            }
+            Message::UploadFinished(res) => {
+                self.uploading = false;
+                match res {
+                    Ok(()) => self.errors.push("Upload successful".into()),
+                    Err(e) => self.errors.push(format!("Upload failed: {}", e)),
+                }
+                return Command::perform(async {}, |_| Message::LoadPhotos);
+            }
         }
         Command::none()
     }
@@ -232,6 +256,7 @@ impl Application for GooglePiczUI {
         let header = row![
             text("GooglePicz").size(24),
             button("Refresh").on_press(Message::RefreshPhotos),
+            button("Upload").on_press(Message::UploadFile),
             text(if self.syncing {
                 format!("Syncing {} items...", self.synced)
             } else {
@@ -244,6 +269,9 @@ impl Application for GooglePiczUI {
         let error_banner = self.errors.last().map(|msg| {
             container(text(msg)).style(iced::theme::Container::Box).padding(10)
         });
+        let uploading_banner = if self.uploading {
+            Some(container(text("Uploading...")).style(iced::theme::Container::Box).padding(10))
+        } else { None };
 
         let content = match &self.state {
             ViewState::Grid => {
@@ -308,6 +336,7 @@ impl Application for GooglePiczUI {
 
         let mut base = column![].spacing(20);
         if let Some(b) = error_banner { base = base.push(b); }
+        if let Some(b) = uploading_banner { base = base.push(b); }
         base = base.push(content);
 
         container(base)
@@ -316,4 +345,16 @@ impl Application for GooglePiczUI {
             .padding(20)
             .into()
     }
+}
+
+async fn upload_media(path: PathBuf) -> Result<(), String> {
+    let token = auth::ensure_access_token_valid()
+        .await
+        .map_err(|e| e.to_string())?;
+    let client = api_client::ApiClient::new(token);
+    client
+        .upload_media_item(&path, None)
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
