@@ -84,14 +84,23 @@ fn create_macos_installer() -> Result<(), PackagingError> {
         run_command("codesign", &["--deep", "--force", "-s", &identity, app_path])?;
     }
 
+    let dmg_path = "target/release/GooglePicz.dmg";
+    run_command(
+        "hdiutil",
+        &["create", "-volname", "GooglePicz", "-srcfolder", app_path, "-ov", "-format", "UDZO", dmg_path],
+    )?;
+    if !identity.is_empty() {
+        run_command("codesign", &["--force", "-s", &identity, dmg_path])?;
+    }
+
     if std::env::var("APPLE_ID").is_ok() {
         let apple_id = std::env::var("APPLE_ID").unwrap();
         let password = std::env::var("APPLE_PASSWORD").unwrap_or_default();
         run_command(
             "xcrun",
-            &["notarytool", "submit", app_path, "--apple-id", &apple_id, "--password", &password, "--wait"],
+            &["notarytool", "submit", dmg_path, "--apple-id", &apple_id, "--password", &password, "--wait"],
         )?;
-        run_command("xcrun", &["stapler", "staple", app_path])?;
+        run_command("xcrun", &["stapler", "staple", dmg_path])?;
     }
 
     Ok(())
@@ -99,29 +108,32 @@ fn create_macos_installer() -> Result<(), PackagingError> {
 
 fn create_windows_installer() -> Result<(), PackagingError> {
     tracing::info!("Creating Windows installer...");
+    let release_exe = "target\\release\\googlepicz.exe";
     run_command("makensis", &["packaging/installer.nsi"])?;
 
     let exe_path = "GooglePiczSetup.exe";
     if let Ok(cert_path) = std::env::var("WINDOWS_CERT") {
         if !cert_path.is_empty() {
             let password = std::env::var("WINDOWS_CERT_PASSWORD").unwrap_or_default();
-            run_command(
-                "signtool",
-                &[
-                    "sign",
-                    "/f",
-                    &cert_path,
-                    "/p",
-                    &password,
-                    "/fd",
-                    "sha256",
-                    "/tr",
-                    "http://timestamp.digicert.com",
-                    "/td",
-                    "sha256",
-                    exe_path,
-                ],
-            )?;
+            for target in &[release_exe, exe_path] {
+                run_command(
+                    "signtool",
+                    &[
+                        "sign",
+                        "/f",
+                        &cert_path,
+                        "/p",
+                        &password,
+                        "/fd",
+                        "sha256",
+                        "/tr",
+                        "http://timestamp.digicert.com",
+                        "/td",
+                        "sha256",
+                        target,
+                    ],
+                )?;
+            }
         }
     }
 
@@ -131,6 +143,20 @@ fn create_windows_installer() -> Result<(), PackagingError> {
 fn create_linux_package() -> Result<(), PackagingError> {
     tracing::info!("Creating Linux .deb package...");
     run_command("cargo", &["deb"])?;
+
+    if let Ok(key_id) = std::env::var("LINUX_SIGN_KEY") {
+        if !key_id.is_empty() {
+            let output = Command::new("sh")
+                .arg("-c")
+                .arg("ls target/debian/*.deb | head -n 1")
+                .output()
+                .map_err(|e| PackagingError::CommandError(format!("Failed to locate .deb: {}", e)))?;
+            let deb_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !deb_path.is_empty() {
+                run_command("dpkg-sig", &["--sign", "builder", "-k", &key_id, &deb_path])?;
+            }
+        }
+    }
     Ok(())
 }
 

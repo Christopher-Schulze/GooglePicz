@@ -109,6 +109,7 @@ The application and packaging scripts rely on several environment variables:
 - `MAC_SIGN_ID` – Signing identity used on macOS (optional).
 - `APPLE_ID` and `APPLE_PASSWORD` – Credentials for notarizing macOS builds (optional).
 - `WINDOWS_CERT` and `WINDOWS_CERT_PASSWORD` – Path and password for a Windows code signing certificate (optional).
+- `LINUX_SIGN_KEY` – GPG key ID used to sign the generated `.deb` package (optional).
 - `MOCK_REFRESH_TOKEN` – Used only for automated tests to bypass live authentication.
 
 ## 📝 Next Steps

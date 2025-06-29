@@ -56,12 +56,13 @@ See [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) for detailed technical docume
 
 ## Packaging & Signing
 
-The `packager` binary produces installers for macOS and Windows. Signing on macOS
-requires the following environment variables:
+The `packager` binary produces installers for macOS, Windows and Debian-based Linux systems.
+Signing requires a few environment variables:
 
-- `MAC_SIGN_ID` – identity passed to `codesign`.
-- `APPLE_ID` – Apple ID used for notarization.
-- `APPLE_PASSWORD` – app-specific password for notarization.
+- `MAC_SIGN_ID` – identity passed to `codesign` on macOS.
+- `APPLE_ID` and `APPLE_PASSWORD` – credentials for notarization on macOS.
+- `WINDOWS_CERT` and `WINDOWS_CERT_PASSWORD` – code signing certificate for Windows.
+- `LINUX_SIGN_KEY` – GPG key ID used by `dpkg-sig` to sign the generated `.deb` (optional).
 
 Set these variables in your shell or CI environment before running `cargo run --package packaging --bin packager`.
 
