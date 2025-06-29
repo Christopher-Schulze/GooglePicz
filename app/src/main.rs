@@ -58,25 +58,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Initialize syncer and start background sync
     println!("🔄 Initializing synchronization...");
     match Syncer::new(&db_path).await {
         Ok(syncer) => {
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            let ui_thread = std::thread::spawn(move || {
+                if let Err(e) = ui::run(Some(rx)) {
+                    eprintln!("UI error: {}", e);
+                }
+            });
+
             println!("📥 Starting synchronization...");
-            match syncer.sync_media_items().await {
-                Ok(_) => println!("✅ Initial synchronization completed"),
-                Err(e) => eprintln!("❌ Synchronization failed: {}", e),
+            if let Err(e) = syncer.sync_media_items(Some(tx)).await {
+                eprintln!("❌ Synchronization failed: {}", e);
             }
+
+            ui_thread.join().expect("UI thread panicked");
         }
         Err(e) => {
             eprintln!("❌ Failed to initialize syncer: {}", e);
             eprintln!("💡 The UI will still start, but photos may not be available until sync is working.");
+            ui::run(None)?;
         }
     }
-
-    // Start the UI
-    println!("🎨 Starting GooglePicz UI...");
-    ui::run()?;
 
     Ok(())
 }
