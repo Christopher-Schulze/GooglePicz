@@ -2,7 +2,7 @@
 
 use api_client::ApiClient;
 use auth::ensure_access_token_valid;
-use cache::{CacheError, CacheManager};
+use cache::CacheManager;
 use std::path::Path;
 use std::error::Error;
 use std::fmt;

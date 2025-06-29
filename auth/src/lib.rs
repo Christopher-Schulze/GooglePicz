@@ -5,7 +5,7 @@ use oauth2::reqwest::async_http_client;
 use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl, Scope, TokenResponse, TokenUrl};
 use keyring::Entry;
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use url::Url;
 
@@ -31,7 +31,7 @@ pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::
     // PKCE code challenge
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
-    let (authorize_url, csrf_state) = client
+    let (authorize_url, _csrf_state) = client
         .authorize_url(CsrfToken::new_random)
         .add_scope(Scope::new("https://www.googleapis.com/auth/photoslibrary.readonly".to_string()))
         .set_pkce_challenge(pkce_challenge)
