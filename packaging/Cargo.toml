@@ -7,3 +7,7 @@ edition = "2021"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 [build-dependencies]
 cargo-bundle-licenses = "0.4"
+
+[[bin]]
+name = "packager"
+path = "src/main.rs"

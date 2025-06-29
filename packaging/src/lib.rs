@@ -1,8 +1,8 @@
 //! Packaging module for GooglePicz.
 
-use std::process::Command;
 use std::error::Error;
 use std::fmt;
+use std::process::Command;
 
 #[derive(Debug)]
 pub enum PackagingError {
@@ -20,6 +20,20 @@ impl fmt::Display for PackagingError {
 }
 
 impl Error for PackagingError {}
+
+fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
+    let output = Command::new(cmd)
+        .args(args)
+        .output()
+        .map_err(|e| PackagingError::CommandError(format!("Failed to execute {}: {}", cmd, e)))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(PackagingError::CommandError(format!("{} failed: {}", cmd, stderr)))
+    }
+}
 
 pub fn bundle_licenses() -> Result<(), PackagingError> {
     println!("Bundling licenses...");
@@ -53,16 +67,49 @@ pub fn build_release() -> Result<(), PackagingError> {
     }
 }
 
-// This function would typically be more complex, involving platform-specific tools
-// like `cargo-bundle` for macOS .app bundles, or NSIS for Windows installers.
-// For now, it's a placeholder.
-pub fn create_installer() -> Result<(), PackagingError> {
-    println!("Creating installer (placeholder)...");
-    // Example: For macOS, you might use cargo-bundle or a custom script
-    // Command::new("cargo").args(&["bundle", "--release"]).output();
-    // For Windows, you might use NSIS or WiX
-    // For Linux, .deb or .rpm packages
+fn create_macos_installer() -> Result<(), PackagingError> {
+    println!("Bundling macOS app...");
+    run_command("cargo", &["bundle", "--release"])?;
+
+    println!("Signing macOS app...");
+    let identity = std::env::var("MAC_SIGN_ID").unwrap_or_default();
+    let app_path = "target/release/bundle/osx/GooglePicz.app";
+    if !identity.is_empty() {
+        run_command("codesign", &["--deep", "--force", "-s", &identity, app_path])?;
+    }
+
+    if std::env::var("APPLE_ID").is_ok() {
+        let apple_id = std::env::var("APPLE_ID").unwrap();
+        let password = std::env::var("APPLE_PASSWORD").unwrap_or_default();
+        run_command(
+            "xcrun",
+            &["notarytool", "submit", app_path, "--apple-id", &apple_id, "--password", &password, "--wait"],
+        )?;
+    }
+
     Ok(())
+}
+
+fn create_windows_installer() -> Result<(), PackagingError> {
+    println!("Creating Windows installer...");
+    run_command("makensis", &["packaging/installer.nsi"])
+}
+
+pub fn create_installer() -> Result<(), PackagingError> {
+    if cfg!(target_os = "macos") {
+        create_macos_installer()
+    } else if cfg!(target_os = "windows") {
+        create_windows_installer()
+    } else {
+        println!("Installer creation not supported on this OS");
+        Ok(())
+    }
+}
+
+pub fn package_all() -> Result<(), PackagingError> {
+    bundle_licenses()?;
+    build_release()?;
+    create_installer()
 }
 
 #[cfg(test)]
@@ -127,3 +174,4 @@ mod tests {
         assert!(result.is_ok());
     }
 }
+
