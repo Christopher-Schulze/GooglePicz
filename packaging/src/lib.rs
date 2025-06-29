@@ -150,6 +150,11 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::PathBuf;
+    use tempfile::TempDir;
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+    #[cfg(windows)]
+    use std::os::windows::fs::PermissionsExt;
 
     // Helper to find the project root (where Cargo.toml is)
     fn get_project_root() -> PathBuf {
@@ -161,41 +166,61 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // This test actually runs cargo commands, can be slow and requires cargo-bundle-licenses
     fn test_bundle_licenses() {
         let project_root = get_project_root();
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(&project_root).unwrap();
+
+        let temp_dir = TempDir::new().unwrap();
+        let mock = temp_dir.path().join("cargo");
+        fs::write(&mock, "#!/bin/sh\ntouch licenses.json\n").unwrap();
+        #[cfg(unix)]
+        std::fs::set_permissions(&mock, fs::Permissions::from_mode(0o755)).unwrap();
+        #[cfg(windows)]
+        std::fs::set_permissions(&mock, fs::Permissions::from_mode(0o755)).unwrap();
+        let old_path = std::env::var("PATH").unwrap();
+        std::env::set_var("PATH", format!("{}:{}", temp_dir.path().display(), old_path));
 
         let result = bundle_licenses();
         assert!(result.is_ok(), "License bundling failed: {:?}", result.err());
 
         let licenses_file = project_root.join("licenses.json");
         assert!(licenses_file.exists());
-        fs::remove_file(licenses_file).unwrap(); // Clean up
+        fs::remove_file(licenses_file).unwrap();
 
+        std::env::set_var("PATH", old_path);
         std::env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
-    #[ignore] // This test actually runs cargo commands, can be slow
     fn test_build_release() {
         let project_root = get_project_root();
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(&project_root).unwrap();
 
+        let temp_dir = TempDir::new().unwrap();
+        let mock = temp_dir.path().join("cargo");
+        let output = project_root.join("target").join("release");
+        fs::create_dir_all(&output).unwrap();
+        let binary_name = if cfg!(target_os = "windows") {
+            output.join("googlepicz.exe")
+        } else {
+            output.join("googlepicz")
+        };
+        fs::write(&mock, format!("#!/bin/sh\nmkdir -p {}\ntouch {}\n", output.display(), binary_name.display())).unwrap();
+        #[cfg(unix)]
+        std::fs::set_permissions(&mock, fs::Permissions::from_mode(0o755)).unwrap();
+        #[cfg(windows)]
+        std::fs::set_permissions(&mock, fs::Permissions::from_mode(0o755)).unwrap();
+        let old_path = std::env::var("PATH").unwrap();
+        std::env::set_var("PATH", format!("{}:{}", temp_dir.path().display(), old_path));
+
         let result = build_release();
         assert!(result.is_ok(), "Release build failed: {:?}", result.err());
 
-        // Check if the release binary exists (platform-dependent)
-        let target_dir = project_root.join("target").join("release");
-        let binary_name = if cfg!(target_os = "windows") {
-            "googlepicz.exe"
-        } else {
-            "googlepicz"
-        };
-        assert!(target_dir.join(binary_name).exists());
+        assert!(binary_name.exists());
 
+        std::env::set_var("PATH", old_path);
         std::env::set_current_dir(original_dir).unwrap();
     }
 

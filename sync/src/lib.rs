@@ -146,32 +146,51 @@ impl Syncer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use auth::{authenticate, get_access_token};
     use tempfile::NamedTempFile;
+    use httpmock::Method::POST;
+    use httpmock::MockServer;
+    use serde_json::json;
 
     #[tokio::test]
-    #[ignore] // Requires manual authentication and environment variables
     async fn test_sync_media_items() {
-        // Ensure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in your environment
-        // and you have authenticated at least once.
-        // For testing, you might need to call `authenticate().await` or ensure a valid token exists.
-        // For a real application, you'd have a proper token management system.
+        std::env::set_var("MOCK_KEYRING", "1");
+        std::env::set_var("MOCK_KEYRING_refresh_token", "stored_refresh");
+        std::env::set_var("MOCK_REFRESH_TOKEN", "access1");
 
-        // Attempt to authenticate if no token is found
-        if get_access_token().is_err() {
-            tracing::error!("No access token found. Attempting to authenticate...");
-            authenticate().await.expect("Failed to authenticate for sync test");
-        }
+        let server = MockServer::start();
+        std::env::set_var("GOOGLE_PHOTOS_BASE_URL", server.url(""));
+
+        server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/mediaItems:search");
+                then.status(200)
+                    .json_body(json!({
+                        "mediaItems": [{
+                            "id": "1",
+                            "description": null,
+                            "productUrl": "http://example.com",
+                            "baseUrl": "http://example.com/base",
+                            "mimeType": "image/jpeg",
+                            "mediaMetadata": {"creationTime": "now", "width": "1", "height": "1"},
+                            "filename": "img1.jpg"
+                        }]
+                    }));
+            })
+            .await;
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let db_path = temp_file.path();
 
         let mut syncer = Syncer::new(db_path).await.expect("Failed to create syncer");
-        let result = syncer.sync_media_items(None).await;
-        assert!(result.is_ok(), "Synchronization failed: {:?}", result.err());
+        syncer.sync_media_items(None).await.unwrap();
 
-        let all_cached_items = syncer.cache_manager.get_all_media_items().expect("Failed to get all cached items");
-        tracing::info!("Total items in cache after sync: {}", all_cached_items.len());
-        assert!(!all_cached_items.is_empty());
+        let items = syncer
+            .cache_manager
+            .get_all_media_items()
+            .expect("Failed to get items");
+        assert_eq!(items.len(), 1);
+        std::env::remove_var("MOCK_REFRESH_TOKEN");
+        std::env::remove_var("GOOGLE_PHOTOS_BASE_URL");
+        std::env::remove_var("MOCK_KEYRING");
     }
 }

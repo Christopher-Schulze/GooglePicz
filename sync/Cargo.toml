@@ -14,3 +14,4 @@ serde_json = "1.0"
 
 [dev-dependencies]
 tempfile = "3"
+httpmock = "0.6"

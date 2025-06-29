@@ -3,6 +3,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+
+fn base_url() -> String {
+    std::env::var("GOOGLE_PHOTOS_BASE_URL")
+        .unwrap_or_else(|_| "https://photoslibrary.googleapis.com".to_string())
+}
 use std::error::Error;
 use std::fmt;
 
@@ -112,7 +117,7 @@ impl ApiClient {
     }
 
     pub async fn list_media_items(&self, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
-        let mut url = format!("https://photoslibrary.googleapis.com/v1/mediaItems?pageSize={}", page_size);
+        let mut url = format!("{}/v1/mediaItems?pageSize={}", base_url(), page_size);
         if let Some(token) = page_token {
             url.push_str(&format!("&pageToken={}", token));
         }
@@ -135,7 +140,7 @@ impl ApiClient {
     }
 
     pub async fn list_albums(&self, page_size: i32, page_token: Option<String>) -> Result<(Vec<Album>, Option<String>), ApiClientError> {
-        let mut url = format!("https://photoslibrary.googleapis.com/v1/albums?pageSize={}", page_size);
+        let mut url = format!("{}/v1/albums?pageSize={}", base_url(), page_size);
         if let Some(token) = page_token {
             url.push_str(&format!("&pageToken={}", token));
         }
@@ -164,7 +169,7 @@ impl ApiClient {
         page_token: Option<String>,
         filters: Option<Value>,
     ) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
-        let url = "https://photoslibrary.googleapis.com/v1/mediaItems:search";
+        let url = format!("{}/v1/mediaItems:search", base_url());
 
         let request_body = SearchMediaItemsRequest {
             album_id,
@@ -194,7 +199,7 @@ impl ApiClient {
 
     /// Create a new album with the given title.
     pub async fn create_album(&self, title: &str) -> Result<Album, ApiClientError> {
-        let url = "https://photoslibrary.googleapis.com/v1/albums";
+        let url = format!("{}/v1/albums", base_url());
         let body = CreateAlbumRequest {
             album: NewAlbum { title: title.to_string() },
         };
@@ -219,7 +224,9 @@ impl ApiClient {
 
     /// Retrieve media items for a specific album using its ID.
     pub async fn get_album_media_items(&self, album_id: &str, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
-        self.search_media_items(Some(album_id.to_string()), page_size, page_token).await
+        self
+            .search_media_items(Some(album_id.to_string()), page_size, page_token, None)
+            .await
     }
 }
 
