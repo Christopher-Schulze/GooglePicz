@@ -123,6 +123,24 @@ cargo run --package packaging --bin packager
 Generated files include `GooglePicz-<version>-Setup.exe` for Windows and
 `GooglePicz-<version>.deb` for Debian-based Linux.
 
+## Sync CLI
+
+In addition to the main application UI, the project provides a command line
+utility for manual synchronization and cache inspection. The binary lives under
+`app/src/bin/sync_cli.rs` and is built alongside the rest of the workspace.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- sync
+```
+
+Synchronizes all media items and prints progress to stdout.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- status
+```
+
+Displays the last sync timestamp and the number of cached photos.
+
 ## 🐳 CI Docker Image
 
 The repository includes a `Dockerfile.ci` used to build a container image with
