@@ -390,7 +390,7 @@ impl Application for GooglePiczUI {
         let header = row![
             text("GooglePicz").size(24),
             button("Refresh").on_press(Message::RefreshPhotos),
-            button("New Album...").on_press(Message::ShowCreateAlbumDialog),
+            button("New Album…").on_press(Message::ShowCreateAlbumDialog),
             text(if self.syncing {
                 format!("Syncing {} items...", self.synced)
             } else {
