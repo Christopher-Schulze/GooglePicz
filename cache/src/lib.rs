@@ -536,7 +536,7 @@ mod tests {
         };
         cache_manager.insert_album(&album).expect("Failed to insert album");
 
-        let mut item1 = create_test_media_item("id1");
+        let item1 = create_test_media_item("id1");
         let mut item2 = create_test_media_item("id2");
         item2.media_metadata.creation_time = "2023-02-01T12:00:00Z".to_string();
 
