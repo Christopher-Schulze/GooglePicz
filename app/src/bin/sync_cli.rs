@@ -1,12 +1,12 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use dirs;
+use dirs::home_dir;
 use tokio::sync::mpsc;
 use sync::{Syncer, SyncProgress};
 use cache::CacheManager;
 
 #[derive(Parser)]
-#[command(name = "sync_cli", about = "GooglePicz synchronization CLI")]
+#[command(name = "sync_cli", author, version, about = "GooglePicz synchronization CLI")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -24,7 +24,7 @@ enum Commands {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    let cache_dir = dirs::home_dir()
+    let cache_dir = home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".googlepicz");
     let db_path = cache_dir.join("cache.sqlite");
