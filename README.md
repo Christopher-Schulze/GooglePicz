@@ -54,7 +54,7 @@ GooglePicz/
 
 See the following documents for additional details:
 - [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) – detailed technical documentation.
-- [docs/CONFIGURATION.md](docs/CONFIGURATION.md) – user configuration options.
+- [Configuration Guide](docs/CONFIGURATION.md) – lists available `AppConfig` options.
 
 ## Sync CLI
 
