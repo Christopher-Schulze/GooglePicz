@@ -10,6 +10,7 @@ toml = "0.5"
 
 [dev-dependencies]
 serial_test = "2"
+# Required for building Debian packages
 cargo-deb = "3.1"
 [build-dependencies]
 cargo-bundle-licenses = "0.4"
