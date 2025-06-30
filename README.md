@@ -67,6 +67,12 @@ cargo run --package googlepicz --bin sync_cli -- sync
 Synchronizes all media items and prints progress.
 
 ```bash
+cargo run --package googlepicz --bin sync_cli -- --help
+```
+
+Displays the available commands.
+
+```bash
 cargo run --package googlepicz --bin sync_cli -- status
 ```
 
