@@ -53,6 +53,7 @@ GooglePicz/
 ## 📝 Documentation
 
 See [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) for detailed technical documentation.
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for user configuration options.
 
 ## Packaging & Signing
 
