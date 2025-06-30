@@ -10,10 +10,12 @@ dirs = { workspace = true }
 auth = { workspace = true }
 sync = { workspace = true }
 ui = { workspace = true }
+cache = { workspace = true }
 config = "0.13"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }
+clap = { workspace = true }
 
 [build-dependencies]
 cargo-bundle-licenses = "0.4"
