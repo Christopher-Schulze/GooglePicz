@@ -300,6 +300,37 @@ impl CacheManager {
         Ok(())
     }
 
+    /// Retrieve all albums from the cache.
+    pub fn get_all_albums(&self) -> Result<Vec<api_client::Album>, CacheError> {
+        let mut stmt = self.conn
+            .prepare(
+                "SELECT id, title, product_url, is_writeable, media_items_count, cover_photo_base_url, cover_photo_media_item_id FROM albums",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let iter = stmt
+            .query_map([], |row| {
+                Ok(api_client::Album {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    product_url: row.get(2)?,
+                    is_writeable: row
+                        .get::<_, Option<i64>>(3)?
+                        .map(|v| v != 0),
+                    media_items_count: row.get(4)?,
+                    cover_photo_base_url: row.get(5)?,
+                    cover_photo_media_item_id: row.get(6)?,
+                })
+            })
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query albums: {}", e)))?;
+
+        let mut albums = Vec::new();
+        for album in iter {
+            albums.push(album.map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve album: {}", e)))?);
+        }
+        Ok(albums)
+    }
+
     pub fn associate_media_item_with_album(&self, media_item_id: &str, album_id: &str) -> Result<(), CacheError> {
         self.conn
             .execute(
@@ -563,6 +594,28 @@ mod tests {
             .expect("Failed to query by date");
         assert_eq!(date_items.len(), 1);
         assert_eq!(date_items[0].id, item2.id);
+    }
+
+    #[test]
+    fn test_insert_and_get_all_albums() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let db_path = temp_file.path();
+        let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
+
+        let album = Album {
+            id: "a1".to_string(),
+            title: Some("Test".to_string()),
+            product_url: None,
+            is_writeable: Some(true),
+            media_items_count: None,
+            cover_photo_base_url: None,
+            cover_photo_media_item_id: None,
+        };
+        cache_manager.insert_album(&album).expect("Failed to insert album");
+
+        let albums = cache_manager.get_all_albums().expect("Failed to get albums");
+        assert_eq!(albums.len(), 1);
+        assert_eq!(albums[0].id, album.id);
     }
 
     #[test]
