@@ -299,4 +299,13 @@ mod tests {
         assert_eq!(albums[0].title.as_deref(), Some("Test Album"));
         assert_eq!(parsed.next_page_token, Some("token123".to_string()));
     }
+
+    #[tokio::test]
+    async fn test_create_album_mock() {
+        std::env::set_var("MOCK_API_CLIENT", "1");
+        let client = ApiClient::new("token".into());
+        let album = client.create_album("My Album").await.unwrap();
+        assert_eq!(album.title.as_deref(), Some("My Album"));
+        std::env::remove_var("MOCK_API_CLIENT");
+    }
 }

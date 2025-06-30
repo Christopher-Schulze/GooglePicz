@@ -3,7 +3,8 @@
 mod image_loader;
 
 use iced::widget::{
-    button, column, container, text, scrollable, row, image, Column
+    button, column, container, text, scrollable, row, image, text_input, pick_list,
+    Column
 };
 use iced::widget::image::Handle;
 use iced::{executor, Application, Command, Element, Length, Settings, Theme, Subscription};
@@ -39,6 +40,25 @@ pub enum Message {
     ClosePhoto,
     SyncProgress(SyncProgress),
     DismissError(usize),
+    ShowCreateAlbumDialog,
+    AlbumTitleChanged(String),
+    CreateAlbum,
+    AlbumCreated(Result<Album, String>),
+    CancelCreateAlbum,
+    AlbumPicked(AlbumOption),
+    AlbumAssigned(Result<(), String>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AlbumOption {
+    id: String,
+    title: String,
+}
+
+impl std::fmt::Display for AlbumOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.title)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -63,6 +83,9 @@ pub struct GooglePiczUI {
     selected_album: Option<String>,
     errors: Vec<String>,
     preload_count: usize,
+    creating_album: bool,
+    new_album_title: String,
+    assign_selection: Option<AlbumOption>,
 }
 
 impl Application for GooglePiczUI {
@@ -114,6 +137,9 @@ impl Application for GooglePiczUI {
             selected_album: None,
             errors: Vec::new(),
             preload_count,
+            creating_album: false,
+            new_album_title: String::new(),
+            assign_selection: None,
         };
 
         (
@@ -272,6 +298,73 @@ impl Application for GooglePiczUI {
                     self.errors.remove(index);
                 }
             }
+            Message::ShowCreateAlbumDialog => {
+                self.creating_album = true;
+            }
+            Message::AlbumTitleChanged(title) => {
+                self.new_album_title = title;
+            }
+            Message::CreateAlbum => {
+                let title = self.new_album_title.clone();
+                self.new_album_title.clear();
+                self.creating_album = false;
+                let cache_manager = self.cache_manager.clone();
+                return Command::perform(
+                    async move {
+                        let token = auth::ensure_access_token_valid()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        let client = ApiClient::new(token);
+                        let album = client.create_album(&title).await
+                            .map_err(|e| e.to_string())?;
+                        if let Some(cm) = cache_manager {
+                            let cache = cm.lock().await;
+                            if let Err(e) = cache.insert_album(&album) {
+                                return Err(e.to_string());
+                            }
+                        }
+                        Ok(album)
+                    },
+                    Message::AlbumCreated,
+                );
+            }
+            Message::AlbumCreated(result) => {
+                match result {
+                    Ok(album) => {
+                        self.albums.push(album);
+                    }
+                    Err(err) => self.errors.push(format!("Failed to create album: {}", err)),
+                }
+            }
+            Message::CancelCreateAlbum => {
+                self.creating_album = false;
+                self.new_album_title.clear();
+            }
+            Message::AlbumPicked(album) => {
+                self.assign_selection = Some(album.clone());
+                if let ViewState::SelectedPhoto(photo) = &self.state {
+                    if let Some(cm) = &self.cache_manager {
+                        let cm = cm.clone();
+                        let media_id = photo.id.clone();
+                        let album_id = album.id.clone();
+                        return Command::perform(
+                            async move {
+                                let cache = cm.lock().await;
+                                cache
+                                    .associate_media_item_with_album(&media_id, &album_id)
+                                    .map_err(|e| e.to_string())
+                            },
+                            Message::AlbumAssigned,
+                        );
+                    }
+                }
+            }
+            Message::AlbumAssigned(res) => {
+                self.assign_selection = None;
+                if let Err(e) = res {
+                    self.errors.push(format!("Failed to assign photo: {}", e));
+                }
+            }
         }
         Command::none()
     }
@@ -297,6 +390,7 @@ impl Application for GooglePiczUI {
         let header = row![
             text("GooglePicz").size(24),
             button("Refresh").on_press(Message::RefreshPhotos),
+            button("New Album...").on_press(Message::ShowCreateAlbumDialog),
             text(if self.syncing {
                 format!("Syncing {} items...", self.synced)
             } else {
@@ -330,6 +424,23 @@ impl Application for GooglePiczUI {
             None
         } else {
             Some(error_column)
+        };
+
+        let album_dialog = if self.creating_album {
+            Some(
+                column![
+                    text_input("Album title", &self.new_album_title)
+                        .on_input(Message::AlbumTitleChanged),
+                    row![
+                        button("Create").on_press(Message::CreateAlbum),
+                        button("Cancel").on_press(Message::CancelCreateAlbum)
+                    ]
+                    .spacing(10)
+                ]
+                .spacing(10)
+            )
+        } else {
+            None
         };
 
         let content = match &self.state {
@@ -392,10 +503,19 @@ impl Application for GooglePiczUI {
                 } else {
                     container(text("Loading...")).width(Length::Fill).height(Length::Fill).into()
                 };
+                let album_opts: Vec<AlbumOption> = self
+                    .albums
+                    .iter()
+                    .map(|a| AlbumOption {
+                        id: a.id.clone(),
+                        title: a.title.clone().unwrap_or_else(|| "Untitled".into()),
+                    })
+                    .collect();
                 column![
                     header,
                     button("Close").on_press(Message::ClosePhoto),
-                    img
+                    img,
+                    pick_list(album_opts, self.assign_selection.clone(), Message::AlbumPicked)
                 ]
             }
         };
@@ -403,6 +523,7 @@ impl Application for GooglePiczUI {
         let mut base = column![].spacing(20);
         if let Some(b) = error_banner { base = base.push(b); }
         base = base.push(content);
+        if let Some(d) = album_dialog { base = base.push(d); }
 
         container(base)
             .width(Length::Fill)
