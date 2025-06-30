@@ -170,7 +170,8 @@ fn create_linux_package() -> Result<(), PackagingError> {
     run_command("cargo", &["deb", "--deb-version", &version])?;
 
     // Locate the produced .deb file in target/debian
-    let deb_dir = get_project_root().join("target/debian");
+    let root = get_project_root();
+    let deb_dir = root.join("target/debian");
     let deb_entries = match fs::read_dir(&deb_dir) {
         Ok(entries) => entries,
         Err(_) => {
@@ -203,7 +204,7 @@ fn create_linux_package() -> Result<(), PackagingError> {
     }
 
     // Rename to include the version similar to the Windows installer
-    let versioned = get_project_root().join(format!("GooglePicz-{}.deb", version));
+    let versioned = root.join(format!("GooglePicz-{}.deb", version));
     fs::rename(&deb_path, &versioned)
         .map_err(|e| PackagingError::Other(format!("Failed to rename .deb: {}", e)))?;
 

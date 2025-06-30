@@ -115,8 +115,9 @@ The application and packaging scripts rely on several environment variables:
 ### Packaging installers
 Run the packager binary to create platform specific artifacts. The version is
 read from `Cargo.toml`, so each file is versioned automatically. Linux packages
-are built using `cargo deb` with the `--deb-version` flag, which requires the
-`cargo-deb` crate in `dev-dependencies`.
+are built using `cargo deb` with the `--deb-version` flag, requiring the
+`cargo-deb` crate in `dev-dependencies`. The `.deb` output is renamed to include
+the version just like the Windows installer.
 
 ```bash
 cargo run --package packaging --bin packager
