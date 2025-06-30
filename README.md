@@ -60,7 +60,8 @@ See the following documents for additional details:
 
 Run the `sync_cli` binary for manual synchronization or to inspect the local cache.
 The tool exposes subcommands for `sync` and `status` and prints progress updates
-to stdout while downloading items.
+to stdout while downloading items. The source code lives in
+`app/src/bin/sync_cli.rs`.
 
 ```bash
 cargo run --package googlepicz --bin sync_cli -- sync
