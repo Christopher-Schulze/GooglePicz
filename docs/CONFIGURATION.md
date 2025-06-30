@@ -1,6 +1,6 @@
 # Configuration Guide
 
-`AppConfig` controls runtime behavior of GooglePicz. Values can be loaded from `~/.googlepicz/config` using the [config](https://docs.rs/config) crate.
+`AppConfig` (defined in [`app/src/config.rs`](../app/src/config.rs)) controls runtime behavior of GooglePicz. Values can be loaded from `~/.googlepicz/config` using the [config](https://docs.rs/config) crate.
 
 | Option | Type | Default | Description |
 | ------ | ---- | ------- | ----------- |
