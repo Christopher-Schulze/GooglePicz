@@ -55,6 +55,22 @@ GooglePicz/
 See [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) for detailed technical documentation.
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for user configuration options.
 
+## Sync CLI
+
+Run the `sync_cli` binary for manual synchronization or to inspect the local cache.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- sync
+```
+
+Synchronizes all media items and prints progress.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- status
+```
+
+Displays the timestamp of the last sync along with the number of cached photos.
+
 ## Packaging & Signing
 
 The `packager` binary produces installers for macOS, Windows and Debian-based Linux systems.
