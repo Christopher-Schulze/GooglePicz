@@ -114,14 +114,17 @@ The application and packaging scripts rely on several environment variables:
 
 ### Packaging installers
 Run the packager binary to create platform specific artifacts. The version is
-read from `Cargo.toml`, so each file is versioned automatically.
+read from `Cargo.toml`, so each file is versioned automatically. Linux packages
+are built using `cargo deb` with the `--deb-version` flag, which requires the
+`cargo-deb` crate in `dev-dependencies`.
 
 ```bash
 cargo run --package packaging --bin packager
 ```
 
 Generated files include `GooglePicz-<version>-Setup.exe` for Windows and
-`GooglePicz-<version>.deb` for Debian-based Linux.
+`GooglePicz-<version>.deb` for Debian-based Linux. The `.deb` file is renamed
+after creation to embed the version, mirroring the Windows installer name.
 
 ## Sync CLI
 

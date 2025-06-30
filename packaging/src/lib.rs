@@ -162,32 +162,51 @@ fn create_windows_installer() -> Result<(), PackagingError> {
 
 fn create_linux_package() -> Result<(), PackagingError> {
     tracing::info!("Creating Linux .deb package...");
+
+    // Determine the version from the workspace Cargo.toml
     let version = workspace_version()?;
+
+    // Build the package with the explicit version
     run_command("cargo", &["deb", "--deb-version", &version])?;
 
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg("ls target/debian/*.deb | head -n 1")
-        .output()
-        .map_err(|e| PackagingError::CommandError(format!("Failed to locate .deb: {}", e)))?;
-    let deb_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if deb_path.is_empty() {
+    // Locate the produced .deb file in target/debian
+    let deb_dir = get_project_root().join("target/debian");
+    let deb_entries = match fs::read_dir(&deb_dir) {
+        Ok(entries) => entries,
+        Err(_) => {
+            if std::env::var("MOCK_COMMANDS").is_ok() {
+                return Ok(());
+            } else {
+                return Err(PackagingError::Other("No .deb package produced".into()));
+            }
+        }
+    };
+    let deb_path = deb_entries
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| p.extension().map(|ext| ext == "deb").unwrap_or(false));
+
+    let Some(deb_path) = deb_path else {
         if std::env::var("MOCK_COMMANDS").is_ok() {
             return Ok(());
         } else {
             return Err(PackagingError::Other("No .deb package produced".into()));
         }
-    }
+    };
 
+    // Optionally sign the package
     if let Ok(key_id) = std::env::var("LINUX_SIGN_KEY") {
         if !key_id.is_empty() {
-            run_command("dpkg-sig", &["--sign", "builder", "-k", &key_id, &deb_path])?;
+            let deb_str = deb_path.to_string_lossy();
+            run_command("dpkg-sig", &["--sign", "builder", "-k", &key_id, &deb_str])?;
         }
     }
 
-    let versioned = format!("GooglePicz-{}.deb", version);
+    // Rename to include the version similar to the Windows installer
+    let versioned = get_project_root().join(format!("GooglePicz-{}.deb", version));
     fs::rename(&deb_path, &versioned)
         .map_err(|e| PackagingError::Other(format!("Failed to rename .deb: {}", e)))?;
+
     Ok(())
 }
 
