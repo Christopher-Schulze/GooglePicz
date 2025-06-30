@@ -112,6 +112,15 @@ The application and packaging scripts rely on several environment variables:
 - `LINUX_SIGN_KEY` – GPG key ID used to sign the generated `.deb` package (optional).
 - `MOCK_REFRESH_TOKEN` – Used only for automated tests to bypass live authentication.
 
+### Packaging
+Run the packager to create platform installers:
+
+```bash
+cargo run --package packaging --bin packager
+```
+
+On Linux the version number is read from `workspace.package.version` in `Cargo.toml` and passed to `cargo deb` via `--deb-version`. The generated file `target/debian/GooglePicz-<version>.deb` will contain the version in its name.
+
 ## 📝 Next Steps
 
 ### Short-term Goals
