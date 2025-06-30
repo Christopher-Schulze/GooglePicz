@@ -1,0 +1,14 @@
+FROM rust:1-slim-bullseye
+
+# Install common build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends pkg-config libssl-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install additional Rust components
+RUN rustup component add rustfmt clippy
+
+# Install packaging tools
+RUN cargo install cargo-deb cargo-bundle
+
+WORKDIR /workspace

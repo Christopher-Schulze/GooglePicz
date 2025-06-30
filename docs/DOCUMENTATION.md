@@ -112,6 +112,22 @@ The application and packaging scripts rely on several environment variables:
 - `LINUX_SIGN_KEY` – GPG key ID used to sign the generated `.deb` package (optional).
 - `MOCK_REFRESH_TOKEN` – Used only for automated tests to bypass live authentication.
 
+## 🐳 CI Docker Image
+
+The repository includes a `Dockerfile.ci` used to build a container image with
+Rust and the packaging tools required for CI. To build and publish the image:
+
+```bash
+# Build the image
+docker build -f Dockerfile.ci -t ghcr.io/christopher-schulze/googlepicz-ci:latest .
+
+# Push to GitHub Container Registry
+docker push ghcr.io/christopher-schulze/googlepicz-ci:latest
+```
+
+The GitHub Actions workflow references this image to ensure consistent
+dependencies across CI runs.
+
 ## 📝 Next Steps
 
 ### Short-term Goals

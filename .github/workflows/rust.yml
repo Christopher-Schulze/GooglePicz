@@ -8,6 +8,8 @@ on:
 jobs:
   build-linux:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/christopher-schulze/googlepicz-ci:latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
