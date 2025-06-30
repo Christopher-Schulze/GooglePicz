@@ -6,9 +6,11 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing = { workspace = true }
+toml = "0.5"
 
 [dev-dependencies]
 serial_test = "2"
+cargo-deb = "3.1"
 [build-dependencies]
 cargo-bundle-licenses = "0.4"
 
