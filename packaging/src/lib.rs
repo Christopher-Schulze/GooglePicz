@@ -8,7 +8,11 @@
 
 use std::error::Error;
 use std::fmt;
+use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
+
+use toml::Value;
 
 #[derive(Debug)]
 pub enum PackagingError {
@@ -42,6 +46,38 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
         let stderr = String::from_utf8_lossy(&output.stderr);
         Err(PackagingError::CommandError(format!("{} failed: {}", cmd, stderr)))
     }
+}
+
+fn get_project_root() -> PathBuf {
+    let mut dir = std::env::current_dir().unwrap();
+    loop {
+        let candidate = dir.join("Cargo.toml");
+        if candidate.exists() {
+            if let Ok(contents) = fs::read_to_string(&candidate) {
+                if contents.contains("[workspace]") {
+                    return dir;
+                }
+            }
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+    std::env::current_dir().unwrap()
+}
+
+fn workspace_version() -> Result<String, PackagingError> {
+    let cargo_toml = fs::read_to_string(get_project_root().join("Cargo.toml"))
+        .map_err(|e| PackagingError::Other(format!("Failed to read Cargo.toml: {}", e)))?;
+    let value: Value = toml::from_str(&cargo_toml)
+        .map_err(|e| PackagingError::Other(format!("Failed to parse Cargo.toml: {}", e)))?;
+    value
+        .get("workspace")
+        .and_then(|ws| ws.get("package"))
+        .and_then(|pkg| pkg.get("version"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| PackagingError::Other("workspace.package.version not found".into()))
 }
 
 pub fn bundle_licenses() -> Result<(), PackagingError> {
@@ -126,21 +162,32 @@ fn create_windows_installer() -> Result<(), PackagingError> {
 
 fn create_linux_package() -> Result<(), PackagingError> {
     tracing::info!("Creating Linux .deb package...");
-    run_command("cargo", &["deb"])?;
+    let version = workspace_version()?;
+    run_command("cargo", &["deb", "--deb-version", &version])?;
+
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg("ls target/debian/*.deb | head -n 1")
+        .output()
+        .map_err(|e| PackagingError::CommandError(format!("Failed to locate .deb: {}", e)))?;
+    let deb_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if deb_path.is_empty() {
+        if std::env::var("MOCK_COMMANDS").is_ok() {
+            return Ok(());
+        } else {
+            return Err(PackagingError::Other("No .deb package produced".into()));
+        }
+    }
 
     if let Ok(key_id) = std::env::var("LINUX_SIGN_KEY") {
         if !key_id.is_empty() {
-            let output = Command::new("sh")
-                .arg("-c")
-                .arg("ls target/debian/*.deb | head -n 1")
-                .output()
-                .map_err(|e| PackagingError::CommandError(format!("Failed to locate .deb: {}", e)))?;
-            let deb_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !deb_path.is_empty() {
-                run_command("dpkg-sig", &["--sign", "builder", "-k", &key_id, &deb_path])?;
-            }
+            run_command("dpkg-sig", &["--sign", "builder", "-k", &key_id, &deb_path])?;
         }
     }
+
+    let versioned = format!("GooglePicz-{}.deb", version);
+    fs::rename(&deb_path, &versioned)
+        .map_err(|e| PackagingError::Other(format!("Failed to rename .deb: {}", e)))?;
     Ok(())
 }
 
