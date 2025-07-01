@@ -146,7 +146,7 @@ impl ApiClient {
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
             return Err(ApiClientError::GoogleApiError(error_text));
         }
-        
+
         let list_response = response.json::<ListMediaItemsResponse>().await
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
 
@@ -215,7 +215,7 @@ impl ApiClient {
             .send()
             .await
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
-            
+
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
             return Err(ApiClientError::GoogleApiError(error_text));
