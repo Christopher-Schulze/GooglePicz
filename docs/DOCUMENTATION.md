@@ -148,11 +148,14 @@ Displays the last sync timestamp and the number of cached photos.
 ## 🐳 CI Docker Image
 
 The repository includes a `Dockerfile.ci` used to build a container image with
-Rust and the packaging tools required for CI. To build and publish the image:
+stable Rust and the packaging tools required for CI. To build and publish the image:
 
 ```bash
 # Build the image
 docker build -f Dockerfile.ci -t ghcr.io/christopher-schulze/googlepicz-ci:latest .
+
+# Authenticate to GHCR (if not already logged in)
+echo "$CR_PAT" | docker login ghcr.io -u USERNAME --password-stdin
 
 # Push to GitHub Container Registry
 docker push ghcr.io/christopher-schulze/googlepicz-ci:latest
