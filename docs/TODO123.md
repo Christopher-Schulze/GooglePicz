@@ -3,7 +3,7 @@
 ## High Priority Tasks
 - **Verify Build:** Run `cargo check --all` and `cargo build` to ensure the project compiles successfully after the configuration and path fixes.
 - **Implement UI Logic:** The UI currently displays photo metadata but needs implementation for actual user interactions (e.g., selecting a photo, viewing full-resolution images, managing albums).
-- **Add Album Management:** Provide UI for creating, renaming, and deleting albums within the application.
+- **Implement Album Management:** Provide a UI for creating, renaming, and deleting albums.
 
 ## Medium Priority Tasks
 - **Optimize Caching:** The cache now uses a normalized schema with separate `media_items`, `media_metadata`, `albums`, and `album_media_items` tables for efficient SQL queries.
