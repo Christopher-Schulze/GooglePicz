@@ -52,7 +52,7 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
 }
 
 fn get_project_root() -> PathBuf {
-    let mut dir = std::env::current_dir().unwrap();
+    let mut dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     loop {
         let candidate = dir.join("Cargo.toml");
         if candidate.exists() {
@@ -66,7 +66,7 @@ fn get_project_root() -> PathBuf {
             break;
         }
     }
-    std::env::current_dir().unwrap()
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
 fn workspace_version() -> Result<String, PackagingError> {
@@ -135,8 +135,7 @@ fn create_macos_installer() -> Result<(), PackagingError> {
         run_command("codesign", &["--force", "-s", &identity, dmg_path])?;
     }
 
-    if std::env::var("APPLE_ID").is_ok() {
-        let apple_id = std::env::var("APPLE_ID").unwrap();
+    if let Ok(apple_id) = std::env::var("APPLE_ID") {
         let password = std::env::var("APPLE_PASSWORD").unwrap_or_default();
         run_command(
             "xcrun",

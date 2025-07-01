@@ -134,6 +134,11 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
 }
 
 impl CacheManager {
+    fn ts_to_rfc3339(ts: i64) -> String {
+        DateTime::<Utc>::from_timestamp(ts, 0)
+            .unwrap_or_else(|| DateTime::<Utc>::from(std::time::UNIX_EPOCH))
+            .to_rfc3339()
+    }
     pub fn new(db_path: &Path) -> Result<Self, CacheError> {
         let mut conn = Connection::open(db_path)
             .map_err(|e| CacheError::DatabaseError(format!("Failed to open database: {}", e)))?;
@@ -214,9 +219,7 @@ impl CacheManager {
                 media_metadata: api_client::MediaMetadata {
                     creation_time: {
                         let ts: i64 = row.get(5).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
-                        DateTime::<Utc>::from_timestamp(ts, 0)
-                            .expect("valid timestamp")
-                            .to_rfc3339()
+                        Self::ts_to_rfc3339(ts)
                     },
                     width: {
                         let w: i64 = row.get(6).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
@@ -257,9 +260,7 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_timestamp(ts, 0)
-                            .expect("valid timestamp")
-                            .to_rfc3339(),
+                        creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
@@ -301,9 +302,7 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_timestamp(ts, 0)
-                            .expect("valid timestamp")
-                            .to_rfc3339(),
+                        creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
@@ -344,9 +343,7 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_timestamp(ts, 0)
-                            .expect("valid timestamp")
-                            .to_rfc3339(),
+                        creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
@@ -465,9 +462,7 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_timestamp(ts, 0)
-                            .expect("valid timestamp")
-                            .to_rfc3339(),
+                        creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
@@ -507,9 +502,7 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_timestamp(ts, 0)
-                            .expect("valid timestamp")
-                            .to_rfc3339(),
+                        creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
