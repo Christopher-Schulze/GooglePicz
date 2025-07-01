@@ -59,7 +59,7 @@ See the following documents for additional details:
 ## Sync CLI
 
 Run the `sync_cli` binary for manual synchronization or to inspect the local cache.
-The tool exposes subcommands for `sync` and `status` and prints progress updates
+The tool exposes subcommands for `sync`, `status`, `clear-cache` and `list-albums` and prints progress updates
 to stdout while downloading items. The source code lives in
 `app/src/bin/sync_cli.rs`.
 
@@ -80,6 +80,18 @@ cargo run --package googlepicz --bin sync_cli -- status
 ```
 
 Displays the timestamp of the last sync along with the number of cached photos.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- list-albums
+```
+
+Lists all albums stored in the local cache.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- clear-cache
+```
+
+Removes all cached media items.
 
 ## Packaging & Signing
 
