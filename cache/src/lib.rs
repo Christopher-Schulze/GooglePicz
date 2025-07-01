@@ -88,6 +88,44 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
                  SELECT id, creation_time, width, height FROM media_items;\n\
              UPDATE schema_version SET version = 5;"
         ),
+        M::up(
+            "PRAGMA foreign_keys=off;\n\
+             CREATE TABLE media_items_new (\n\
+                 id TEXT PRIMARY KEY,\n\
+                 description TEXT,\n\
+                 product_url TEXT NOT NULL,\n\
+                 base_url TEXT NOT NULL,\n\
+                 mime_type TEXT NOT NULL,\n\
+                 is_favorite INTEGER NOT NULL DEFAULT 0,\n\
+                 filename TEXT NOT NULL\n\
+             );\n\
+             INSERT INTO media_items_new (id, description, product_url, base_url, mime_type, is_favorite, filename)\n\
+                 SELECT id, description, product_url, base_url, mime_type, is_favorite, filename FROM media_items;\n\
+             CREATE TABLE media_metadata_new (\n\
+                 media_item_id TEXT PRIMARY KEY REFERENCES media_items_new(id) ON DELETE CASCADE,\n\
+                 creation_time INTEGER NOT NULL,\n\
+                 width INTEGER NOT NULL,\n\
+                 height INTEGER NOT NULL\n\
+             );\n\
+             INSERT INTO media_metadata_new (media_item_id, creation_time, width, height)\n\
+                 SELECT media_item_id, strftime('%s', creation_time), CAST(width AS INTEGER), CAST(height AS INTEGER) FROM media_metadata;\n\
+             CREATE TABLE album_media_items_new (\n\
+                 album_id TEXT NOT NULL,\n\
+                 media_item_id TEXT NOT NULL,\n\
+                 PRIMARY KEY (album_id, media_item_id),\n\
+                 FOREIGN KEY(album_id) REFERENCES albums(id) ON DELETE CASCADE,\n\
+                 FOREIGN KEY(media_item_id) REFERENCES media_items_new(id) ON DELETE CASCADE\n\
+             );\n\
+             INSERT INTO album_media_items_new SELECT * FROM album_media_items;\n\
+             DROP TABLE album_media_items;\n\
+             DROP TABLE media_metadata;\n\
+             DROP TABLE media_items;\n\
+             ALTER TABLE media_items_new RENAME TO media_items;\n\
+             ALTER TABLE media_metadata_new RENAME TO media_metadata;\n\
+             ALTER TABLE album_media_items_new RENAME TO album_media_items;\n\
+             PRAGMA foreign_keys=on;\n\
+             UPDATE schema_version SET version = 6;"
+        ),
     ]);
     migrations
         .to_latest(conn)
@@ -106,20 +144,31 @@ impl CacheManager {
     }
 
     pub fn insert_media_item(&self, item: &api_client::MediaItem) -> Result<(), CacheError> {
+        let creation_ts = DateTime::parse_from_rfc3339(&item.media_metadata.creation_time)
+            .map_err(|e| CacheError::SerializationError(e.to_string()))?
+            .timestamp();
+        let width: i64 = item
+            .media_metadata
+            .width
+            .parse::<i64>()
+            .map_err(|e| CacheError::SerializationError(e.to_string()))?;
+        let height: i64 = item
+            .media_metadata
+            .height
+            .parse::<i64>()
+            .map_err(|e| CacheError::SerializationError(e.to_string()))?;
+
         self.conn
             .execute(
                 "INSERT OR REPLACE INTO media_items (
-                    id, description, product_url, base_url, mime_type, creation_time, width, height, filename
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    id, description, product_url, base_url, mime_type, filename
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 params![
                     item.id,
                     item.description,
                     item.product_url,
                     item.base_url,
                     item.mime_type,
-                    item.media_metadata.creation_time,
-                    item.media_metadata.width,
-                    item.media_metadata.height,
                     item.filename
                 ],
             )
@@ -130,12 +179,7 @@ impl CacheManager {
                 "INSERT OR REPLACE INTO media_metadata (
                     media_item_id, creation_time, width, height
                 ) VALUES (?1, ?2, ?3, ?4)",
-                params![
-                    item.id,
-                    item.media_metadata.creation_time,
-                    item.media_metadata.width,
-                    item.media_metadata.height
-                ],
+                params![ item.id, creation_ts, width, height ],
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to insert metadata: {}", e)))?;
 
@@ -145,7 +189,10 @@ impl CacheManager {
     pub fn get_media_item(&self, id: &str) -> Result<Option<api_client::MediaItem>, CacheError> {
         let mut stmt = self.conn
             .prepare(
-                "SELECT id, description, product_url, base_url, mime_type, creation_time, width, height, filename FROM media_items WHERE id = ?1",
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                 FROM media_items m
+                 JOIN media_metadata md ON m.id = md.media_item_id
+                 WHERE m.id = ?1",
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
@@ -164,9 +211,18 @@ impl CacheManager {
                 base_url: row.get(3).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
                 mime_type: row.get(4).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
                 media_metadata: api_client::MediaMetadata {
-                    creation_time: row.get(5).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
-                    width: row.get(6).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
-                    height: row.get(7).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                    creation_time: {
+                        let ts: i64 = row.get(5).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
+                        DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).ok_or_else(|| CacheError::DeserializationError("invalid timestamp".into()))?, Utc).to_rfc3339()
+                    },
+                    width: {
+                        let w: i64 = row.get(6).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
+                        w.to_string()
+                    },
+                    height: {
+                        let h: i64 = row.get(7).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
+                        h.to_string()
+                    },
                 },
                 filename: row.get(8).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
             };
@@ -180,12 +236,17 @@ impl CacheManager {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, description, product_url, base_url, mime_type, creation_time, width, height, filename FROM media_items",
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                 FROM media_items m
+                 JOIN media_metadata md ON m.id = md.media_item_id",
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
         let media_item_iter = stmt
             .query_map([], |row| {
+                let ts: i64 = row.get(5)?;
+                let w: i64 = row.get(6)?;
+                let h: i64 = row.get(7)?;
                 Ok(api_client::MediaItem {
                     id: row.get(0)?,
                     description: row.get(1)?,
@@ -193,9 +254,9 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: row.get(5)?,
-                        width: row.get(6)?,
-                        height: row.get(7)?,
+                        creation_time: DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(), Utc).to_rfc3339(),
+                        width: w.to_string(),
+                        height: h.to_string(),
                     },
                     filename: row.get(8)?,
                 })
@@ -216,12 +277,18 @@ impl CacheManager {
     pub fn get_media_items_by_mime_type(&self, mime: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let mut stmt = self.conn
             .prepare(
-                "SELECT id, description, product_url, base_url, mime_type, creation_time, width, height, filename FROM media_items WHERE mime_type = ?1",
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                 FROM media_items m
+                 JOIN media_metadata md ON m.id = md.media_item_id
+                 WHERE m.mime_type = ?1",
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
         let iter = stmt
             .query_map(params![mime], |row| {
+                let ts: i64 = row.get(5)?;
+                let w: i64 = row.get(6)?;
+                let h: i64 = row.get(7)?;
                 Ok(api_client::MediaItem {
                     id: row.get(0)?,
                     description: row.get(1)?,
@@ -229,9 +296,9 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: row.get(5)?,
-                        width: row.get(6)?,
-                        height: row.get(7)?,
+                        creation_time: DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(), Utc).to_rfc3339(),
+                        width: w.to_string(),
+                        height: h.to_string(),
                     },
                     filename: row.get(8)?,
                 })
@@ -250,12 +317,18 @@ impl CacheManager {
         let like_pattern = format!("%{}%", pattern);
         let mut stmt = self.conn
             .prepare(
-                "SELECT id, description, product_url, base_url, mime_type, creation_time, width, height, filename FROM media_items WHERE filename LIKE ?1",
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                 FROM media_items m
+                 JOIN media_metadata md ON m.id = md.media_item_id
+                 WHERE m.filename LIKE ?1",
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
         let iter = stmt
             .query_map(params![like_pattern], |row| {
+                let ts: i64 = row.get(5)?;
+                let w: i64 = row.get(6)?;
+                let h: i64 = row.get(7)?;
                 Ok(api_client::MediaItem {
                     id: row.get(0)?,
                     description: row.get(1)?,
@@ -263,9 +336,9 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: row.get(5)?,
-                        width: row.get(6)?,
-                        height: row.get(7)?,
+                        creation_time: DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(), Utc).to_rfc3339(),
+                        width: w.to_string(),
+                        height: h.to_string(),
                     },
                     filename: row.get(8)?,
                 })
@@ -354,6 +427,9 @@ impl CacheManager {
 
         let iter = stmt
             .query_map(params![album_id], |row| {
+                let ts: i64 = row.get(5)?;
+                let w: i64 = row.get(6)?;
+                let h: i64 = row.get(7)?;
                 Ok(api_client::MediaItem {
                     id: row.get(0)?,
                     description: row.get(1)?,
@@ -361,9 +437,9 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: row.get(5)?,
-                        width: row.get(6)?,
-                        height: row.get(7)?,
+                        creation_time: DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(), Utc).to_rfc3339(),
+                        width: w.to_string(),
+                        height: h.to_string(),
                     },
                     filename: row.get(8)?,
                 })
@@ -387,12 +463,15 @@ impl CacheManager {
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
-                 WHERE datetime(md.creation_time) >= datetime(?1) AND datetime(md.creation_time) <= datetime(?2)",
+                 WHERE md.creation_time >= ?1 AND md.creation_time <= ?2",
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
         let iter = stmt
-            .query_map(params![start.to_rfc3339(), end.to_rfc3339()], |row| {
+            .query_map(params![start.timestamp(), end.timestamp()], |row| {
+                let ts: i64 = row.get(5)?;
+                let w: i64 = row.get(6)?;
+                let h: i64 = row.get(7)?;
                 Ok(api_client::MediaItem {
                     id: row.get(0)?,
                     description: row.get(1)?,
@@ -400,9 +479,9 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: row.get(5)?,
-                        width: row.get(6)?,
-                        height: row.get(7)?,
+                        creation_time: DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(), Utc).to_rfc3339(),
+                        width: w.to_string(),
+                        height: h.to_string(),
                     },
                     filename: row.get(8)?,
                 })
@@ -682,7 +761,7 @@ mod tests {
 
         let conn = Connection::open(db_path).unwrap();
         let version: i32 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
 
         let mut stmt = conn.prepare("PRAGMA table_info(media_items)").unwrap();
         let cols: Vec<String> = stmt
@@ -701,6 +780,15 @@ mod tests {
 
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='media_metadata'").unwrap();
         assert!(stmt.query_row([], |row| row.get::<_, String>(0)).ok().is_some());
+
+        let mut stmt = conn.prepare("PRAGMA table_info(media_metadata)").unwrap();
+        let cols: Vec<(String, String)> = stmt
+            .query_map([], |row| Ok((row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        let ct_type = cols.iter().find(|(n, _)| n == "creation_time").unwrap().1.clone();
+        assert_eq!(ct_type.to_uppercase(), "INTEGER");
     }
 
     #[test]
@@ -743,7 +831,7 @@ mod tests {
         let version: i32 = conn
             .query_row("SELECT version FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
 
         let mut stmt = conn
             .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='albums'")
@@ -756,6 +844,15 @@ mod tests {
             .unwrap();
         let has_meta: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
         assert!(has_meta.is_some());
+
+        let mut stmt = conn.prepare("PRAGMA table_info(media_metadata)").unwrap();
+        let cols: Vec<(String, String)> = stmt
+            .query_map([], |row| Ok((row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        let ct_type = cols.iter().find(|(n, _)| n == "creation_time").unwrap().1.clone();
+        assert_eq!(ct_type.to_uppercase(), "INTEGER");
     }
 
     #[test]
