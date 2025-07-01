@@ -129,9 +129,7 @@ after creation to embed the version, mirroring the Windows installer name.
 
 ## Sync CLI
 
-In addition to the main application UI, the project provides a command line
-utility for manual synchronization and cache inspection. The binary lives under
-`app/src/bin/sync_cli.rs` and is built alongside the rest of the workspace.
+In addition to the main application UI, the project provides a command line utility for manual synchronization and cache inspection. The binary lives under `app/src/bin/sync_cli.rs` and is built alongside the rest of the workspace.
 
 ```bash
 cargo run --package googlepicz --bin sync_cli -- sync
@@ -147,10 +145,8 @@ Displays the last sync timestamp and the number of cached photos.
 
 ## 🐳 CI Docker Image
 
-The repository includes a `Dockerfile.ci` used to build a container image with
-stable Rust and the packaging tools required for CI. To build and publish the image:
-
-```bash
+The repository includes a `Dockerfile.ci` used to build a container image with stable Rust and the packaging tools required for CI. To build and publish the image:
+ ```bash
 # Build the image
 docker build -f Dockerfile.ci -t ghcr.io/christopher-schulze/googlepicz-ci:latest .
 
@@ -161,11 +157,9 @@ echo "$CR_PAT" | docker login ghcr.io -u USERNAME --password-stdin
 docker push ghcr.io/christopher-schulze/googlepicz-ci:latest
 ```
 
-The GitHub Actions workflow references this image to ensure consistent
-dependencies across CI runs.
+The GitHub Actions workflow references this image to ensure consistent dependencies across CI runs.
 
-## 📝 Next Steps
-
+## 📝 Next Steps 
 ### Short-term Goals
 1. Complete basic photo viewing functionality
 2. Implement album management

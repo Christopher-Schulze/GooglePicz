@@ -12,7 +12,7 @@ GooglePicz aims to be a native Google Photos application built with Rust, design
     - Display of photo details (filename, dimensions, creation time).
     - Display of thumbnails (150x150 pixels) with caching mechanisms.
 - **Caching**: Robust SQLite-based schema for albums and media items, supporting incremental updates to ensure data consistency and offline access.
-- **Synchronization**: Background synchronization tasks (e.g., every 5 minutes) to keep local data up-to-date with Google Photos, along with pull-to-refresh functionality.
+- **Synchronization**: Background synchronization tasks (e.g., every 5 minutes) to keep local data up-to-date with Google Photos, along with pull-to-refresh feature.
 - **Packaging**: Automated signing and notarization for macOS (.app) and Windows (.msi/.exe) installers to ensure easy distribution and installation.
 
 ## Technical Architecture
@@ -21,7 +21,7 @@ The project is structured as a Rust workspace with the following modules (crates
 - **api_client**: Provides a generated Google Photos client for asynchronous requests.
 - **ui**: Manages reactive UI components, including the `image_loader` module for efficient thumbnail handling, lazy-loading, and GPU-accelerated image rendering.
 - **cache**: Implements a SQLite schema for albums and media items.
-- **sync**: Manages background synchronization tasks and pull-to-refresh functionality.
+- **sync**: Manages background synchronization tasks and pull-to-refresh feature.
 - **packaging**: Handles automated signing and notarization for installers.
 
 ## Key Technologies

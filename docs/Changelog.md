@@ -31,7 +31,7 @@
 - Implemented `api_client` module: Google Photos API interaction for media items.
 - Implemented `cache` module: SQLite-based caching for media items.
 - Implemented `sync` module: Synchronization logic between API and local cache.
-- Implemented `ui` module: Basic UI structure using `iced`.  
+- Implemented `ui` module: Basic UI structure using `iced`.
 - Implemented `packaging` module: Placeholder functions for bundling licenses and building release binaries.
 - Created `src/main.rs` as the main application entry point.
 - Updated main `Cargo.toml` to define `src/main.rs` as a binary target.
