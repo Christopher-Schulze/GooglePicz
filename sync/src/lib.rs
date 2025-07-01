@@ -3,14 +3,14 @@
 use api_client::ApiClient;
 use auth::ensure_access_token_valid;
 use cache::CacheManager;
-use std::path::Path;
+use chrono::{DateTime, Datelike, Utc};
+use serde_json::json;
 use std::error::Error;
 use std::fmt;
-use tokio::time::{sleep, Duration};
+use std::path::Path;
 use tokio::sync::mpsc;
 use tokio::task::{spawn_local, JoinHandle};
-use chrono::{DateTime, Utc, Datelike};
-use serde_json::json;
+use tokio::time::{sleep, Duration};
 
 #[derive(Debug)]
 pub enum SyncError {
@@ -46,15 +46,19 @@ pub enum SyncProgress {
 
 impl Syncer {
     pub async fn new(db_path: &Path) -> Result<Self, SyncError> {
-        let access_token = ensure_access_token_valid().await
-            .map_err(|e| SyncError::AuthenticationError(format!("Failed to get access token: {}", e)))?;
+        let access_token = ensure_access_token_valid().await.map_err(|e| {
+            SyncError::AuthenticationError(format!("Failed to get access token: {}", e))
+        })?;
 
         let api_client = ApiClient::new(access_token);
 
         let cache_manager = CacheManager::new(db_path)
             .map_err(|e| SyncError::CacheError(format!("Failed to create cache manager: {}", e)))?;
 
-        Ok(Syncer { api_client, cache_manager })
+        Ok(Syncer {
+            api_client,
+            cache_manager,
+        })
     }
 
     pub async fn sync_media_items(
@@ -82,23 +86,27 @@ impl Syncer {
         });
 
         loop {
-            let token = ensure_access_token_valid().await
-                .map_err(|e| SyncError::AuthenticationError(format!("Failed to refresh token: {}", e)))?;
+            let token = ensure_access_token_valid().await.map_err(|e| {
+                SyncError::AuthenticationError(format!("Failed to refresh token: {}", e))
+            })?;
             self.api_client.set_access_token(token);
 
             let (media_items, next_page_token) = self
                 .api_client
                 .search_media_items(None, 100, page_token.clone(), Some(filter.clone()))
                 .await
-                .map_err(|e| SyncError::ApiClientError(format!("Failed to list media items from API: {}", e)))?;
+                .map_err(|e| {
+                    SyncError::ApiClientError(format!("Failed to list media items from API: {}", e))
+                })?;
 
             if media_items.is_empty() {
                 break;
             }
 
             for item in media_items {
-                self.cache_manager.insert_media_item(&item)
-                    .map_err(|e| SyncError::CacheError(format!("Failed to insert media item into cache: {}", e)))?;
+                self.cache_manager.insert_media_item(&item).map_err(|e| {
+                    SyncError::CacheError(format!("Failed to insert media item into cache: {}", e))
+                })?;
                 total_synced += 1;
                 if let Some(tx) = &progress {
                     let _ = tx.send(SyncProgress::ItemSynced(total_synced));
@@ -116,7 +124,10 @@ impl Syncer {
             sleep(Duration::from_millis(500)).await;
         }
 
-        tracing::info!("Synchronization complete. Total media items synced: {}.", total_synced);
+        tracing::info!(
+            "Synchronization complete. Total media items synced: {}.",
+            total_synced
+        );
         if let Some(tx) = progress {
             let _ = tx.send(SyncProgress::Finished(total_synced));
         }
@@ -147,8 +158,8 @@ impl Syncer {
 mod tests {
     use super::*;
     use auth::{authenticate, get_access_token};
-    use tempfile::NamedTempFile;
     use serial_test::serial;
+    use tempfile::NamedTempFile;
 
     #[tokio::test]
     #[serial]
@@ -164,7 +175,9 @@ mod tests {
 
         // Attempt to authenticate if no token is found
         if get_access_token().is_err() {
-            authenticate(8080).await.expect("Failed to authenticate for sync test");
+            authenticate(8080)
+                .await
+                .expect("Failed to authenticate for sync test");
         }
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
@@ -174,8 +187,14 @@ mod tests {
         let result = syncer.sync_media_items(None).await;
         assert!(result.is_ok(), "Synchronization failed: {:?}", result.err());
 
-        let all_cached_items = syncer.cache_manager.get_all_media_items().expect("Failed to get all cached items");
-        tracing::info!("Total items in cache after sync: {}", all_cached_items.len());
+        let all_cached_items = syncer
+            .cache_manager
+            .get_all_media_items()
+            .expect("Failed to get all cached items");
+        tracing::info!(
+            "Total items in cache after sync: {}",
+            all_cached_items.len()
+        );
         assert!(!all_cached_items.is_empty());
         std::env::remove_var("MOCK_KEYRING");
         std::env::remove_var("MOCK_ACCESS_TOKEN");

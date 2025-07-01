@@ -1,16 +1,16 @@
 //! Main application entry point for GooglePicz.
 
 use auth::{authenticate, get_access_token};
-use sync::Syncer;
-use tokio::time::Duration;
-use tokio::task::LocalSet;
-use ui;
 use std::path::PathBuf;
+use sync::Syncer;
 use tokio::fs;
+use tokio::task::LocalSet;
+use tokio::time::Duration;
 use tracing::{error, info};
-use tracing_subscriber::EnvFilter;
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
+use tracing_subscriber::EnvFilter;
+use ui;
 mod config;
 
 #[tokio::main]
@@ -36,7 +36,8 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
     info!("🚀 Starting GooglePicz - Google Photos Manager");
 
     // Ensure environment variables are set for client ID and secret
-    if std::env::var("GOOGLE_CLIENT_ID").is_err() || std::env::var("GOOGLE_CLIENT_SECRET").is_err() {
+    if std::env::var("GOOGLE_CLIENT_ID").is_err() || std::env::var("GOOGLE_CLIENT_SECRET").is_err()
+    {
         error!("❌ Error: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables must be set.");
         error!("📝 Please visit https://console.developers.google.com/ to create OAuth 2.0 credentials.");
         error!("💡 Set them using:");

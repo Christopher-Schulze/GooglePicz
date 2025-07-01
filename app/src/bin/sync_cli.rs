@@ -1,18 +1,23 @@
-use clap::{Parser, Subcommand};
-use std::path::PathBuf;
-use dirs::home_dir;
-use tokio::sync::mpsc;
-use sync::{Syncer, SyncProgress};
 use cache::CacheManager;
-use tracing_subscriber::EnvFilter;
+use clap::{Parser, Subcommand};
+use dirs::home_dir;
+use std::path::PathBuf;
+use sync::{SyncProgress, Syncer};
+use tokio::sync::mpsc;
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
+use tracing_subscriber::EnvFilter;
 
 #[path = "../config.rs"]
 mod config;
 
 #[derive(Parser)]
-#[command(name = "sync_cli", author, version, about = "GooglePicz synchronization CLI")]
+#[command(
+    name = "sync_cli",
+    author,
+    version,
+    about = "GooglePicz synchronization CLI"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -91,7 +96,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cache = CacheManager::new(&db_path)?;
             let albums = cache.get_all_albums()?;
             for album in albums {
-                let title = album.title.clone().unwrap_or_else(|| "Untitled".to_string());
+                let title = album
+                    .title
+                    .clone()
+                    .unwrap_or_else(|| "Untitled".to_string());
                 println!("{} (id: {})", title, album.id);
             }
         }
