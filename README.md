@@ -93,6 +93,11 @@ Signing requires a few environment variables:
 
 Set these variables in your shell or CI environment before running `cargo run --package packaging --bin packager`.
 
+## Running Tests
+
+Unit tests mock external services using environment variables. Run `cargo test` and everything should pass without Google credentials.
+
+
 ## 📄 License
 
 MIT - See [LICENSE](LICENSE) for details.
