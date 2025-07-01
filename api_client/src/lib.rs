@@ -269,6 +269,76 @@ impl ApiClient {
             .search_media_items(Some(album_id.to_string()), page_size, page_token, None)
             .await
     }
+
+    /// Rename an existing album.
+    pub async fn rename_album(&self, album_id: &str, title: &str) -> Result<Album, ApiClientError> {
+        if std::env::var("MOCK_API_CLIENT").is_ok() {
+            return Ok(Album {
+                id: album_id.to_string(),
+                title: Some(title.to_string()),
+                product_url: None,
+                is_writeable: None,
+                media_items_count: None,
+                cover_photo_base_url: None,
+                cover_photo_media_item_id: None,
+            });
+        }
+
+        let url = format!(
+            "https://photoslibrary.googleapis.com/v1/albums/{}?updateMask=title",
+            album_id
+        );
+        let body = serde_json::json!({ "title": title });
+
+        let response = self
+            .client
+            .patch(&url)
+            .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
+            .header(CONTENT_TYPE, "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiClientError::GoogleApiError(error_text));
+        }
+
+        let album = response
+            .json::<Album>()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+        Ok(album)
+    }
+
+    /// Delete an album from Google Photos.
+    pub async fn delete_album(&self, album_id: &str) -> Result<(), ApiClientError> {
+        if std::env::var("MOCK_API_CLIENT").is_ok() {
+            return Ok(());
+        }
+
+        let url = format!("https://photoslibrary.googleapis.com/v1/albums/{}", album_id);
+        let response = self
+            .client
+            .delete(&url)
+            .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
+            .send()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiClientError::GoogleApiError(error_text));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -300,12 +370,26 @@ mod tests {
         assert_eq!(parsed.next_page_token, Some("token123".to_string()));
     }
 
+    use serial_test::serial;
+
     #[tokio::test]
+    #[serial]
     async fn test_create_album_mock() {
         std::env::set_var("MOCK_API_CLIENT", "1");
         let client = ApiClient::new("token".into());
         let album = client.create_album("My Album").await.unwrap();
         assert_eq!(album.title.as_deref(), Some("My Album"));
+        std::env::remove_var("MOCK_API_CLIENT");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_rename_and_delete_album_mock() {
+        std::env::set_var("MOCK_API_CLIENT", "1");
+        let client = ApiClient::new("token".into());
+        let album = client.rename_album("1", "Renamed").await.unwrap();
+        assert_eq!(album.title.as_deref(), Some("Renamed"));
+        client.delete_album("1").await.unwrap();
         std::env::remove_var("MOCK_API_CLIENT");
     }
 }

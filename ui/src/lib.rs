@@ -66,6 +66,8 @@ pub enum Message {
     CancelCreateAlbum,
     AlbumPicked(AlbumOption),
     AlbumAssigned(Result<(), String>),
+    RenameAlbum(String, String),
+    DeleteAlbum(String),
     ClearErrors,
 }
 
@@ -406,6 +408,42 @@ impl Application for GooglePiczUI {
                     return GooglePiczUI::error_timeout();
                 }
             }
+            Message::RenameAlbum(id, title) => {
+                let cache_manager = self.cache_manager.clone();
+                return Command::perform(
+                    async move {
+                        let token = auth::ensure_access_token_valid()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        let client = ApiClient::new(token);
+                        client.rename_album(&id, &title).await.map_err(|e| e.to_string())?;
+                        if let Some(cm) = cache_manager {
+                            let cache = cm.lock().await;
+                            cache.rename_album(&id, &title).map_err(|e| e.to_string())?;
+                        }
+                        Ok::<(), String>(())
+                    },
+                    |_: Result<_, _>| Message::LoadAlbums,
+                );
+            }
+            Message::DeleteAlbum(id) => {
+                let cache_manager = self.cache_manager.clone();
+                return Command::perform(
+                    async move {
+                        let token = auth::ensure_access_token_valid()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        let client = ApiClient::new(token);
+                        client.delete_album(&id).await.map_err(|e| e.to_string())?;
+                        if let Some(cm) = cache_manager {
+                            let cache = cm.lock().await;
+                            cache.delete_album(&id).map_err(|e| e.to_string())?;
+                        }
+                        Ok::<(), String>(())
+                    },
+                    |_: Result<_, _>| Message::LoadAlbums,
+                );
+            }
         }
         Command::none()
     }
@@ -500,7 +538,13 @@ impl Application for GooglePiczUI {
                     let mut album_row = row![button(text("All")).on_press(Message::SelectAlbum(None))].spacing(10);
                     for album in &self.albums {
                         let title = album.title.clone().unwrap_or_else(|| "Untitled".to_string());
-                        album_row = album_row.push(button(text(title)).on_press(Message::SelectAlbum(Some(album.id.clone()))));
+                        let controls = row![
+                            button(text(title.clone())).on_press(Message::SelectAlbum(Some(album.id.clone()))),
+                            button("Rename").on_press(Message::RenameAlbum(album.id.clone(), format!("{}-renamed", title))),
+                            button("Delete").on_press(Message::DeleteAlbum(album.id.clone()))
+                        ]
+                        .spacing(5);
+                        album_row = album_row.push(controls);
                     }
 
                     let mut rows = column![].spacing(10);

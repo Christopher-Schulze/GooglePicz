@@ -404,6 +404,25 @@ impl CacheManager {
         Ok(albums)
     }
 
+    /// Rename an album in the cache.
+    pub fn rename_album(&self, album_id: &str, title: &str) -> Result<(), CacheError> {
+        self.conn
+            .execute(
+                "UPDATE albums SET title = ?1 WHERE id = ?2",
+                params![title, album_id],
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to rename album: {}", e)))?;
+        Ok(())
+    }
+
+    /// Delete an album from the cache.
+    pub fn delete_album(&self, album_id: &str) -> Result<(), CacheError> {
+        self.conn
+            .execute("DELETE FROM albums WHERE id = ?1", params![album_id])
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to delete album: {}", e)))?;
+        Ok(())
+    }
+
     pub fn associate_media_item_with_album(&self, media_item_id: &str, album_id: &str) -> Result<(), CacheError> {
         self.conn
             .execute(
@@ -695,6 +714,37 @@ mod tests {
         let albums = cache_manager.get_all_albums().expect("Failed to get albums");
         assert_eq!(albums.len(), 1);
         assert_eq!(albums[0].id, album.id);
+    }
+
+    #[test]
+    fn test_rename_and_delete_album() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let db_path = temp_file.path();
+        let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
+
+        let mut album = Album {
+            id: "a1".to_string(),
+            title: Some("Old".to_string()),
+            product_url: None,
+            is_writeable: Some(true),
+            media_items_count: None,
+            cover_photo_base_url: None,
+            cover_photo_media_item_id: None,
+        };
+        cache_manager.insert_album(&album).expect("Failed to insert album");
+
+        cache_manager
+            .rename_album(&album.id, "New")
+            .expect("Failed to rename");
+
+        let albums = cache_manager.get_all_albums().expect("Failed to get albums");
+        assert_eq!(albums[0].title.as_deref(), Some("New"));
+
+        cache_manager
+            .delete_album(&album.id)
+            .expect("Failed to delete album");
+        let albums = cache_manager.get_all_albums().expect("Failed to get albums after delete");
+        assert!(albums.is_empty());
     }
 
     #[test]
