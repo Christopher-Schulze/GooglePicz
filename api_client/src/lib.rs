@@ -115,6 +115,7 @@ impl ApiClient {
             filename: format!("{}.jpg", id),
         }
     }
+
     pub fn new(access_token: String) -> Self {
         ApiClient {
             client: reqwest::Client::new(),
@@ -316,48 +317,25 @@ impl ApiClient {
         Ok(album)
     }
 
-    /// Delete an album by ID.
-    pub async fn delete_album(&self, album_id: &str) -> Result<(), ApiClientError> {
+    /// Rename an existing album (returns new Album object).
+    pub async fn rename_album(&self, album_id: &str, title: &str) -> Result<Album, ApiClientError> {
         if std::env::var("MOCK_API_CLIENT").is_ok() {
-            return Ok(());
-        }
-
-        let url = format!("https://photoslibrary.googleapis.com/v1/albums/{}", album_id);
-
-        let response = self
-            .client
-            .delete(&url)
-            .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
-            .send()
-            .await
-            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
-
-        if !response.status().is_success() {
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ApiClientError::GoogleApiError(error_text));
-        }
-
-        Ok(())
-    }
-
-    /// Rename an album using its ID.
-    pub async fn rename_album(
-        &self,
-        album_id: &str,
-        new_title: &str,
-    ) -> Result<(), ApiClientError> {
-        if std::env::var("MOCK_API_CLIENT").is_ok() {
-            return Ok(());
+            return Ok(Album {
+                id: album_id.to_string(),
+                title: Some(title.to_string()),
+                product_url: None,
+                is_writeable: None,
+                media_items_count: None,
+                cover_photo_base_url: None,
+                cover_photo_media_item_id: None,
+            });
         }
 
         let url = format!(
             "https://photoslibrary.googleapis.com/v1/albums/{}?updateMask=title",
             album_id
         );
-        let body = serde_json::json!({ "title": new_title });
+        let body = serde_json::json!({ "title": title });
 
         let response = self
             .client
@@ -377,6 +355,35 @@ impl ApiClient {
             return Err(ApiClientError::GoogleApiError(error_text));
         }
 
+        let album = response
+            .json::<Album>()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+        Ok(album)
+    }
+
+    /// Delete an album from Google Photos.
+    pub async fn delete_album(&self, album_id: &str) -> Result<(), ApiClientError> {
+        if std::env::var("MOCK_API_CLIENT").is_ok() {
+            return Ok(());
+        }
+
+        let url = format!("https://photoslibrary.googleapis.com/v1/albums/{}", album_id);
+        let response = self
+            .client
+            .delete(&url)
+            .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
+            .send()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiClientError::GoogleApiError(error_text));
+        }
         Ok(())
     }
 
@@ -434,19 +441,20 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_delete_album_mock() {
+    async fn test_rename_album_mock() {
         std::env::set_var("MOCK_API_CLIENT", "1");
         let client = ApiClient::new("token".into());
-        client.delete_album("a1").await.unwrap();
+        let album = client.rename_album("1", "Renamed").await.unwrap();
+        assert_eq!(album.title.as_deref(), Some("Renamed"));
         std::env::remove_var("MOCK_API_CLIENT");
     }
 
     #[tokio::test]
     #[serial]
-    async fn test_rename_album_mock() {
+    async fn test_delete_album_mock() {
         std::env::set_var("MOCK_API_CLIENT", "1");
         let client = ApiClient::new("token".into());
-        client.rename_album("a1", "New Title").await.unwrap();
+        client.delete_album("1").await.unwrap();
         std::env::remove_var("MOCK_API_CLIENT");
     }
 }
