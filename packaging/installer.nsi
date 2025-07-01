@@ -2,14 +2,16 @@
 !include "MUI2.nsh"
 
 !define APP_NAME "GooglePicz"
+
+; These version components must be provided by the packager via /D options
 !ifndef APP_VERSION_MAJOR
-!define APP_VERSION_MAJOR "0"
+!error "APP_VERSION_MAJOR not defined"
 !endif
 !ifndef APP_VERSION_MINOR
-!define APP_VERSION_MINOR "1"
+!error "APP_VERSION_MINOR not defined"
 !endif
 !ifndef APP_VERSION_PATCH
-!define APP_VERSION_PATCH "0"
+!error "APP_VERSION_PATCH not defined"
 !endif
 !define APP_VERSION "${APP_VERSION_MAJOR}.${APP_VERSION_MINOR}.${APP_VERSION_PATCH}"
 

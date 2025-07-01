@@ -129,13 +129,34 @@ fn create_macos_installer() -> Result<(), PackagingError> {
 fn create_windows_installer() -> Result<(), PackagingError> {
     tracing::info!("Creating Windows installer...");
     let release_exe = "target\\release\\googlepicz.exe";
-    run_command("makensis", &["packaging/installer.nsi"])?;
 
-    let exe_path = "GooglePiczSetup.exe";
+    // Determine the version from the workspace Cargo.toml
+    let version = workspace_version()?;
+    let mut parts = version.split('.');
+    let major = parts.next().unwrap_or("0");
+    let minor = parts.next().unwrap_or("0");
+    let patch = parts.next().unwrap_or("0");
+
+    let arg_major = format!("/DAPP_VERSION_MAJOR={}", major);
+    let arg_minor = format!("/DAPP_VERSION_MINOR={}", minor);
+    let arg_patch = format!("/DAPP_VERSION_PATCH={}", patch);
+
+    run_command(
+        "makensis",
+        &[
+            arg_major.as_str(),
+            arg_minor.as_str(),
+            arg_patch.as_str(),
+            "packaging/installer.nsi",
+        ],
+    )?;
+
+    let exe_path = format!("target/windows/GooglePicz-{}-Setup.exe", version);
     if let Ok(cert_path) = std::env::var("WINDOWS_CERT") {
         if !cert_path.is_empty() {
             let password = std::env::var("WINDOWS_CERT_PASSWORD").unwrap_or_default();
-            for target in &[release_exe, exe_path] {
+            let targets = [release_exe, exe_path.as_str()];
+            for target in &targets {
                 run_command(
                     "signtool",
                     &[
