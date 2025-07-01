@@ -19,15 +19,9 @@ impl AppConfig {
         let log_level = cfg
             .get_string("log_level")
             .unwrap_or_else(|_| "info".to_string());
-        let oauth_redirect_port = cfg
-            .get_int("oauth_redirect_port")
-            .unwrap_or(8080) as u16;
-        let thumbnails_preload = cfg
-            .get_int("thumbnails_preload")
-            .unwrap_or(20) as usize;
-        let sync_interval_minutes = cfg
-            .get_int("sync_interval_minutes")
-            .unwrap_or(5) as u64;
+        let oauth_redirect_port = cfg.get_int("oauth_redirect_port").unwrap_or(8080) as u16;
+        let thumbnails_preload = cfg.get_int("thumbnails_preload").unwrap_or(20) as usize;
+        let sync_interval_minutes = cfg.get_int("sync_interval_minutes").unwrap_or(5) as u64;
 
         Self {
             log_level,
