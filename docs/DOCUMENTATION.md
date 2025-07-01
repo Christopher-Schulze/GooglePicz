@@ -144,6 +144,18 @@ cargo run --package googlepicz --bin sync_cli -- status
 
 Displays the last sync timestamp and the number of cached photos.
 
+```bash
+cargo run --package googlepicz --bin sync_cli -- list-albums
+```
+
+Lists all albums stored in the local cache.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- clear-cache
+```
+
+Clears all cached media items.
+
 ## 🐳 CI Docker Image
 
 The repository includes a `Dockerfile.ci` used to build a container image with stable Rust and the packaging tools required for CI. To build and publish the image:
