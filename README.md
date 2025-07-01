@@ -54,11 +54,13 @@ GooglePicz/
 
 See the following documents for additional details:
 - [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) – detailed technical documentation.
-- [Configuration Guide](docs/CONFIGURATION.md) – lists available `AppConfig` options (see [Example Config](docs/EXAMPLE_CONFIG.md)).
+- [Configuration Guide](docs/CONFIGURATION.md) – lists available `AppConfig` options.
+- [Example Config](docs/EXAMPLE_CONFIG.md) – sample `AppConfig` file.
 
 ## Sync CLI
 
 Run the `sync_cli` binary for manual synchronization or to inspect the local cache.
+Like the GUI, it reads settings from `~/.googlepicz/config` via `AppConfig`.
 The tool exposes subcommands for `sync`, `status`, `clear-cache` and `list-albums` and prints progress updates
 to stdout while downloading items. The source code lives in
 `app/src/bin/sync_cli.rs`.

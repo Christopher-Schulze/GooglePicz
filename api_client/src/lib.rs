@@ -1,8 +1,8 @@
 //! API client module for Google Photos.
 
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use std::error::Error;
 use std::fmt;
 
@@ -115,6 +115,7 @@ impl ApiClient {
             filename: format!("{}.jpg", id),
         }
     }
+
     pub fn new(access_token: String) -> Self {
         ApiClient {
             client: reqwest::Client::new(),
@@ -126,34 +127,55 @@ impl ApiClient {
         self.access_token = token;
     }
 
-    pub async fn list_media_items(&self, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
+    pub async fn list_media_items(
+        &self,
+        page_size: i32,
+        page_token: Option<String>,
+    ) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
         if std::env::var("MOCK_API_CLIENT").is_ok() {
             let items = vec![Self::mock_media_item("1"), Self::mock_media_item("2")];
             return Ok((items, None));
         }
-        let mut url = format!("https://photoslibrary.googleapis.com/v1/mediaItems?pageSize={}", page_size);
+        let mut url = format!(
+            "https://photoslibrary.googleapis.com/v1/mediaItems?pageSize={}",
+            page_size
+        );
         if let Some(token) = page_token {
             url.push_str(&format!("&pageToken={}", token));
         }
 
-        let response = self.client.get(&url)
+        let response = self
+            .client
+            .get(&url)
             .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
             .send()
             .await
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(ApiClientError::GoogleApiError(error_text));
         }
 
-        let list_response = response.json::<ListMediaItemsResponse>().await
+        let list_response = response
+            .json::<ListMediaItemsResponse>()
+            .await
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
 
-        Ok((list_response.media_items.unwrap_or_default(), list_response.next_page_token))
+        Ok((
+            list_response.media_items.unwrap_or_default(),
+            list_response.next_page_token,
+        ))
     }
 
-    pub async fn list_albums(&self, page_size: i32, page_token: Option<String>) -> Result<(Vec<Album>, Option<String>), ApiClientError> {
+    pub async fn list_albums(
+        &self,
+        page_size: i32,
+        page_token: Option<String>,
+    ) -> Result<(Vec<Album>, Option<String>), ApiClientError> {
         if std::env::var("MOCK_API_CLIENT").is_ok() {
             let album = Album {
                 id: "1".into(),
@@ -166,26 +188,39 @@ impl ApiClient {
             };
             return Ok((vec![album], None));
         }
-        let mut url = format!("https://photoslibrary.googleapis.com/v1/albums?pageSize={}", page_size);
+        let mut url = format!(
+            "https://photoslibrary.googleapis.com/v1/albums?pageSize={}",
+            page_size
+        );
         if let Some(token) = page_token {
             url.push_str(&format!("&pageToken={}", token));
         }
 
-        let response = self.client.get(&url)
+        let response = self
+            .client
+            .get(&url)
             .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
             .send()
             .await
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(ApiClientError::GoogleApiError(error_text));
         }
 
-        let list_response = response.json::<ListAlbumsResponse>().await
+        let list_response = response
+            .json::<ListAlbumsResponse>()
+            .await
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
 
-        Ok((list_response.albums.unwrap_or_default(), list_response.next_page_token))
+        Ok((
+            list_response.albums.unwrap_or_default(),
+            list_response.next_page_token,
+        ))
     }
 
     pub async fn search_media_items(
@@ -208,7 +243,9 @@ impl ApiClient {
             filters,
         };
 
-        let response = self.client.post(url)
+        let response = self
+            .client
+            .post(url)
             .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
             .header(CONTENT_TYPE, "application/json")
             .json(&request_body)
@@ -217,14 +254,22 @@ impl ApiClient {
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(ApiClientError::GoogleApiError(error_text));
         }
 
-        let search_response = response.json::<ListMediaItemsResponse>().await
+        let search_response = response
+            .json::<ListMediaItemsResponse>()
+            .await
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
 
-        Ok((search_response.media_items.unwrap_or_default(), search_response.next_page_token))
+        Ok((
+            search_response.media_items.unwrap_or_default(),
+            search_response.next_page_token,
+        ))
     }
 
     /// Create a new album with the given title.
@@ -242,10 +287,14 @@ impl ApiClient {
         }
         let url = "https://photoslibrary.googleapis.com/v1/albums";
         let body = CreateAlbumRequest {
-            album: NewAlbum { title: title.to_string() },
+            album: NewAlbum {
+                title: title.to_string(),
+            },
         };
 
-        let response = self.client.post(url)
+        let response = self
+            .client
+            .post(url)
             .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
             .header(CONTENT_TYPE, "application/json")
             .json(&body)
@@ -254,23 +303,21 @@ impl ApiClient {
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(ApiClientError::GoogleApiError(error_text));
         }
 
-        let album = response.json::<Album>().await
+        let album = response
+            .json::<Album>()
+            .await
             .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
         Ok(album)
     }
 
-    /// Retrieve media items for a specific album using its ID.
-    pub async fn get_album_media_items(&self, album_id: &str, page_size: i32, page_token: Option<String>) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
-        self
-            .search_media_items(Some(album_id.to_string()), page_size, page_token, None)
-            .await
-    }
-
-    /// Rename an existing album.
+    /// Rename an existing album (returns new Album object).
     pub async fn rename_album(&self, album_id: &str, title: &str) -> Result<Album, ApiClientError> {
         if std::env::var("MOCK_API_CLIENT").is_ok() {
             return Ok(Album {
@@ -339,11 +386,23 @@ impl ApiClient {
         }
         Ok(())
     }
+
+    /// Retrieve media items for a specific album using its ID.
+    pub async fn get_album_media_items(
+        &self,
+        album_id: &str,
+        page_size: i32,
+        page_token: Option<String>,
+    ) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
+        self.search_media_items(Some(album_id.to_string()), page_size, page_token, None)
+            .await
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_parse_list_albums_response() {
@@ -370,8 +429,6 @@ mod tests {
         assert_eq!(parsed.next_page_token, Some("token123".to_string()));
     }
 
-    use serial_test::serial;
-
     #[tokio::test]
     #[serial]
     async fn test_create_album_mock() {
@@ -384,11 +441,19 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_rename_and_delete_album_mock() {
+    async fn test_rename_album_mock() {
         std::env::set_var("MOCK_API_CLIENT", "1");
         let client = ApiClient::new("token".into());
         let album = client.rename_album("1", "Renamed").await.unwrap();
         assert_eq!(album.title.as_deref(), Some("Renamed"));
+        std::env::remove_var("MOCK_API_CLIENT");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_delete_album_mock() {
+        std::env::set_var("MOCK_API_CLIENT", "1");
+        let client = ApiClient::new("token".into());
         client.delete_album("1").await.unwrap();
         std::env::remove_var("MOCK_API_CLIENT");
     }

@@ -2,27 +2,26 @@
 
 mod image_loader;
 
-use iced::widget::{
-    button, column, container, text, scrollable, row, image, text_input, pick_list,
-    Column
-};
-use iced::widget::image::Handle;
-use iced::{executor, Application, Command, Element, Length, Settings, Theme, Subscription};
+use api_client::{Album, ApiClient, MediaItem};
+use auth;
+use cache::CacheManager;
+use chrono::{DateTime, Utc};
 use iced::subscription;
-use tokio::time::{sleep, Duration};
-use iced::{Color};
 use iced::widget::container::Appearance;
+use iced::widget::image::Handle;
+use iced::widget::{
+    button, column, container, image, pick_list, row, scrollable, text, text_input, Column,
+};
 use iced::Border;
+use iced::Color;
+use iced::{executor, Application, Command, Element, Length, Settings, Subscription, Theme};
+use image_loader::ImageLoader;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::Mutex;
-use cache::CacheManager;
-use api_client::{MediaItem, Album, ApiClient};
-use auth;
-use image_loader::ImageLoader;
-use tokio::sync::mpsc;
 use sync::SyncProgress;
-use chrono::{DateTime, Utc};
+use tokio::sync::mpsc;
+use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
 
@@ -39,7 +38,10 @@ fn error_container_style() -> iced::theme::Container {
     }))
 }
 
-pub fn run(progress: Option<mpsc::UnboundedReceiver<SyncProgress>>, preload: usize) -> iced::Result {
+pub fn run(
+    progress: Option<mpsc::UnboundedReceiver<SyncProgress>>,
+    preload: usize,
+) -> iced::Result {
     GooglePiczUI::run(Settings::with_flags((progress, preload)))
 }
 
@@ -112,9 +114,12 @@ pub struct GooglePiczUI {
 
 impl GooglePiczUI {
     fn error_timeout() -> Command<Message> {
-        Command::perform(async {
-            sleep(ERROR_DISPLAY_DURATION).await;
-        }, |_| Message::ClearErrors)
+        Command::perform(
+            async {
+                sleep(ERROR_DISPLAY_DURATION).await;
+            },
+            |_| Message::ClearErrors,
+        )
     }
 }
 
@@ -140,7 +145,9 @@ impl Application for GooglePiczUI {
         let last_synced = if let Some(cm) = &cache_manager {
             let cache = cm.blocking_lock();
             cache.get_last_sync().ok()
-        } else { None };
+        } else {
+            None
+        };
 
         let thumbnail_cache_path = dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
@@ -191,20 +198,26 @@ impl Application for GooglePiczUI {
                 self.loading = true;
                 if let Some(album_id) = &self.selected_album {
                     let album_id = album_id.clone();
-                    return Command::perform(async move {
-                        let token = auth::ensure_access_token_valid().await.map_err(|e| e.to_string())?;
-                        let client = ApiClient::new(token);
-                        client.get_album_media_items(&album_id, 100, None).await
-                            .map(|r| r.0)
-                            .map_err(|e| e.to_string())
-                    }, Message::PhotosLoaded);
+                    return Command::perform(
+                        async move {
+                            let token = auth::ensure_access_token_valid()
+                                .await
+                                .map_err(|e| e.to_string())?;
+                            let client = ApiClient::new(token);
+                            client
+                                .get_album_media_items(&album_id, 100, None)
+                                .await
+                                .map(|r| r.0)
+                                .map_err(|e| e.to_string())
+                        },
+                        Message::PhotosLoaded,
+                    );
                 } else if let Some(cache_manager) = &self.cache_manager {
                     let cache_manager = cache_manager.clone();
                     return Command::perform(
                         async move {
                             let cache = cache_manager.lock().await;
-                            cache.get_all_media_items()
-                                .map_err(|e| e.to_string())
+                            cache.get_all_media_items().map_err(|e| e.to_string())
                         },
                         Message::PhotosLoaded,
                     );
@@ -220,34 +233,44 @@ impl Application for GooglePiczUI {
                         for photo in self.photos.iter().take(self.preload_count) {
                             let media_id = photo.id.clone();
                             let base_url = photo.base_url.clone();
-                            commands.push(Command::perform(async {}, move |_| Message::LoadThumbnail(media_id.clone(), base_url.clone())));
+                            commands.push(Command::perform(async {}, move |_| {
+                                Message::LoadThumbnail(media_id.clone(), base_url.clone())
+                            }));
                         }
                         return Command::batch(commands);
                     }
                     Err(error) => {
-                        self.errors.push(format!("Failed to load photos: {}", error));
+                        self.errors
+                            .push(format!("Failed to load photos: {}", error));
                         return GooglePiczUI::error_timeout();
                     }
                 }
             }
             Message::LoadAlbums => {
-                return Command::perform(async {
-                    let token = auth::ensure_access_token_valid().await.map_err(|e| e.to_string())?;
-                    let client = ApiClient::new(token);
-                    client.list_albums(50, None).await
-                        .map(|r| r.0)
-                        .map_err(|e| e.to_string())
-                }, Message::AlbumsLoaded);
+                return Command::perform(
+                    async {
+                        let token = auth::ensure_access_token_valid()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        let client = ApiClient::new(token);
+                        client
+                            .list_albums(50, None)
+                            .await
+                            .map(|r| r.0)
+                            .map_err(|e| e.to_string())
+                    },
+                    Message::AlbumsLoaded,
+                );
             }
-            Message::AlbumsLoaded(result) => {
-                match result {
-                    Ok(albums) => { self.albums = albums; }
-                    Err(err) => {
-                        self.errors.push(format!("Failed to load albums: {}", err));
-                        return GooglePiczUI::error_timeout();
-                    }
+            Message::AlbumsLoaded(result) => match result {
+                Ok(albums) => {
+                    self.albums = albums;
                 }
-            }
+                Err(err) => {
+                    self.errors.push(format!("Failed to load albums: {}", err));
+                    return GooglePiczUI::error_timeout();
+                }
+            },
             Message::RefreshPhotos => {
                 return Command::batch(vec![
                     Command::perform(async {}, |_| Message::LoadPhotos),
@@ -263,28 +286,30 @@ impl Application for GooglePiczUI {
                         let loader = image_loader.lock().await;
                         loader.load_thumbnail(&id_clone, &base_clone).await
                     },
-                    move |result| Message::ThumbnailLoaded(media_id, result.map_err(|e| e.to_string())),
+                    move |result| {
+                        Message::ThumbnailLoaded(media_id, result.map_err(|e| e.to_string()))
+                    },
                 );
             }
-            Message::ThumbnailLoaded(media_id, result) => {
-                match result {
-                    Ok(handle) => {
-                        self.thumbnails.insert(media_id, handle);
-                    }
-                    Err(error) => {
-                        self.errors.push(format!(
-                            "Failed to load thumbnail for {}: {}",
-                            media_id, error
-                        ));
-                        return GooglePiczUI::error_timeout();
-                    }
+            Message::ThumbnailLoaded(media_id, result) => match result {
+                Ok(handle) => {
+                    self.thumbnails.insert(media_id, handle);
                 }
-            }
+                Err(error) => {
+                    self.errors.push(format!(
+                        "Failed to load thumbnail for {}: {}",
+                        media_id, error
+                    ));
+                    return GooglePiczUI::error_timeout();
+                }
+            },
             Message::SelectPhoto(photo) => {
                 let id = photo.id.clone();
                 let url = photo.base_url.clone();
                 self.state = ViewState::SelectedPhoto(photo);
-                return Command::perform(async {}, move |_| Message::LoadFullImage(id.clone(), url.clone()));
+                return Command::perform(async {}, move |_| {
+                    Message::LoadFullImage(id.clone(), url.clone())
+                });
             }
             Message::SelectAlbum(album_id) => {
                 self.selected_album = album_id;
@@ -302,33 +327,29 @@ impl Application for GooglePiczUI {
                     move |res| Message::FullImageLoaded(media_id, res.map_err(|e| e.to_string())),
                 );
             }
-            Message::FullImageLoaded(media_id, result) => {
-                match result {
-                    Ok(handle) => {
-                        self.full_images.insert(media_id, handle);
-                    }
-                    Err(error) => {
-                        self.errors.push(format!("Failed to load image: {}", error));
-                        return GooglePiczUI::error_timeout();
-                    }
+            Message::FullImageLoaded(media_id, result) => match result {
+                Ok(handle) => {
+                    self.full_images.insert(media_id, handle);
                 }
-            }
+                Err(error) => {
+                    self.errors.push(format!("Failed to load image: {}", error));
+                    return GooglePiczUI::error_timeout();
+                }
+            },
             Message::ClosePhoto => {
                 self.state = ViewState::Grid;
             }
-            Message::SyncProgress(progress) => {
-                match progress {
-                    SyncProgress::ItemSynced(count) => {
-                        self.synced = count;
-                        self.syncing = true;
-                    }
-                    SyncProgress::Finished(total) => {
-                        self.synced = total;
-                        self.syncing = false;
-                        self.last_synced = Some(Utc::now());
-                    }
+            Message::SyncProgress(progress) => match progress {
+                SyncProgress::ItemSynced(count) => {
+                    self.synced = count;
+                    self.syncing = true;
                 }
-            }
+                SyncProgress::Finished(total) => {
+                    self.synced = total;
+                    self.syncing = false;
+                    self.last_synced = Some(Utc::now());
+                }
+            },
             Message::DismissError(index) => {
                 if index < self.errors.len() {
                     self.errors.remove(index);
@@ -354,7 +375,9 @@ impl Application for GooglePiczUI {
                             .await
                             .map_err(|e| e.to_string())?;
                         let client = ApiClient::new(token);
-                        let album = client.create_album(&title).await
+                        let album = client
+                            .create_album(&title)
+                            .await
                             .map_err(|e| e.to_string())?;
                         if let Some(cm) = cache_manager {
                             let cache = cm.lock().await;
@@ -367,17 +390,15 @@ impl Application for GooglePiczUI {
                     Message::AlbumCreated,
                 );
             }
-            Message::AlbumCreated(result) => {
-                match result {
-                    Ok(album) => {
-                        self.albums.push(album);
-                    }
-                    Err(err) => {
-                        self.errors.push(format!("Failed to create album: {}", err));
-                        return GooglePiczUI::error_timeout();
-                    }
+            Message::AlbumCreated(result) => match result {
+                Ok(album) => {
+                    self.albums.push(album);
                 }
-            }
+                Err(err) => {
+                    self.errors.push(format!("Failed to create album: {}", err));
+                    return GooglePiczUI::error_timeout();
+                }
+            },
             Message::CancelCreateAlbum => {
                 self.creating_album = false;
                 self.new_album_title.clear();
@@ -466,24 +487,30 @@ impl Application for GooglePiczUI {
     }
 
     fn view(&self) -> Element<Message> {
-        let header = row![
+        let mut header = row![
             text("GooglePicz").size(24),
             button("Refresh").on_press(Message::RefreshPhotos),
-            button("New Album…").on_press(Message::ShowCreateAlbumDialog),
-            text(if self.syncing {
+            button("New Album…").on_press(Message::ShowCreateAlbumDialog)
+        ];
+
+        if let Some(album_id) = &self.selected_album {
+            header = header
+                .push(button("Rename").on_press(Message::RenameAlbum(album_id.clone(), "Renamed".into())))
+                .push(button("Delete").on_press(Message::DeleteAlbum(album_id.clone())));
+        }
+
+        header = header
+            .push(text(if self.syncing {
                 format!("Syncing {} items...", self.synced)
             } else {
                 format!("Synced {} items", self.synced)
-            }),
-            text(
-                match self.last_synced {
-                    Some(ts) => format!("Last synced {}", ts.to_rfc3339()),
-                    None => "Never synced".to_string(),
-                }
-            )
-        ]
-        .spacing(20)
-        .align_items(iced::Alignment::Center);
+            }))
+            .push(text(match self.last_synced {
+                Some(ts) => format!("Last synced {}", ts.to_rfc3339()),
+                None => "Never synced".to_string(),
+            }))
+            .spacing(20)
+            .align_items(iced::Alignment::Center);
 
         let mut error_column = Column::new().spacing(5);
         for (i, msg) in self.errors.iter().enumerate() {
@@ -493,11 +520,8 @@ impl Application for GooglePiczUI {
             ]
             .spacing(10)
             .align_items(iced::Alignment::Center);
-            error_column = error_column.push(
-                container(row)
-                    .style(error_container_style())
-                    .padding(10),
-            );
+            error_column =
+                error_column.push(container(row).style(error_container_style()).padding(10));
         }
         let error_banner = if self.errors.is_empty() {
             None
@@ -516,7 +540,7 @@ impl Application for GooglePiczUI {
                     ]
                     .spacing(10)
                 ]
-                .spacing(10)
+                .spacing(10),
             )
         } else {
             None
@@ -525,17 +549,15 @@ impl Application for GooglePiczUI {
         let content = match &self.state {
             ViewState::Grid => {
                 if self.loading {
-                    column![
-                        header,
-                        text("Loading photos...").size(16),
-                    ]
+                    column![header, text("Loading photos...").size(16),]
                 } else if self.photos.is_empty() {
                     column![
                         header,
                         text("No photos found. Make sure you have authenticated and synced your photos.").size(16),
                     ]
                 } else {
-                    let mut album_row = row![button(text("All")).on_press(Message::SelectAlbum(None))].spacing(10);
+                    let mut album_row =
+                        row![button(text("All")).on_press(Message::SelectAlbum(None))].spacing(10);
                     for album in &self.albums {
                         let title = album.title.clone().unwrap_or_else(|| "Untitled".to_string());
                         let controls = row![
@@ -551,17 +573,18 @@ impl Application for GooglePiczUI {
                     let mut current = row![].spacing(10);
                     let mut count = 0;
                     for photo in &self.photos {
-                        let thumb: Element<Message> = if let Some(handle) = self.thumbnails.get(&photo.id) {
-                            image(handle.clone())
-                                .width(Length::Fixed(150.0))
-                                .height(Length::Fixed(150.0))
-                                .into()
-                        } else {
-                            container(text("Loading...") )
-                                .width(Length::Fixed(150.0))
-                                .height(Length::Fixed(150.0))
-                                .into()
-                        };
+                        let thumb: Element<Message> =
+                            if let Some(handle) = self.thumbnails.get(&photo.id) {
+                                image(handle.clone())
+                                    .width(Length::Fixed(150.0))
+                                    .height(Length::Fixed(150.0))
+                                    .into()
+                            } else {
+                                container(text("Loading..."))
+                                    .width(Length::Fixed(150.0))
+                                    .height(Length::Fixed(150.0))
+                                    .into()
+                            };
                         let btn = button(thumb).on_press(Message::SelectPhoto(photo.clone()));
                         current = current.push(btn);
                         count += 1;
@@ -584,9 +607,15 @@ impl Application for GooglePiczUI {
             }
             ViewState::SelectedPhoto(photo) => {
                 let img: Element<Message> = if let Some(handle) = self.full_images.get(&photo.id) {
-                    image(handle.clone()).width(Length::Fill).height(Length::Fill).into()
+                    image(handle.clone())
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .into()
                 } else {
-                    container(text("Loading...")).width(Length::Fill).height(Length::Fill).into()
+                    container(text("Loading..."))
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .into()
                 };
                 let album_opts: Vec<AlbumOption> = self
                     .albums
@@ -600,15 +629,23 @@ impl Application for GooglePiczUI {
                     header,
                     button("Close").on_press(Message::ClosePhoto),
                     img,
-                    pick_list(album_opts, self.assign_selection.clone(), Message::AlbumPicked)
+                    pick_list(
+                        album_opts,
+                        self.assign_selection.clone(),
+                        Message::AlbumPicked
+                    )
                 ]
             }
         };
 
         let mut base = column![].spacing(20);
-        if let Some(b) = error_banner { base = base.push(b); }
+        if let Some(b) = error_banner {
+            base = base.push(b);
+        }
         base = base.push(content);
-        if let Some(d) = album_dialog { base = base.push(d); }
+        if let Some(d) = album_dialog {
+            base = base.push(d);
+        }
 
         container(base)
             .width(Length::Fill)
