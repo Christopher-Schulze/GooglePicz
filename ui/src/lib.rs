@@ -138,15 +138,16 @@ impl Application for GooglePiczUI {
 
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
         let (progress_flag, error_flag, preload_count) = flags;
-        let cache_path = dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".googlepicz")
-            .join("cache.sqlite");
+        let mut init_errors = Vec::new();
+        let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+        let cache_path = home_dir.join(".googlepicz").join("cache.sqlite");
 
-        let cache_manager = if let Ok(cm) = CacheManager::new(&cache_path) {
-            Some(Arc::new(Mutex::new(cm)))
-        } else {
-            None
+        let cache_manager = match CacheManager::new(&cache_path) {
+            Ok(cm) => Some(Arc::new(Mutex::new(cm))),
+            Err(e) => {
+                init_errors.push(format!("Failed to initialize cache: {}", e));
+                None
+            }
         };
 
         let last_synced = if let Some(cm) = &cache_manager {
@@ -156,10 +157,7 @@ impl Application for GooglePiczUI {
             None
         };
 
-        let thumbnail_cache_path = dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".googlepicz")
-            .join("thumbnails");
+        let thumbnail_cache_path = home_dir.join(".googlepicz").join("thumbnails");
 
         let image_loader = Arc::new(Mutex::new(ImageLoader::new(thumbnail_cache_path)));
 
@@ -181,7 +179,7 @@ impl Application for GooglePiczUI {
             last_synced,
             state: ViewState::Grid,
             selected_album: None,
-            errors: Vec::new(),
+            errors: init_errors,
             preload_count,
             creating_album: false,
             new_album_title: String::new(),
