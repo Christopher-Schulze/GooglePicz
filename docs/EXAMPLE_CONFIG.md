@@ -1,6 +1,6 @@
 # Example Config
 
-Create `~/.googlepicz/config` with content like:
+Create `~/.googlepicz/config` with all fields of the `AppConfig` struct:
 
 ```toml
 log_level = "debug"
