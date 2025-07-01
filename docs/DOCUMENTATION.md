@@ -111,6 +111,7 @@ The application and packaging scripts rely on several environment variables:
 - `WINDOWS_CERT` and `WINDOWS_CERT_PASSWORD` – Path and password for a Windows code signing certificate (optional).
 - `LINUX_SIGN_KEY` – GPG key ID used to sign the generated `.deb` package (optional).
 - `MOCK_REFRESH_TOKEN` – Used only for automated tests to bypass live authentication.
+- `MOCK_COMMANDS` – Skips running external tools during packaging tests.
 
 ### Packaging installers
 Run the packager binary to create platform specific artifacts. The version is
