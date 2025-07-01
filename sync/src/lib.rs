@@ -157,7 +157,7 @@ impl Syncer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use auth::{authenticate, get_access_token};
+    use auth::{authenticate, ensure_access_token_valid};
     use serial_test::serial;
     use tempfile::NamedTempFile;
 
@@ -174,7 +174,7 @@ mod tests {
         // For a real application, you'd have a proper token management system.
 
         // Attempt to authenticate if no token is found
-        if get_access_token().is_err() {
+        if ensure_access_token_valid().await.is_err() {
             authenticate(8080)
                 .await
                 .expect("Failed to authenticate for sync test");

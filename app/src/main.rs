@@ -1,6 +1,6 @@
 //! Main application entry point for GooglePicz.
 
-use auth::{authenticate, get_access_token};
+use auth::{authenticate, ensure_access_token_valid};
 use std::path::PathBuf;
 use sync::Syncer;
 use tokio::fs;
@@ -59,8 +59,8 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
         info!("📁 Cache directory: {:?}", parent);
     }
 
-    // Check if we have a valid token
-    let needs_auth = match get_access_token() {
+    // Check if we have a valid token, refreshing if necessary
+    let needs_auth = match ensure_access_token_valid().await {
         Ok(_) => {
             info!("✅ Found existing authentication token");
             false
