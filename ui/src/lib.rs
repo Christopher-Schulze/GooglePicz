@@ -9,6 +9,10 @@ use iced::widget::{
 use iced::widget::image::Handle;
 use iced::{executor, Application, Command, Element, Length, Settings, Theme, Subscription};
 use iced::subscription;
+use tokio::time::{sleep, Duration};
+use iced::{Color};
+use iced::widget::container::Appearance;
+use iced::Border;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -19,6 +23,21 @@ use image_loader::ImageLoader;
 use tokio::sync::mpsc;
 use sync::SyncProgress;
 use chrono::{DateTime, Utc};
+
+const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
+
+fn error_container_style() -> iced::theme::Container {
+    iced::theme::Container::Custom(Box::new(|_theme: &Theme| Appearance {
+        text_color: Some(Color::from_rgb(0.5, 0.0, 0.0)),
+        background: Some(Color::from_rgb(1.0, 0.9, 0.9).into()),
+        border: Border {
+            color: Color::from_rgb(0.8, 0.0, 0.0),
+            width: 1.0,
+            radius: 2.0.into(),
+        },
+        shadow: Default::default(),
+    }))
+}
 
 pub fn run(progress: Option<mpsc::UnboundedReceiver<SyncProgress>>, preload: usize) -> iced::Result {
     GooglePiczUI::run(Settings::with_flags((progress, preload)))
@@ -47,6 +66,7 @@ pub enum Message {
     CancelCreateAlbum,
     AlbumPicked(AlbumOption),
     AlbumAssigned(Result<(), String>),
+    ClearErrors,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -86,6 +106,14 @@ pub struct GooglePiczUI {
     creating_album: bool,
     new_album_title: String,
     assign_selection: Option<AlbumOption>,
+}
+
+impl GooglePiczUI {
+    fn error_timeout() -> Command<Message> {
+        Command::perform(async {
+            sleep(ERROR_DISPLAY_DURATION).await;
+        }, |_| Message::ClearErrors)
+    }
 }
 
 impl Application for GooglePiczUI {
@@ -196,6 +224,7 @@ impl Application for GooglePiczUI {
                     }
                     Err(error) => {
                         self.errors.push(format!("Failed to load photos: {}", error));
+                        return GooglePiczUI::error_timeout();
                     }
                 }
             }
@@ -211,7 +240,10 @@ impl Application for GooglePiczUI {
             Message::AlbumsLoaded(result) => {
                 match result {
                     Ok(albums) => { self.albums = albums; }
-                    Err(err) => { self.errors.push(format!("Failed to load albums: {}", err)); }
+                    Err(err) => {
+                        self.errors.push(format!("Failed to load albums: {}", err));
+                        return GooglePiczUI::error_timeout();
+                    }
                 }
             }
             Message::RefreshPhotos => {
@@ -242,6 +274,7 @@ impl Application for GooglePiczUI {
                             "Failed to load thumbnail for {}: {}",
                             media_id, error
                         ));
+                        return GooglePiczUI::error_timeout();
                     }
                 }
             }
@@ -274,6 +307,7 @@ impl Application for GooglePiczUI {
                     }
                     Err(error) => {
                         self.errors.push(format!("Failed to load image: {}", error));
+                        return GooglePiczUI::error_timeout();
                     }
                 }
             }
@@ -297,6 +331,9 @@ impl Application for GooglePiczUI {
                 if index < self.errors.len() {
                     self.errors.remove(index);
                 }
+            }
+            Message::ClearErrors => {
+                self.errors.clear();
             }
             Message::ShowCreateAlbumDialog => {
                 self.creating_album = true;
@@ -333,7 +370,10 @@ impl Application for GooglePiczUI {
                     Ok(album) => {
                         self.albums.push(album);
                     }
-                    Err(err) => self.errors.push(format!("Failed to create album: {}", err)),
+                    Err(err) => {
+                        self.errors.push(format!("Failed to create album: {}", err));
+                        return GooglePiczUI::error_timeout();
+                    }
                 }
             }
             Message::CancelCreateAlbum => {
@@ -363,6 +403,7 @@ impl Application for GooglePiczUI {
                 self.assign_selection = None;
                 if let Err(e) = res {
                     self.errors.push(format!("Failed to assign photo: {}", e));
+                    return GooglePiczUI::error_timeout();
                 }
             }
         }
@@ -416,7 +457,7 @@ impl Application for GooglePiczUI {
             .align_items(iced::Alignment::Center);
             error_column = error_column.push(
                 container(row)
-                    .style(iced::theme::Container::Box)
+                    .style(error_container_style())
                     .padding(10),
             );
         }
