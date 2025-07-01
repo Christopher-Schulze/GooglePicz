@@ -96,3 +96,25 @@ impl ImageLoader {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ImageLoader;
+    use httpmock::prelude::*;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn test_load_thumbnail() {
+        let server = MockServer::start();
+        let mock = server.mock(|when, then| {
+            when.method(GET).path("/thumb.jpg=w150-h150-c");
+            then.status(200).body("img");
+        });
+        let dir = tempdir().unwrap();
+        let loader = ImageLoader::new(dir.path().to_path_buf());
+        let url = format!("{}/thumb.jpg", server.url(""));
+        let _ = loader.load_thumbnail("1", &url).await.unwrap();
+        assert!(dir.path().join("thumbnails/1.jpg").exists());
+        mock.assert();
+    }
+}
