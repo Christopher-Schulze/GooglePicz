@@ -32,21 +32,31 @@ impl fmt::Display for PackagingError {
 impl Error for PackagingError {}
 
 fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
+    tracing::info!("Running command: {} {:?}", cmd, args);
     if std::env::var("MOCK_COMMANDS").is_ok() {
         return Ok(());
     }
+
     let output = Command::new(cmd)
         .args(args)
         .output()
         .map_err(|e| PackagingError::CommandError(format!("Failed to execute {}: {}", cmd, e)))?;
 
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !stdout.trim().is_empty() {
+        tracing::debug!("stdout: {}", stdout);
+    }
+    if !stderr.trim().is_empty() {
+        tracing::debug!("stderr: {}", stderr);
+    }
+
     if output.status.success() {
         Ok(())
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
         Err(PackagingError::CommandError(format!(
-            "{} failed: {}",
-            cmd, stderr
+            "{} exited with {}",
+            cmd, output.status
         )))
     }
 }
@@ -277,6 +287,10 @@ pub fn create_installer() -> Result<(), PackagingError> {
 }
 
 pub fn package_all() -> Result<(), PackagingError> {
+    let root = get_project_root();
+    std::env::set_current_dir(&root)
+        .map_err(|e| PackagingError::Other(format!("Failed to change directory: {}", e)))?;
+
     bundle_licenses()?;
     build_release()?;
     create_installer()

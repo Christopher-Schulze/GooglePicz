@@ -56,6 +56,7 @@ See the following documents for additional details:
 - [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) – detailed technical documentation.
 - [Configuration Guide](docs/CONFIGURATION.md) – lists available `AppConfig` options.
 - [Example Config](docs/EXAMPLE_CONFIG.md) – sample `AppConfig` file.
+- [Release Artifacts Guide](docs/RELEASE_ARTIFACTS.md) – how to create installers.
 
 ## Sync CLI
 
