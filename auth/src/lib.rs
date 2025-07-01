@@ -22,10 +22,10 @@ static MOCK_STORE: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::ne
 
 fn store_value(key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
     if std::env::var("MOCK_KEYRING").is_ok() {
-        MOCK_STORE
+        let mut store = MOCK_STORE
             .lock()
-            .unwrap()
-            .insert(key.to_string(), value.to_string());
+            .map_err(|_| "Poisoned mock store lock")?;
+        store.insert(key.to_string(), value.to_string());
         Ok(())
     } else {
         let entry = Entry::new(KEYRING_SERVICE_NAME, key)?;
@@ -36,7 +36,10 @@ fn store_value(key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>>
 
 fn get_value(key: &str) -> Result<Option<String>, Box<dyn std::error::Error>> {
     if std::env::var("MOCK_KEYRING").is_ok() {
-        Ok(MOCK_STORE.lock().unwrap().get(key).cloned())
+        let store = MOCK_STORE
+            .lock()
+            .map_err(|_| "Poisoned mock store lock")?;
+        Ok(store.get(key).cloned())
     } else {
         let entry = Entry::new(KEYRING_SERVICE_NAME, key)?;
         match entry.get_password() {

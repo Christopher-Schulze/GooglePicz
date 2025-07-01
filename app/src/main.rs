@@ -105,7 +105,9 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
 
             let _handle = syncer.start_periodic_sync(interval, tx, err_tx);
 
-            ui_thread.join().expect("UI thread panicked");
+            if let Err(e) = ui_thread.join() {
+                error!("UI thread panicked: {:?}", e);
+            }
         }
         Err(e) => {
             error!("❌ Failed to initialize syncer: {}", e);
