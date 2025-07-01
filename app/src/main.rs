@@ -88,9 +88,10 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
     match Syncer::new(&db_path).await {
         Ok(mut syncer) => {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            let (err_tx, err_rx) = tokio::sync::mpsc::unbounded_channel();
             let preload = cfg.thumbnails_preload;
             let ui_thread = std::thread::spawn(move || {
-                if let Err(e) = ui::run(Some(rx), preload) {
+                if let Err(e) = ui::run(Some(rx), Some(err_rx), preload) {
                     error!("UI error: {}", e);
                 }
             });
@@ -102,14 +103,14 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                 error!("❌ Synchronization failed: {}", e);
             }
 
-            let _handle = syncer.start_periodic_sync(interval, tx);
+            let _handle = syncer.start_periodic_sync(interval, tx, err_tx);
 
             ui_thread.join().expect("UI thread panicked");
         }
         Err(e) => {
             error!("❌ Failed to initialize syncer: {}", e);
             error!("💡 The UI will still start, but photos may not be available until sync is working.");
-            ui::run(None, cfg.thumbnails_preload)?;
+            ui::run(None, None, cfg.thumbnails_preload)?;
         }
     }
 

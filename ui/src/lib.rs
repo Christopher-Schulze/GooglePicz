@@ -40,9 +40,10 @@ fn error_container_style() -> iced::theme::Container {
 
 pub fn run(
     progress: Option<mpsc::UnboundedReceiver<SyncProgress>>,
+    errors: Option<mpsc::UnboundedReceiver<String>>,
     preload: usize,
 ) -> iced::Result {
-    GooglePiczUI::run(Settings::with_flags((progress, preload)))
+    GooglePiczUI::run(Settings::with_flags((progress, errors, preload)))
 }
 
 #[derive(Debug, Clone)]
@@ -60,6 +61,7 @@ pub enum Message {
     SelectAlbum(Option<String>),
     ClosePhoto,
     SyncProgress(SyncProgress),
+    SyncError(String),
     DismissError(usize),
     ShowCreateAlbumDialog,
     AlbumTitleChanged(String),
@@ -100,6 +102,7 @@ pub struct GooglePiczUI {
     thumbnails: std::collections::HashMap<String, Handle>,
     full_images: std::collections::HashMap<String, Handle>,
     progress_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<SyncProgress>>>>,
+    error_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<String>>>>,
     synced: u64,
     syncing: bool,
     last_synced: Option<DateTime<Utc>>,
@@ -127,10 +130,14 @@ impl Application for GooglePiczUI {
     type Executor = executor::Default;
     type Message = Message;
     type Theme = Theme;
-    type Flags = (Option<mpsc::UnboundedReceiver<SyncProgress>>, usize);
+    type Flags = (
+        Option<mpsc::UnboundedReceiver<SyncProgress>>,
+        Option<mpsc::UnboundedReceiver<String>>,
+        usize,
+    );
 
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
-        let (progress_flag, preload_count) = flags;
+        let (progress_flag, error_flag, preload_count) = flags;
         let cache_path = dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join(".googlepicz")
@@ -157,6 +164,7 @@ impl Application for GooglePiczUI {
         let image_loader = Arc::new(Mutex::new(ImageLoader::new(thumbnail_cache_path)));
 
         let progress_receiver = progress_flag.map(|rx| Arc::new(Mutex::new(rx)));
+        let error_receiver = error_flag.map(|rx| Arc::new(Mutex::new(rx)));
 
         let app = Self {
             photos: Vec::new(),
@@ -167,6 +175,7 @@ impl Application for GooglePiczUI {
             thumbnails: std::collections::HashMap::new(),
             full_images: std::collections::HashMap::new(),
             progress_receiver,
+            error_receiver,
             synced: 0,
             syncing: false,
             last_synced,
@@ -350,6 +359,10 @@ impl Application for GooglePiczUI {
                     self.last_synced = Some(Utc::now());
                 }
             },
+            Message::SyncError(err_msg) => {
+                self.errors.push(err_msg);
+                return GooglePiczUI::error_timeout();
+            }
             Message::DismissError(index) => {
                 if index < self.errors.len() {
                     self.errors.remove(index);
@@ -470,9 +483,11 @@ impl Application for GooglePiczUI {
     }
 
     fn subscription(&self) -> Subscription<Message> {
+        let mut subs: Vec<Subscription<Message>> = Vec::new();
+
         if let Some(progress_rx) = &self.progress_receiver {
             let progress_rx = progress_rx.clone();
-            subscription::unfold("progress", progress_rx, |rx| async move {
+            subs.push(subscription::unfold("progress", progress_rx, |rx| async move {
                 let mut lock = rx.lock().await;
                 let msg = match lock.recv().await {
                     Some(p) => Message::SyncProgress(p),
@@ -480,10 +495,23 @@ impl Application for GooglePiczUI {
                 };
                 drop(lock);
                 (msg, rx)
-            })
-        } else {
-            Subscription::none()
+            }));
         }
+
+        if let Some(error_rx) = &self.error_receiver {
+            let error_rx = error_rx.clone();
+            subs.push(subscription::unfold("errors", error_rx, |rx| async move {
+                let mut lock = rx.lock().await;
+                let msg = match lock.recv().await {
+                    Some(e) => Message::SyncError(e),
+                    None => Message::SyncProgress(SyncProgress::Finished(0)),
+                };
+                drop(lock);
+                (msg, rx)
+            }));
+        }
+
+        Subscription::batch(subs)
     }
 
     fn view(&self) -> Element<Message> {

@@ -140,13 +140,15 @@ impl Syncer {
     pub fn start_periodic_sync(
         self,
         interval: Duration,
-        tx: mpsc::UnboundedSender<SyncProgress>,
+        progress_tx: mpsc::UnboundedSender<SyncProgress>,
+        error_tx: mpsc::UnboundedSender<String>,
     ) -> JoinHandle<()> {
         spawn_local(async move {
             let mut syncer = self;
             loop {
-                if let Err(e) = syncer.sync_media_items(Some(tx.clone())).await {
+                if let Err(e) = syncer.sync_media_items(Some(progress_tx.clone())).await {
                     tracing::error!("Periodic sync failed: {}", e);
+                    let _ = error_tx.send(format!("Periodic sync failed: {}", e));
                 }
                 sleep(interval).await;
             }
