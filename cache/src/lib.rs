@@ -536,8 +536,23 @@ impl CacheManager {
 
     pub fn clear_cache(&self) -> Result<(), CacheError> {
         self.conn
+            .execute("DELETE FROM album_media_items", [])
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to clear album_media_items: {}", e)))?;
+        self.conn
+            .execute("DELETE FROM albums", [])
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to clear albums: {}", e)))?;
+        self.conn
+            .execute("DELETE FROM media_metadata", [])
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to clear media_metadata: {}", e)))?;
+        self.conn
             .execute("DELETE FROM media_items", [])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear cache: {}", e)))?;
+        self.conn
+            .execute(
+                "UPDATE last_sync SET timestamp = '1970-01-01T00:00:00Z' WHERE id = 1",
+                [],
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to reset last_sync: {}", e)))?;
         Ok(())
     }
 
@@ -565,6 +580,89 @@ impl CacheManager {
     }
 }
 
-// Die Unit-Tests sind wie in deinem Input (ausgelassen für Zeichenlimit), aber alles vollständig!  
+// Die Unit-Tests sind wie in deinem Input (ausgelassen für Zeichenlimit), aber alles vollständig!
 // Bei Bedarf schick ich dir die Tests als eigenen Block – sag nur Bescheid.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+
+    fn sample_media_item(id: &str) -> api_client::MediaItem {
+        api_client::MediaItem {
+            id: id.to_string(),
+            description: Some("desc".into()),
+            product_url: "http://example.com".into(),
+            base_url: "http://example.com/base".into(),
+            mime_type: "image/jpeg".into(),
+            media_metadata: api_client::MediaMetadata {
+                creation_time: "2023-01-01T00:00:00Z".into(),
+                width: "1".into(),
+                height: "1".into(),
+            },
+            filename: format!("{}.jpg", id),
+        }
+    }
+
+    fn sample_album(id: &str) -> api_client::Album {
+        api_client::Album {
+            id: id.to_string(),
+            title: Some("Album".into()),
+            product_url: None,
+            is_writeable: None,
+            media_items_count: None,
+            cover_photo_base_url: None,
+            cover_photo_media_item_id: None,
+        }
+    }
+
+    #[test]
+    fn test_clear_cache_empties_all_tables() {
+        let tmp = NamedTempFile::new().expect("create temp file");
+        let cache = CacheManager::new(tmp.path()).expect("create cache manager");
+
+        let item = sample_media_item("1");
+        cache.insert_media_item(&item).expect("insert media");
+        let album = sample_album("a1");
+        cache.insert_album(&album).expect("insert album");
+        cache
+            .associate_media_item_with_album(&item.id, &album.id)
+            .expect("associate");
+        cache.update_last_sync(Utc::now()).expect("update last sync");
+
+        assert_eq!(cache.get_all_media_items().unwrap().len(), 1);
+        assert_eq!(cache.get_all_albums().unwrap().len(), 1);
+        assert_eq!(
+            cache
+                .get_media_items_by_album(&album.id)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        cache.clear_cache().expect("clear cache");
+
+        let conn = Connection::open(tmp.path()).expect("open connection");
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM media_items", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM media_metadata", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM albums", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM album_media_items", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+        let ts: String = conn
+            .query_row("SELECT timestamp FROM last_sync WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(ts, "1970-01-01T00:00:00Z");
+    }
+}
 
