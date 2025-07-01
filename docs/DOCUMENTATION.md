@@ -130,7 +130,7 @@ after creation to embed the version, mirroring the Windows installer name.
 
 ## Sync CLI
 
-In addition to the main application UI, the project provides a command line utility for manual synchronization and cache inspection. The binary lives under `app/src/bin/sync_cli.rs` and is built alongside the rest of the workspace.
+In addition to the main application UI, the project provides a command line utility for manual synchronization and cache inspection. The binary lives under `app/src/bin/sync_cli.rs` and is built alongside the rest of the workspace. It uses `AppConfig` on startup, so options defined in `~/.googlepicz/config` apply here as well.
 
 ```bash
 cargo run --package googlepicz --bin sync_cli -- sync
