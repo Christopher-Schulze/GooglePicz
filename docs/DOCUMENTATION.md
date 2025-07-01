@@ -160,7 +160,7 @@ docker push ghcr.io/christopher-schulze/googlepicz-ci:latest
 
 The GitHub Actions workflow references this image to ensure consistent dependencies across CI runs.
 
-## 📝 Next Steps 
+## 📝 Next Steps
 ### Short-term Goals
 1. Complete basic photo viewing functionality
 2. Implement album management

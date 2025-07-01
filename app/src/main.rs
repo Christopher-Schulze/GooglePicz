@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Error>> {
     info!("🚀 Starting GooglePicz - Google Photos Manager");
-    
+
     // Ensure environment variables are set for client ID and secret
     if std::env::var("GOOGLE_CLIENT_ID").is_err() || std::env::var("GOOGLE_CLIENT_SECRET").is_err() {
         error!("❌ Error: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables must be set.");
@@ -49,9 +49,9 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
     let cache_dir = dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".googlepicz");
-    
+
     let db_path = cache_dir.join("cache.sqlite");
-    
+
     // Ensure the directory exists
     if let Some(parent) = db_path.parent() {
         fs::create_dir_all(parent).await?;

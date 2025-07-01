@@ -25,10 +25,10 @@ impl ImageLoader {
 
         // Create thumbnail URL (150x150 pixels)
         let thumbnail_url = format!("{}=w150-h150-c", base_url);
-        
+
         // Check if cached on disk
         let cache_path = self.cache_dir.join("thumbnails").join(format!("{}.jpg", media_id));
-        
+
         if cache_path.exists() {
             let handle = Handle::from_path(&cache_path);
             return Ok(handle);
@@ -48,7 +48,7 @@ impl ImageLoader {
 
         // Create handle
         let handle = Handle::from_path(&cache_path);
-        
+
         Ok(handle)
     }
 
