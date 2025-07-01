@@ -44,7 +44,10 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
         Ok(())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(PackagingError::CommandError(format!("{} failed: {}", cmd, stderr)))
+        Err(PackagingError::CommandError(format!(
+            "{} failed: {}",
+            cmd, stderr
+        )))
     }
 }
 
@@ -84,7 +87,13 @@ pub fn bundle_licenses() -> Result<(), PackagingError> {
     tracing::info!("Bundling licenses...");
     run_command(
         "cargo",
-        &["bundle-licenses", "--format", "json", "--output", "licenses.json"],
+        &[
+            "bundle-licenses",
+            "--format",
+            "json",
+            "--output",
+            "licenses.json",
+        ],
     )
 }
 
@@ -101,13 +110,26 @@ fn create_macos_installer() -> Result<(), PackagingError> {
     let identity = std::env::var("MAC_SIGN_ID").unwrap_or_default();
     let app_path = "target/release/bundle/osx/GooglePicz.app";
     if !identity.is_empty() {
-        run_command("codesign", &["--deep", "--force", "-s", &identity, app_path])?;
+        run_command(
+            "codesign",
+            &["--deep", "--force", "-s", &identity, app_path],
+        )?;
     }
 
     let dmg_path = "target/release/GooglePicz.dmg";
     run_command(
         "hdiutil",
-        &["create", "-volname", "GooglePicz", "-srcfolder", app_path, "-ov", "-format", "UDZO", dmg_path],
+        &[
+            "create",
+            "-volname",
+            "GooglePicz",
+            "-srcfolder",
+            app_path,
+            "-ov",
+            "-format",
+            "UDZO",
+            dmg_path,
+        ],
     )?;
     if !identity.is_empty() {
         run_command("codesign", &["--force", "-s", &identity, dmg_path])?;
@@ -118,7 +140,16 @@ fn create_macos_installer() -> Result<(), PackagingError> {
         let password = std::env::var("APPLE_PASSWORD").unwrap_or_default();
         run_command(
             "xcrun",
-            &["notarytool", "submit", dmg_path, "--apple-id", &apple_id, "--password", &password, "--wait"],
+            &[
+                "notarytool",
+                "submit",
+                dmg_path,
+                "--apple-id",
+                &apple_id,
+                "--password",
+                &password,
+                "--wait",
+            ],
         )?;
         run_command("xcrun", &["stapler", "staple", dmg_path])?;
     }
@@ -254,9 +285,9 @@ pub fn package_all() -> Result<(), PackagingError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::fs;
     use std::path::PathBuf;
-    use serial_test::serial;
 
     // Helper to find the project root (where Cargo.toml is)
     fn get_project_root() -> PathBuf {
@@ -276,7 +307,11 @@ mod tests {
         std::env::set_current_dir(&project_root).unwrap();
 
         let result = bundle_licenses();
-        assert!(result.is_ok(), "License bundling failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "License bundling failed: {:?}",
+            result.err()
+        );
 
         let licenses_file = project_root.join("licenses.json");
         // In mock mode the file won't exist
@@ -326,4 +361,3 @@ mod tests {
         std::env::remove_var("MOCK_COMMANDS");
     }
 }
-

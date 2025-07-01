@@ -1,16 +1,19 @@
 //! Authentication module for Google Photos API.
 
+use keyring::Entry;
 use oauth2::basic::BasicClient;
 use oauth2::reqwest::async_http_client;
-use oauth2::{AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl, Scope, TokenResponse, TokenUrl};
-use keyring::Entry;
-use std::time::{SystemTime, Duration, UNIX_EPOCH};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::net::TcpListener;
-use url::Url;
+use oauth2::{
+    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl,
+    Scope, TokenResponse, TokenUrl,
+};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::net::TcpListener;
+use url::Url;
 
 const KEYRING_SERVICE_NAME: &str = "GooglePicz";
 const ACCESS_TOKEN_EXPIRY_KEY: &str = "access_token_expiry";
@@ -19,7 +22,10 @@ static MOCK_STORE: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::ne
 
 fn store_value(key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
     if std::env::var("MOCK_KEYRING").is_ok() {
-        MOCK_STORE.lock().unwrap().insert(key.to_string(), value.to_string());
+        MOCK_STORE
+            .lock()
+            .unwrap()
+            .insert(key.to_string(), value.to_string());
         Ok(())
     } else {
         let entry = Entry::new(KEYRING_SERVICE_NAME, key)?;
@@ -61,20 +67,17 @@ pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::
 
     let redirect_uri = format!("http://127.0.0.1:{}", redirect_port);
 
-    let client = BasicClient::new(
-        client_id,
-        Some(client_secret),
-        auth_url,
-        Some(token_url),
-    )
-    .set_redirect_uri(RedirectUrl::new(redirect_uri.clone())?);
+    let client = BasicClient::new(client_id, Some(client_secret), auth_url, Some(token_url))
+        .set_redirect_uri(RedirectUrl::new(redirect_uri.clone())?);
 
     // PKCE code challenge
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
     let (authorize_url, _csrf_state) = client
         .authorize_url(CsrfToken::new_random)
-        .add_scope(Scope::new("https://www.googleapis.com/auth/photoslibrary.readonly".to_string()))
+        .add_scope(Scope::new(
+            "https://www.googleapis.com/auth/photoslibrary.readonly".to_string(),
+        ))
         .set_pkce_challenge(pkce_challenge)
         .url();
 
@@ -90,7 +93,10 @@ pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::
     let mut request_line = String::new();
     stream.read_line(&mut request_line).await?;
 
-    let redirect_url = request_line.split_whitespace().nth(1).ok_or("No redirect URL found")?;
+    let redirect_url = request_line
+        .split_whitespace()
+        .nth(1)
+        .ok_or("No redirect URL found")?;
     let redirect_url = Url::parse(&format!("{}{}", redirect_uri, redirect_url))?;
 
     let code = AuthorizationCode::new(
@@ -108,8 +114,12 @@ pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::
         .await?;
 
     let access_token = token_response.access_token().secret();
-    let refresh_token = token_response.refresh_token().map(|t| t.secret().to_string());
-    let expires_in = token_response.expires_in().unwrap_or_else(|| Duration::from_secs(3600));
+    let refresh_token = token_response
+        .refresh_token()
+        .map(|t| t.secret().to_string());
+    let expires_in = token_response
+        .expires_in()
+        .unwrap_or_else(|| Duration::from_secs(3600));
     let expiry = SystemTime::now() + expires_in;
     let expiry_secs = expiry.duration_since(UNIX_EPOCH)?.as_secs();
 
@@ -169,7 +179,9 @@ pub async fn refresh_access_token() -> Result<String, Box<dyn std::error::Error>
         .await?;
 
     let access_token = token_response.access_token().secret();
-    let expires_in = token_response.expires_in().unwrap_or_else(|| Duration::from_secs(3600));
+    let expires_in = token_response
+        .expires_in()
+        .unwrap_or_else(|| Duration::from_secs(3600));
     let expiry = SystemTime::now() + expires_in;
     let expiry_secs = expiry.duration_since(UNIX_EPOCH)?.as_secs();
     store_value("access_token", access_token)?;
@@ -193,8 +205,8 @@ pub async fn ensure_access_token_valid() -> Result<String, Box<dyn std::error::E
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio;
     use serial_test::serial;
+    use tokio;
 
     // Note: These tests require GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to be set
     // and may require manual interaction for the initial authentication flow.
@@ -241,8 +253,13 @@ mod tests {
         let expiry = SystemTime::now() + Duration::from_secs(3600);
         store_value(
             ACCESS_TOKEN_EXPIRY_KEY,
-            &expiry.duration_since(UNIX_EPOCH).unwrap().as_secs().to_string(),
-        ).unwrap();
+            &expiry
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                .to_string(),
+        )
+        .unwrap();
 
         let token = ensure_access_token_valid().await.unwrap();
         assert_eq!(token, "valid_token");
@@ -259,8 +276,13 @@ mod tests {
         let expiry = SystemTime::now() - Duration::from_secs(10);
         store_value(
             ACCESS_TOKEN_EXPIRY_KEY,
-            &expiry.duration_since(UNIX_EPOCH).unwrap().as_secs().to_string(),
-        ).unwrap();
+            &expiry
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                .to_string(),
+        )
+        .unwrap();
 
         let token = ensure_access_token_valid().await.unwrap();
         assert_eq!(token, "new_token");

@@ -1,10 +1,10 @@
 //! Image loading and caching functionality for GooglePicz UI.
 
+use api_client;
+use iced::widget::image::Handle;
+use reqwest;
 use std::path::PathBuf;
 use tokio::fs;
-use reqwest;
-use iced::widget::image::Handle;
-use api_client;
 
 #[derive(Debug, Clone)]
 pub struct ImageLoader {
@@ -15,19 +15,22 @@ pub struct ImageLoader {
 impl ImageLoader {
     pub fn new(cache_dir: PathBuf) -> Self {
         let client = reqwest::Client::new();
-        Self {
-            cache_dir,
-            client,
-        }
+        Self { cache_dir, client }
     }
 
-    pub async fn load_thumbnail(&self, media_id: &str, base_url: &str) -> Result<Handle, Box<dyn std::error::Error>> {
-
+    pub async fn load_thumbnail(
+        &self,
+        media_id: &str,
+        base_url: &str,
+    ) -> Result<Handle, Box<dyn std::error::Error>> {
         // Create thumbnail URL (150x150 pixels)
         let thumbnail_url = format!("{}=w150-h150-c", base_url);
 
         // Check if cached on disk
-        let cache_path = self.cache_dir.join("thumbnails").join(format!("{}.jpg", media_id));
+        let cache_path = self
+            .cache_dir
+            .join("thumbnails")
+            .join(format!("{}.jpg", media_id));
 
         if cache_path.exists() {
             let handle = Handle::from_path(&cache_path);
@@ -52,9 +55,16 @@ impl ImageLoader {
         Ok(handle)
     }
 
-    pub async fn load_full_image(&self, media_id: &str, base_url: &str) -> Result<Handle, Box<dyn std::error::Error>> {
+    pub async fn load_full_image(
+        &self,
+        media_id: &str,
+        base_url: &str,
+    ) -> Result<Handle, Box<dyn std::error::Error>> {
         let full_url = format!("{}=d", base_url);
-        let cache_path = self.cache_dir.join("full").join(format!("{}.jpg", media_id));
+        let cache_path = self
+            .cache_dir
+            .join("full")
+            .join(format!("{}.jpg", media_id));
 
         if cache_path.exists() {
             return Ok(Handle::from_path(&cache_path));

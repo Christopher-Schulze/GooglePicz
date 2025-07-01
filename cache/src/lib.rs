@@ -1,11 +1,11 @@
 //! Cache module for Google Photos data.
 
+use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
-use rusqlite_migration::{M, Migrations};
-use std::path::Path;
+use rusqlite_migration::{Migrations, M};
 use std::error::Error;
 use std::fmt;
-use chrono::{DateTime, Utc};
+use std::path::Path;
 
 #[derive(Debug)]
 pub enum CacheError {
@@ -129,8 +129,7 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
     ]);
     migrations
         .to_latest(conn)
-        .map_err(|e| CacheError::DatabaseError(format!("Failed to apply migrations: {}", e)))?
-        ;
+        .map_err(|e| CacheError::DatabaseError(format!("Failed to apply migrations: {}", e)))?;
     Ok(())
 }
 
@@ -172,14 +171,16 @@ impl CacheManager {
                     item.filename
                 ],
             )
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to insert media item: {}", e)))?;
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to insert media item: {}", e))
+            })?;
 
         self.conn
             .execute(
                 "INSERT OR REPLACE INTO media_metadata (
                     media_item_id, creation_time, width, height
                 ) VALUES (?1, ?2, ?3, ?4)",
-                params![ item.id, creation_ts, width, height ],
+                params![item.id, creation_ts, width, height],
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to insert metadata: {}", e)))?;
 
@@ -205,26 +206,50 @@ impl CacheManager {
             .map_err(|e| CacheError::DatabaseError(format!("Failed to get row: {}", e)))?
         {
             let item = api_client::MediaItem {
-                id: row.get(0).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
-                description: row.get(1).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
-                product_url: row.get(2).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
-                base_url: row.get(3).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
-                mime_type: row.get(4).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                id: row
+                    .get(0)
+                    .map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                description: row
+                    .get(1)
+                    .map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                product_url: row
+                    .get(2)
+                    .map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                base_url: row
+                    .get(3)
+                    .map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                mime_type: row
+                    .get(4)
+                    .map_err(|e| CacheError::DatabaseError(e.to_string()))?,
                 media_metadata: api_client::MediaMetadata {
                     creation_time: {
-                        let ts: i64 = row.get(5).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
-                        DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).ok_or_else(|| CacheError::DeserializationError("invalid timestamp".into()))?, Utc).to_rfc3339()
+                        let ts: i64 = row
+                            .get(5)
+                            .map_err(|e| CacheError::DatabaseError(e.to_string()))?;
+                        DateTime::<Utc>::from_utc(
+                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).ok_or_else(|| {
+                                CacheError::DeserializationError("invalid timestamp".into())
+                            })?,
+                            Utc,
+                        )
+                        .to_rfc3339()
                     },
                     width: {
-                        let w: i64 = row.get(6).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
+                        let w: i64 = row
+                            .get(6)
+                            .map_err(|e| CacheError::DatabaseError(e.to_string()))?;
                         w.to_string()
                     },
                     height: {
-                        let h: i64 = row.get(7).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
+                        let h: i64 = row
+                            .get(7)
+                            .map_err(|e| CacheError::DatabaseError(e.to_string()))?;
                         h.to_string()
                     },
                 },
-                filename: row.get(8).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                filename: row
+                    .get(8)
+                    .map_err(|e| CacheError::DatabaseError(e.to_string()))?,
             };
             Ok(Some(item))
         } else {
@@ -254,27 +279,38 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(), Utc).to_rfc3339(),
+                        creation_time: DateTime::<Utc>::from_utc(
+                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(),
+                            Utc,
+                        )
+                        .to_rfc3339(),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
                     filename: row.get(8)?,
                 })
             })
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to query all media items: {}", e)))?;
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to query all media items: {}", e))
+            })?;
 
         let mut items = Vec::new();
         for item_result in media_item_iter {
-            items.push(
-                item_result
-                    .map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e)))?,
-            );
+            items.push(item_result.map_err(|e| {
+                CacheError::DatabaseError(format!(
+                    "Failed to retrieve media item from iterator: {}",
+                    e
+                ))
+            })?);
         }
         Ok(items)
     }
 
     /// Retrieve all media items matching the given MIME type.
-    pub fn get_media_items_by_mime_type(&self, mime: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+    pub fn get_media_items_by_mime_type(
+        &self,
+        mime: &str,
+    ) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let mut stmt = self.conn
             .prepare(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
@@ -296,24 +332,38 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(), Utc).to_rfc3339(),
+                        creation_time: DateTime::<Utc>::from_utc(
+                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(),
+                            Utc,
+                        )
+                        .to_rfc3339(),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
                     filename: row.get(8)?,
                 })
             })
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to query media items: {}", e))
+            })?;
 
         let mut items = Vec::new();
         for item in iter {
-            items.push(item.map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e)))?);
+            items.push(item.map_err(|e| {
+                CacheError::DatabaseError(format!(
+                    "Failed to retrieve media item from iterator: {}",
+                    e
+                ))
+            })?);
         }
         Ok(items)
     }
 
     /// Retrieve media items where the filename contains the given pattern.
-    pub fn get_media_items_by_filename(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+    pub fn get_media_items_by_filename(
+        &self,
+        pattern: &str,
+    ) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let like_pattern = format!("%{}%", pattern);
         let mut stmt = self.conn
             .prepare(
@@ -336,18 +386,29 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(), Utc).to_rfc3339(),
+                        creation_time: DateTime::<Utc>::from_utc(
+                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(),
+                            Utc,
+                        )
+                        .to_rfc3339(),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
                     filename: row.get(8)?,
                 })
             })
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to query media items: {}", e))
+            })?;
 
         let mut items = Vec::new();
         for item in iter {
-            items.push(item.map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e)))?);
+            items.push(item.map_err(|e| {
+                CacheError::DatabaseError(format!(
+                    "Failed to retrieve media item from iterator: {}",
+                    e
+                ))
+            })?);
         }
         Ok(items)
     }
@@ -406,9 +467,7 @@ impl CacheManager {
                     id: row.get(0)?,
                     title: row.get(1)?,
                     product_url: row.get(2)?,
-                    is_writeable: row
-                        .get::<_, Option<i64>>(3)?
-                        .map(|v| v != 0),
+                    is_writeable: row.get::<_, Option<i64>>(3)?.map(|v| v != 0),
                     media_items_count: row.get(4)?,
                     cover_photo_base_url: row.get(5)?,
                     cover_photo_media_item_id: row.get(6)?,
@@ -418,12 +477,18 @@ impl CacheManager {
 
         let mut albums = Vec::new();
         for album in iter {
-            albums.push(album.map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve album: {}", e)))?);
+            albums.push(album.map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to retrieve album: {}", e))
+            })?);
         }
         Ok(albums)
     }
 
-    pub fn associate_media_item_with_album(&self, media_item_id: &str, album_id: &str) -> Result<(), CacheError> {
+    pub fn associate_media_item_with_album(
+        &self,
+        media_item_id: &str,
+        album_id: &str,
+    ) -> Result<(), CacheError> {
         self.conn
             .execute(
                 "INSERT OR REPLACE INTO album_media_items (album_id, media_item_id) VALUES (?1, ?2)",
@@ -433,7 +498,10 @@ impl CacheManager {
         Ok(())
     }
 
-    pub fn get_media_items_by_album(&self, album_id: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+    pub fn get_media_items_by_album(
+        &self,
+        album_id: &str,
+    ) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let mut stmt = self.conn
             .prepare(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
@@ -456,18 +524,29 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(), Utc).to_rfc3339(),
+                        creation_time: DateTime::<Utc>::from_utc(
+                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(),
+                            Utc,
+                        )
+                        .to_rfc3339(),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
                     filename: row.get(8)?,
                 })
             })
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items by album: {}", e)))?;
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to query media items by album: {}", e))
+            })?;
 
         let mut items = Vec::new();
         for item in iter {
-            items.push(item.map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e)))?);
+            items.push(item.map_err(|e| {
+                CacheError::DatabaseError(format!(
+                    "Failed to retrieve media item from iterator: {}",
+                    e
+                ))
+            })?);
         }
         Ok(items)
     }
@@ -498,38 +577,56 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(), Utc).to_rfc3339(),
+                        creation_time: DateTime::<Utc>::from_utc(
+                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(),
+                            Utc,
+                        )
+                        .to_rfc3339(),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
                     filename: row.get(8)?,
                 })
             })
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items by date: {}", e)))?;
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to query media items by date: {}", e))
+            })?;
 
         let mut items = Vec::new();
         for item in iter {
-            items.push(item.map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e)))?);
+            items.push(item.map_err(|e| {
+                CacheError::DatabaseError(format!(
+                    "Failed to retrieve media item from iterator: {}",
+                    e
+                ))
+            })?);
         }
         Ok(items)
     }
 
     pub fn delete_media_item(&self, id: &str) -> Result<(), CacheError> {
-        self.conn.execute("DELETE FROM media_items WHERE id = ?1", params![id])
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to delete media item: {}", e)))?;
+        self.conn
+            .execute("DELETE FROM media_items WHERE id = ?1", params![id])
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to delete media item: {}", e))
+            })?;
         Ok(())
     }
 
     pub fn clear_cache(&self) -> Result<(), CacheError> {
-        self.conn.execute("DELETE FROM media_items", [])
+        self.conn
+            .execute("DELETE FROM media_items", [])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear cache: {}", e)))?;
         Ok(())
     }
 
     pub fn get_last_sync(&self) -> Result<DateTime<Utc>, CacheError> {
-        let mut stmt = self.conn
+        let mut stmt = self
+            .conn
             .prepare("SELECT timestamp FROM last_sync WHERE id = 1")
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to prepare statement: {}", e))
+            })?;
         let ts: String = stmt
             .query_row([], |row| row.get(0))
             .map_err(|e| CacheError::DatabaseError(format!("Failed to query last sync: {}", e)))?;
@@ -553,9 +650,9 @@ impl CacheManager {
 mod tests {
     use super::*;
     use api_client::{Album, MediaItem, MediaMetadata};
+    use chrono::{DateTime, Utc};
     use rusqlite::Connection;
     use tempfile::NamedTempFile;
-    use chrono::{DateTime, Utc};
 
     fn create_test_media_item(id: &str) -> MediaItem {
         MediaItem {
@@ -588,16 +685,24 @@ mod tests {
         let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
 
         let item1 = create_test_media_item("id1");
-        cache_manager.insert_media_item(&item1).expect("Failed to insert item1");
+        cache_manager
+            .insert_media_item(&item1)
+            .expect("Failed to insert item1");
 
-        let retrieved_item = cache_manager.get_media_item("id1").expect("Failed to get item1");
+        let retrieved_item = cache_manager
+            .get_media_item("id1")
+            .expect("Failed to get item1");
         assert!(retrieved_item.is_some());
         assert_eq!(retrieved_item.unwrap().id, item1.id);
 
         let item2 = create_test_media_item("id2");
-        cache_manager.insert_media_item(&item2).expect("Failed to insert item2");
+        cache_manager
+            .insert_media_item(&item2)
+            .expect("Failed to insert item2");
 
-        let retrieved_item_none = cache_manager.get_media_item("nonexistent_id").expect("Failed to get nonexistent item");
+        let retrieved_item_none = cache_manager
+            .get_media_item("nonexistent_id")
+            .expect("Failed to get nonexistent item");
         assert!(retrieved_item_none.is_none());
     }
 
@@ -610,10 +715,16 @@ mod tests {
         let item1 = create_test_media_item("id1");
         let item2 = create_test_media_item("id2");
 
-        cache_manager.insert_media_item(&item1).expect("Failed to insert item1");
-        cache_manager.insert_media_item(&item2).expect("Failed to insert item2");
+        cache_manager
+            .insert_media_item(&item1)
+            .expect("Failed to insert item1");
+        cache_manager
+            .insert_media_item(&item2)
+            .expect("Failed to insert item2");
 
-        let all_items = cache_manager.get_all_media_items().expect("Failed to get all items");
+        let all_items = cache_manager
+            .get_all_media_items()
+            .expect("Failed to get all items");
         assert_eq!(all_items.len(), 2);
         assert!(all_items.iter().any(|i| i.id == item1.id));
         assert!(all_items.iter().any(|i| i.id == item2.id));
@@ -632,8 +743,12 @@ mod tests {
         item2.mime_type = "image/jpeg".to_string();
         item2.filename = "family.jpg".to_string();
 
-        cache_manager.insert_media_item(&item1).expect("Failed to insert item1");
-        cache_manager.insert_media_item(&item2).expect("Failed to insert item2");
+        cache_manager
+            .insert_media_item(&item1)
+            .expect("Failed to insert item1");
+        cache_manager
+            .insert_media_item(&item2)
+            .expect("Failed to insert item2");
 
         let png_items = cache_manager
             .get_media_items_by_mime_type("image/png")
@@ -663,14 +778,20 @@ mod tests {
             cover_photo_base_url: None,
             cover_photo_media_item_id: None,
         };
-        cache_manager.insert_album(&album).expect("Failed to insert album");
+        cache_manager
+            .insert_album(&album)
+            .expect("Failed to insert album");
 
         let item1 = create_test_media_item("id1");
         let mut item2 = create_test_media_item("id2");
         item2.media_metadata.creation_time = "2023-02-01T12:00:00Z".to_string();
 
-        cache_manager.insert_media_item(&item1).expect("Failed to insert item1");
-        cache_manager.insert_media_item(&item2).expect("Failed to insert item2");
+        cache_manager
+            .insert_media_item(&item1)
+            .expect("Failed to insert item1");
+        cache_manager
+            .insert_media_item(&item2)
+            .expect("Failed to insert item2");
         cache_manager
             .associate_media_item_with_album("id1", "a1")
             .expect("Failed to associate");
@@ -709,9 +830,13 @@ mod tests {
             cover_photo_base_url: None,
             cover_photo_media_item_id: None,
         };
-        cache_manager.insert_album(&album).expect("Failed to insert album");
+        cache_manager
+            .insert_album(&album)
+            .expect("Failed to insert album");
 
-        let albums = cache_manager.get_all_albums().expect("Failed to get albums");
+        let albums = cache_manager
+            .get_all_albums()
+            .expect("Failed to get albums");
         assert_eq!(albums.len(), 1);
         assert_eq!(albums[0].id, album.id);
     }
@@ -770,10 +895,16 @@ mod tests {
         let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
 
         let item1 = create_test_media_item("id1");
-        cache_manager.insert_media_item(&item1).expect("Failed to insert item1");
+        cache_manager
+            .insert_media_item(&item1)
+            .expect("Failed to insert item1");
 
-        cache_manager.delete_media_item("id1").expect("Failed to delete item1");
-        let retrieved_item = cache_manager.get_media_item("id1").expect("Failed to get item1 after deletion");
+        cache_manager
+            .delete_media_item("id1")
+            .expect("Failed to delete item1");
+        let retrieved_item = cache_manager
+            .get_media_item("id1")
+            .expect("Failed to get item1 after deletion");
         assert!(retrieved_item.is_none());
     }
 
@@ -786,11 +917,17 @@ mod tests {
         let item1 = create_test_media_item("id1");
         let item2 = create_test_media_item("id2");
 
-        cache_manager.insert_media_item(&item1).expect("Failed to insert item1");
-        cache_manager.insert_media_item(&item2).expect("Failed to insert item2");
+        cache_manager
+            .insert_media_item(&item1)
+            .expect("Failed to insert item1");
+        cache_manager
+            .insert_media_item(&item2)
+            .expect("Failed to insert item2");
 
         cache_manager.clear_cache().expect("Failed to clear cache");
-        let all_items = cache_manager.get_all_media_items().expect("Failed to get all items after clear");
+        let all_items = cache_manager
+            .get_all_media_items()
+            .expect("Failed to get all items after clear");
         assert!(all_items.is_empty());
     }
 
@@ -814,19 +951,21 @@ mod tests {
                     filename TEXT NOT NULL
                 )",
                 [],
-            ).unwrap();
-            conn.execute(
-                "CREATE TABLE schema_version (version INTEGER NOT NULL)",
-                [],
-            ).unwrap();
-            conn.execute("INSERT INTO schema_version (version) VALUES (1)", []).unwrap();
+            )
+            .unwrap();
+            conn.execute("CREATE TABLE schema_version (version INTEGER NOT NULL)", [])
+                .unwrap();
+            conn.execute("INSERT INTO schema_version (version) VALUES (1)", [])
+                .unwrap();
             conn.pragma_update(None, "user_version", &1).unwrap();
         }
 
         let _cm = CacheManager::new(db_path).expect("Failed to open cache manager");
 
         let conn = Connection::open(db_path).unwrap();
-        let version: i32 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
+        let version: i32 = conn
+            .query_row("SELECT version FROM schema_version", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(version, 6);
 
         let mut stmt = conn.prepare("PRAGMA table_info(media_items)").unwrap();
@@ -837,23 +976,42 @@ mod tests {
             .collect();
         assert!(cols.contains(&"is_favorite".to_string()));
 
-        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='last_sync'").unwrap();
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='last_sync'")
+            .unwrap();
         let has_table: Option<String> = stmt.query_row([], |row| row.get(0)).ok();
         assert!(has_table.is_some());
 
-        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='albums'").unwrap();
-        assert!(stmt.query_row([], |row| row.get::<_, String>(0)).ok().is_some());
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='albums'")
+            .unwrap();
+        assert!(stmt
+            .query_row([], |row| row.get::<_, String>(0))
+            .ok()
+            .is_some());
 
-        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='media_metadata'").unwrap();
-        assert!(stmt.query_row([], |row| row.get::<_, String>(0)).ok().is_some());
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='media_metadata'")
+            .unwrap();
+        assert!(stmt
+            .query_row([], |row| row.get::<_, String>(0))
+            .ok()
+            .is_some());
 
         let mut stmt = conn.prepare("PRAGMA table_info(media_metadata)").unwrap();
         let cols: Vec<(String, String)> = stmt
-            .query_map([], |row| Ok((row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            })
             .unwrap()
             .map(|r| r.unwrap())
             .collect();
-        let ct_type = cols.iter().find(|(n, _)| n == "creation_time").unwrap().1.clone();
+        let ct_type = cols
+            .iter()
+            .find(|(n, _)| n == "creation_time")
+            .unwrap()
+            .1
+            .clone();
         assert_eq!(ct_type.to_uppercase(), "INTEGER");
     }
 
@@ -878,16 +1036,17 @@ mod tests {
                     is_favorite INTEGER NOT NULL DEFAULT 0
                 )",
                 [],
-            ).unwrap();
+            )
+            .unwrap();
             conn.execute(
                 "CREATE TABLE last_sync (id INTEGER PRIMARY KEY, timestamp TEXT NOT NULL)",
                 [],
-            ).unwrap();
-            conn.execute(
-                "CREATE TABLE schema_version (version INTEGER NOT NULL)",
-                [],
-            ).unwrap();
-            conn.execute("INSERT INTO schema_version (version) VALUES (3)", []).unwrap();
+            )
+            .unwrap();
+            conn.execute("CREATE TABLE schema_version (version INTEGER NOT NULL)", [])
+                .unwrap();
+            conn.execute("INSERT INTO schema_version (version) VALUES (3)", [])
+                .unwrap();
             conn.pragma_update(None, "user_version", &3).unwrap();
         }
 
@@ -913,11 +1072,18 @@ mod tests {
 
         let mut stmt = conn.prepare("PRAGMA table_info(media_metadata)").unwrap();
         let cols: Vec<(String, String)> = stmt
-            .query_map([], |row| Ok((row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            })
             .unwrap()
             .map(|r| r.unwrap())
             .collect();
-        let ct_type = cols.iter().find(|(n, _)| n == "creation_time").unwrap().1.clone();
+        let ct_type = cols
+            .iter()
+            .find(|(n, _)| n == "creation_time")
+            .unwrap()
+            .1
+            .clone();
         assert_eq!(ct_type.to_uppercase(), "INTEGER");
     }
 
@@ -927,13 +1093,19 @@ mod tests {
         let db_path = temp_file.path();
         let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
 
-        let ts = cache_manager.get_last_sync().expect("Failed to get last sync");
+        let ts = cache_manager
+            .get_last_sync()
+            .expect("Failed to get last sync");
         assert_eq!(ts, DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH));
 
         let now = Utc::now();
-        cache_manager.update_last_sync(now).expect("Failed to update last sync");
+        cache_manager
+            .update_last_sync(now)
+            .expect("Failed to update last sync");
 
-        let new_ts = cache_manager.get_last_sync().expect("Failed to read updated last sync");
+        let new_ts = cache_manager
+            .get_last_sync()
+            .expect("Failed to read updated last sync");
         assert!(new_ts >= now);
     }
 }
