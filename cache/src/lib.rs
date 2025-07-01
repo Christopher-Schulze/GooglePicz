@@ -1,6 +1,6 @@
 //! Cache module for Google Photos data.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, TimeZone};
 use rusqlite::{params, Connection};
 use rusqlite_migration::{Migrations, M};
 use std::error::Error;
@@ -551,7 +551,7 @@ impl CacheManager {
             .map_err(|e| CacheError::DatabaseError(format!("Failed to query last sync: {}", e)))?;
         DateTime::parse_from_rfc3339(&ts)
             .map_err(|e| CacheError::DeserializationError(e.to_string()))
-            .map(|dt| dt.with_timezone(&Utc))
+            .map(|dt| Utc.from_utc_datetime(&dt.naive_utc()))
     }
 
     pub fn update_last_sync(&self, ts: DateTime<Utc>) -> Result<(), CacheError> {
