@@ -84,6 +84,12 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
         }
     }
 
+    // Always ensure we have a valid token before continuing
+    if let Err(e) = ensure_access_token_valid().await {
+        error!("❌ Failed to validate access token: {}", e);
+        return Ok(());
+    }
+
     info!("🔄 Initializing synchronization...");
     match Syncer::new(&db_path).await {
         Ok(mut syncer) => {
@@ -99,11 +105,20 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
             let interval = Duration::from_secs(cfg.sync_interval_minutes * 60);
 
             info!("📥 Starting synchronization...");
-            if let Err(e) = syncer.sync_media_items(Some(tx.clone())).await {
-                error!("❌ Synchronization failed: {}", e);
+            if ensure_access_token_valid().await.is_ok() {
+                if let Err(e) = syncer.sync_media_items(Some(tx.clone())).await {
+                    error!("❌ Synchronization failed: {}", e);
+                }
+            } else {
+                error!("❌ Cannot synchronize without a valid access token");
             }
 
-            let _handle = syncer.start_periodic_sync(interval, tx, err_tx);
+            let _handle = if ensure_access_token_valid().await.is_ok() {
+                syncer.start_periodic_sync(interval, tx, err_tx)
+            } else {
+                error!("❌ Cannot start periodic sync without a valid token");
+                syncer.start_periodic_sync(interval, tx, err_tx)
+            };
 
             if let Err(e) = ui_thread.join() {
                 error!("UI thread panicked: {:?}", e);
