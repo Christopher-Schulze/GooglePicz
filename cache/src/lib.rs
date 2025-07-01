@@ -214,12 +214,11 @@ impl CacheManager {
                 media_metadata: api_client::MediaMetadata {
                     creation_time: {
                         let ts: i64 = row.get(5).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
-                        DateTime::<Utc>::from_utc(
-                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).ok_or_else(|| {
+                        DateTime::<Utc>::from_timestamp(ts, 0)
+                            .ok_or_else(|| {
                                 CacheError::DeserializationError("invalid timestamp".into())
-                            })?,
-                            Utc,
-                        ).to_rfc3339()
+                            })?
+                            .to_rfc3339()
                     },
                     width: {
                         let w: i64 = row.get(6).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
@@ -260,10 +259,9 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_utc(
-                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(),
-                            Utc,
-                        ).to_rfc3339(),
+                        creation_time: DateTime::<Utc>::from_timestamp(ts, 0)
+                            .unwrap()
+                            .to_rfc3339(),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
@@ -305,10 +303,9 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_utc(
-                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(),
-                            Utc,
-                        ).to_rfc3339(),
+                        creation_time: DateTime::<Utc>::from_timestamp(ts, 0)
+                            .unwrap()
+                            .to_rfc3339(),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
@@ -349,10 +346,9 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_utc(
-                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(),
-                            Utc,
-                        ).to_rfc3339(),
+                        creation_time: DateTime::<Utc>::from_timestamp(ts, 0)
+                            .unwrap()
+                            .to_rfc3339(),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
@@ -471,10 +467,9 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_utc(
-                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(),
-                            Utc,
-                        ).to_rfc3339(),
+                        creation_time: DateTime::<Utc>::from_timestamp(ts, 0)
+                            .unwrap()
+                            .to_rfc3339(),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
@@ -514,10 +509,9 @@ impl CacheManager {
                     base_url: row.get(3)?,
                     mime_type: row.get(4)?,
                     media_metadata: api_client::MediaMetadata {
-                        creation_time: DateTime::<Utc>::from_utc(
-                            chrono::NaiveDateTime::from_timestamp_opt(ts, 0).unwrap(),
-                            Utc,
-                        ).to_rfc3339(),
+                        creation_time: DateTime::<Utc>::from_timestamp(ts, 0)
+                            .unwrap()
+                            .to_rfc3339(),
                         width: w.to_string(),
                         height: h.to_string(),
                     },
@@ -734,7 +728,7 @@ mod tests {
         let db_path = temp_file.path();
         let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
 
-        let mut album = Album {
+        let album = Album {
             id: "a1".to_string(),
             title: Some("Old".to_string()),
             product_url: None,
