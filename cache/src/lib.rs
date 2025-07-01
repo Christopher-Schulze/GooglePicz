@@ -373,6 +373,25 @@ impl CacheManager {
         Ok(())
     }
 
+    /// Delete an album from the cache.
+    pub fn delete_album(&self, album_id: &str) -> Result<(), CacheError> {
+        self.conn
+            .execute("DELETE FROM albums WHERE id = ?1", params![album_id])
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to delete album: {}", e)))?;
+        Ok(())
+    }
+
+    /// Rename an album within the cache.
+    pub fn rename_album(&self, album_id: &str, new_title: &str) -> Result<(), CacheError> {
+        self.conn
+            .execute(
+                "UPDATE albums SET title = ?1 WHERE id = ?2",
+                params![new_title, album_id],
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to rename album: {}", e)))?;
+        Ok(())
+    }
+
     /// Retrieve all albums from the cache.
     pub fn get_all_albums(&self) -> Result<Vec<api_client::Album>, CacheError> {
         let mut stmt = self.conn
@@ -695,6 +714,53 @@ mod tests {
         let albums = cache_manager.get_all_albums().expect("Failed to get albums");
         assert_eq!(albums.len(), 1);
         assert_eq!(albums[0].id, album.id);
+    }
+
+    #[test]
+    fn test_rename_album() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let db_path = temp_file.path();
+        let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
+
+        let album = Album {
+            id: "a1".to_string(),
+            title: Some("Test".to_string()),
+            product_url: None,
+            is_writeable: Some(true),
+            media_items_count: None,
+            cover_photo_base_url: None,
+            cover_photo_media_item_id: None,
+        };
+        cache_manager.insert_album(&album).expect("Failed to insert album");
+
+        cache_manager
+            .rename_album("a1", "Renamed")
+            .expect("Failed to rename album");
+
+        let albums = cache_manager.get_all_albums().expect("Failed to get albums");
+        assert_eq!(albums[0].title.as_deref(), Some("Renamed"));
+    }
+
+    #[test]
+    fn test_delete_album() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let db_path = temp_file.path();
+        let cache_manager = CacheManager::new(db_path).expect("Failed to create cache manager");
+
+        let album = Album {
+            id: "a1".to_string(),
+            title: Some("Test".to_string()),
+            product_url: None,
+            is_writeable: Some(true),
+            media_items_count: None,
+            cover_photo_base_url: None,
+            cover_photo_media_item_id: None,
+        };
+        cache_manager.insert_album(&album).expect("Failed to insert album");
+
+        cache_manager.delete_album("a1").expect("Failed to delete album");
+        let albums = cache_manager.get_all_albums().expect("Failed to get albums");
+        assert!(albums.is_empty());
     }
 
     #[test]
