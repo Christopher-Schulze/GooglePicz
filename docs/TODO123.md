@@ -2,14 +2,14 @@
 
 ## High Priority Tasks
 - **Verify Build:** Run `cargo check --all` and `cargo build` to ensure the project compiles successfully after the configuration and path fixes.
+- **Address Compiler Warnings:** Review and fix all current compiler warnings.
 
 ## Medium Priority Tasks
 - **Optimize Caching:** The cache now uses a normalized schema with separate `media_items`, `media_metadata`, `albums`, and `album_media_items` tables for efficient SQL queries.
 - **Background Sync Robustness:** The background sync in `main.rs` is started in a `tokio::spawn` task. Add more robust error handling and potentially a mechanism to communicate sync status back to the UI (e.g., via channels).
 - **CLI-Erweiterungen:** Zusätzliche Befehle und Optionen für das Kommandozeilenwerkzeug implementieren.
 - **Performance Tuning:** Profile startup time and memory usage to better support large photo libraries.
-- **Fix Compiler Warnings:** Address all current warnings to maintain clean builds.
-- **Add CLI Integration Tests:** Ensure command-line functionality is tested end-to-end.
+- **Add CLI Integration Tests:** Ensure the command-line interface works correctly through automated tests.
 
 ## Low Priority Tasks
 - **Code Refinements:**
