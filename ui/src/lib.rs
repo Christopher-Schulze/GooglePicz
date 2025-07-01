@@ -38,6 +38,31 @@ fn error_container_style() -> iced::theme::Container {
     }))
 }
 
+#[derive(Debug, Clone)]
+struct UiConfig {
+    thumbnails_preload: usize,
+}
+
+impl UiConfig {
+    fn new(preload: usize) -> Self {
+        Self {
+            thumbnails_preload: preload,
+        }
+    }
+
+    fn save(&self) -> Result<(), std::io::Error> {
+        if let Some(home) = dirs::home_dir() {
+            let path = home.join(".googlepicz").join("config");
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let contents = format!("thumbnails_preload = {}\n", self.thumbnails_preload);
+            std::fs::write(path, contents)?;
+        }
+        Ok(())
+    }
+}
+
 pub fn run(
     progress: Option<mpsc::UnboundedReceiver<SyncProgress>>,
     preload: usize,
@@ -69,7 +94,13 @@ pub enum Message {
     AlbumPicked(AlbumOption),
     AlbumAssigned(Result<(), String>),
     RenameAlbum(String, String),
+    AlbumRenamed(Result<(), String>),
     DeleteAlbum(String),
+    AlbumDeleted(Result<(), String>),
+    ShowSettings,
+    SettingsPreloadChanged(String),
+    SaveSettings,
+    CancelSettings,
     ClearErrors,
 }
 
@@ -107,6 +138,9 @@ pub struct GooglePiczUI {
     selected_album: Option<String>,
     errors: Vec<String>,
     preload_count: usize,
+    config: UiConfig,
+    show_settings: bool,
+    settings_preload: String,
     creating_album: bool,
     new_album_title: String,
     assign_selection: Option<AlbumOption>,
@@ -131,6 +165,7 @@ impl Application for GooglePiczUI {
 
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
         let (progress_flag, preload_count) = flags;
+        let config = UiConfig::new(preload_count);
         let cache_path = dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join(".googlepicz")
@@ -173,7 +208,10 @@ impl Application for GooglePiczUI {
             state: ViewState::Grid,
             selected_album: None,
             errors: Vec::new(),
-            preload_count,
+            preload_count: config.thumbnails_preload,
+            config,
+            show_settings: false,
+            settings_preload: String::new(),
             creating_album: false,
             new_album_title: String::new(),
             assign_selection: None,
@@ -437,15 +475,30 @@ impl Application for GooglePiczUI {
                             .await
                             .map_err(|e| e.to_string())?;
                         let client = ApiClient::new(token);
-                        client.rename_album(&id, &title).await.map_err(|e| e.to_string())?;
+                        client
+                            .rename_album(&id, &title)
+                            .await
+                            .map_err(|e| e.to_string())?;
                         if let Some(cm) = cache_manager {
                             let cache = cm.lock().await;
-                            cache.rename_album(&id, &title).map_err(|e| e.to_string())?;
+                            cache
+                                .rename_album(&id, &title)
+                                .map_err(|e| e.to_string())?;
                         }
                         Ok::<(), String>(())
                     },
-                    |_: Result<_, _>| Message::LoadAlbums,
+                    Message::AlbumRenamed,
                 );
+            }
+            Message::AlbumRenamed(res) => {
+                match res {
+                    Ok(_) => self.errors.push("Album renamed".into()),
+                    Err(e) => self.errors.push(format!("Failed to rename album: {}", e)),
+                }
+                return Command::batch(vec![
+                    Command::perform(async {}, |_| Message::LoadAlbums),
+                    GooglePiczUI::error_timeout(),
+                ]);
             }
             Message::DeleteAlbum(id) => {
                 let cache_manager = self.cache_manager.clone();
@@ -455,15 +508,57 @@ impl Application for GooglePiczUI {
                             .await
                             .map_err(|e| e.to_string())?;
                         let client = ApiClient::new(token);
-                        client.delete_album(&id).await.map_err(|e| e.to_string())?;
+                        client
+                            .delete_album(&id)
+                            .await
+                            .map_err(|e| e.to_string())?;
                         if let Some(cm) = cache_manager {
                             let cache = cm.lock().await;
                             cache.delete_album(&id).map_err(|e| e.to_string())?;
                         }
                         Ok::<(), String>(())
                     },
-                    |_: Result<_, _>| Message::LoadAlbums,
+                    Message::AlbumDeleted,
                 );
+            }
+            Message::AlbumDeleted(res) => {
+                match res {
+                    Ok(_) => self.errors.push("Album deleted".into()),
+                    Err(e) => self.errors.push(format!("Failed to delete album: {}", e)),
+                }
+                return Command::batch(vec![
+                    Command::perform(async {}, |_| Message::LoadAlbums),
+                    GooglePiczUI::error_timeout(),
+                ]);
+            }
+            Message::ShowSettings => {
+                self.settings_preload = self.config.thumbnails_preload.to_string();
+                self.show_settings = true;
+            }
+            Message::SettingsPreloadChanged(v) => {
+                self.settings_preload = v;
+            }
+            Message::SaveSettings => {
+                match self.settings_preload.parse::<usize>() {
+                    Ok(val) => {
+                        self.config.thumbnails_preload = val;
+                        self.preload_count = val;
+                        if let Err(e) = self.config.save() {
+                            self.errors.push(format!("Failed to save settings: {}", e));
+                        } else {
+                            self.errors.push("Settings saved".into());
+                            self.show_settings = false;
+                        }
+                        return GooglePiczUI::error_timeout();
+                    }
+                    Err(_) => {
+                        self.errors.push("Invalid number".into());
+                        return GooglePiczUI::error_timeout();
+                    }
+                }
+            }
+            Message::CancelSettings => {
+                self.show_settings = false;
             }
         }
         Command::none()
@@ -490,7 +585,8 @@ impl Application for GooglePiczUI {
         let mut header = row![
             text("GooglePicz").size(24),
             button("Refresh").on_press(Message::RefreshPhotos),
-            button("New Album…").on_press(Message::ShowCreateAlbumDialog)
+            button("New Album…").on_press(Message::ShowCreateAlbumDialog),
+            button("Settings").on_press(Message::ShowSettings)
         ];
 
         if let Some(album_id) = &self.selected_album {
@@ -537,6 +633,23 @@ impl Application for GooglePiczUI {
                     row![
                         button("Create").on_press(Message::CreateAlbum),
                         button("Cancel").on_press(Message::CancelCreateAlbum)
+                    ]
+                    .spacing(10)
+                ]
+                .spacing(10),
+            )
+        } else {
+            None
+        };
+
+        let settings_dialog = if self.show_settings {
+            Some(
+                column![
+                    text_input("Thumbnails preload", &self.settings_preload)
+                        .on_input(Message::SettingsPreloadChanged),
+                    row![
+                        button("Save").on_press(Message::SaveSettings),
+                        button("Cancel").on_press(Message::CancelSettings)
                     ]
                     .spacing(10)
                 ]
@@ -645,6 +758,9 @@ impl Application for GooglePiczUI {
         base = base.push(content);
         if let Some(d) = album_dialog {
             base = base.push(d);
+        }
+        if let Some(s) = settings_dialog {
+            base = base.push(s);
         }
 
         container(base)
