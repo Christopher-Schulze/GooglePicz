@@ -3,8 +3,6 @@
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::error::Error;
-use std::fmt;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -75,24 +73,17 @@ struct NewAlbum {
     title: String,
 }
 
-#[derive(Debug)]
+use thiserror::Error;
+
+#[derive(Debug, Error)]
 pub enum ApiClientError {
+    #[error("Request Error: {0}")]
     RequestError(String),
+    #[error("Google API Error: {0}")]
     GoogleApiError(String),
+    #[error("Other Error: {0}")]
     Other(String),
 }
-
-impl fmt::Display for ApiClientError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ApiClientError::RequestError(msg) => write!(f, "Request Error: {}", msg),
-            ApiClientError::GoogleApiError(msg) => write!(f, "Google API Error: {}", msg),
-            ApiClientError::Other(msg) => write!(f, "Other Error: {}", msg),
-        }
-    }
-}
-
-impl Error for ApiClientError {}
 
 pub struct ApiClient {
     client: reqwest::Client,

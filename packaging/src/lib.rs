@@ -6,30 +6,20 @@
 //! - `APPLE_ID`: Apple ID used for notarization.
 //! - `APPLE_PASSWORD`: app-specific password for notarization.
 
-use std::error::Error;
-use std::fmt;
+use thiserror::Error;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
 use toml::Value;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum PackagingError {
+    #[error("Command Error: {0}")]
     CommandError(String),
+    #[error("Other Error: {0}")]
     Other(String),
 }
-
-impl fmt::Display for PackagingError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            PackagingError::CommandError(msg) => write!(f, "Command Error: {}", msg),
-            PackagingError::Other(msg) => write!(f, "Other Error: {}", msg),
-        }
-    }
-}
-
-impl Error for PackagingError {}
 
 fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
     tracing::info!("Running command: {} {:?}", cmd, args);

@@ -1,4 +1,4 @@
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), packaging::PackagingError> {
     packaging::package_all()?;
     Ok(())
 }

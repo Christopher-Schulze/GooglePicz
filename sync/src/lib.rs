@@ -5,33 +5,23 @@ use auth::ensure_access_token_valid;
 use cache::CacheManager;
 use chrono::{DateTime, Datelike, Utc};
 use serde_json::json;
-use std::error::Error;
-use std::fmt;
+use thiserror::Error;
 use std::path::Path;
 use tokio::sync::mpsc;
 use tokio::task::{spawn_local, JoinHandle};
 use tokio::time::{sleep, Duration};
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum SyncError {
+    #[error("Authentication Error: {0}")]
     AuthenticationError(String),
+    #[error("API Client Error: {0}")]
     ApiClientError(String),
+    #[error("Cache Error: {0}")]
     CacheError(String),
+    #[error("Other Error: {0}")]
     Other(String),
 }
-
-impl fmt::Display for SyncError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            SyncError::AuthenticationError(msg) => write!(f, "Authentication Error: {}", msg),
-            SyncError::ApiClientError(msg) => write!(f, "API Client Error: {}", msg),
-            SyncError::CacheError(msg) => write!(f, "Cache Error: {}", msg),
-            SyncError::Other(msg) => write!(f, "Other Error: {}", msg),
-        }
-    }
-}
-
-impl Error for SyncError {}
 
 pub struct Syncer {
     api_client: ApiClient,
