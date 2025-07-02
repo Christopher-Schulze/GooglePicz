@@ -2,6 +2,8 @@
 
 mod image_loader;
 
+pub use image_loader::ImageLoader;
+
 use api_client::{Album, ApiClient, MediaItem};
 use auth;
 use cache::CacheManager;
@@ -15,7 +17,6 @@ use iced::widget::{
 use iced::Border;
 use iced::Color;
 use iced::{executor, Application, Command, Element, Length, Settings, Subscription, Theme};
-use image_loader::ImageLoader;
 use std::path::PathBuf;
 use std::sync::Arc;
 use sync::SyncProgress;
@@ -116,6 +117,23 @@ pub struct GooglePiczUI {
 }
 
 impl GooglePiczUI {
+    /// Expose current state for testing purposes
+    pub fn state_debug(&self) -> String {
+        format!("{:?}", self.state)
+    }
+
+    /// Return number of stored errors
+    pub fn error_count(&self) -> usize {
+        self.errors.len()
+    }
+
+    pub fn photo_count(&self) -> usize {
+        self.photos.len()
+    }
+
+    pub fn album_count(&self) -> usize {
+        self.albums.len()
+    }
     fn error_timeout() -> Command<Message> {
         Command::perform(
             async {
