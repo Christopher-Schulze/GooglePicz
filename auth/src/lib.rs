@@ -14,43 +14,58 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use url::Url;
+use thiserror::Error;
 
 const KEYRING_SERVICE_NAME: &str = "GooglePicz";
 const ACCESS_TOKEN_EXPIRY_KEY: &str = "access_token_expiry";
 
 static MOCK_STORE: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
-fn store_value(key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
+#[derive(Debug, Error)]
+pub enum AuthError {
+    #[error("Keyring error: {0}")]
+    Keyring(String),
+    #[error("OAuth error: {0}")]
+    OAuth(String),
+    #[error("Other error: {0}")]
+    Other(String),
+}
+
+fn store_value(key: &str, value: &str) -> Result<(), AuthError> {
     if std::env::var("MOCK_KEYRING").is_ok() {
         let mut store = MOCK_STORE
             .lock()
-            .map_err(|_| "Poisoned mock store lock")?;
+            .map_err(|_| AuthError::Other("Poisoned mock store lock".into()))?;
         store.insert(key.to_string(), value.to_string());
         Ok(())
     } else {
-        let entry = Entry::new(KEYRING_SERVICE_NAME, key)?;
-        entry.set_password(value)?;
+        let entry = Entry::new(KEYRING_SERVICE_NAME, key)
+            .map_err(|e| AuthError::Keyring(e.to_string()))?;
+        entry
+            .set_password(value)
+            .map_err(|e| AuthError::Keyring(e.to_string()))?;
         Ok(())
     }
 }
 
-fn get_value(key: &str) -> Result<Option<String>, Box<dyn std::error::Error>> {
+fn get_value(key: &str) -> Result<Option<String>, AuthError> {
     if std::env::var("MOCK_KEYRING").is_ok() {
         let store = MOCK_STORE
             .lock()
-            .map_err(|_| "Poisoned mock store lock")?;
+            .map_err(|_| AuthError::Other("Poisoned mock store lock".into()))?;
         Ok(store.get(key).cloned())
     } else {
-        let entry = Entry::new(KEYRING_SERVICE_NAME, key)?;
+        let entry = Entry::new(KEYRING_SERVICE_NAME, key)
+            .map_err(|e| AuthError::Keyring(e.to_string()))?;
         match entry.get_password() {
             Ok(v) => Ok(Some(v)),
             Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(Box::new(e)),
+            Err(e) => Err(AuthError::Keyring(e.to_string())),
         }
     }
 }
 
-pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn authenticate(redirect_port: u16) -> Result<(), AuthError> {
     if let Ok(mock_token) = std::env::var("MOCK_ACCESS_TOKEN") {
         store_value("access_token", &mock_token)?;
         if let Ok(refresh) = std::env::var("MOCK_REFRESH_TOKEN") {
@@ -59,19 +74,26 @@ pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::
         let expiry = SystemTime::now() + Duration::from_secs(3600);
         store_value(
             ACCESS_TOKEN_EXPIRY_KEY,
-            &expiry.duration_since(UNIX_EPOCH)?.as_secs().to_string(),
+            &expiry
+                .duration_since(UNIX_EPOCH)
+                .map_err(|e| AuthError::Other(e.to_string()))?
+                .as_secs()
+                .to_string(),
         )?;
         return Ok(());
     }
-    let client_id = ClientId::new(std::env::var("GOOGLE_CLIENT_ID")?);
-    let client_secret = ClientSecret::new(std::env::var("GOOGLE_CLIENT_SECRET")?);
-    let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())?;
-    let token_url = TokenUrl::new("https://oauth2.googleapis.com/token".to_string())?;
+    let client_id = ClientId::new(std::env::var("GOOGLE_CLIENT_ID").map_err(|e| AuthError::Other(e.to_string()))?);
+    let client_secret = ClientSecret::new(std::env::var("GOOGLE_CLIENT_SECRET").map_err(|e| AuthError::Other(e.to_string()))?);
+    let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string()).map_err(|e| AuthError::OAuth(e.to_string()))?;
+    let token_url = TokenUrl::new("https://oauth2.googleapis.com/token".to_string()).map_err(|e| AuthError::OAuth(e.to_string()))?;
 
     let redirect_uri = format!("http://127.0.0.1:{}", redirect_port);
 
     let client = BasicClient::new(client_id, Some(client_secret), auth_url, Some(token_url))
-        .set_redirect_uri(RedirectUrl::new(redirect_uri.clone())?);
+        .set_redirect_uri(
+            RedirectUrl::new(redirect_uri.clone())
+                .map_err(|e| AuthError::OAuth(e.to_string()))?,
+        );
 
     // PKCE code challenge
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
@@ -86,35 +108,36 @@ pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::
 
     tracing::info!("Opening browser for authentication: {}", authorize_url);
     // Open the URL in the default browser
-    webbrowser::open(authorize_url.as_str())?;
+    webbrowser::open(authorize_url.as_str()).map_err(|e| AuthError::Other(e.to_string()))?;
 
     // Await the redirect from the browser
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", redirect_port)).await?;
-    let (stream, _) = listener.accept().await?;
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", redirect_port)).await.map_err(|e| AuthError::Other(e.to_string()))?;
+    let (stream, _) = listener.accept().await.map_err(|e| AuthError::Other(e.to_string()))?;
     let mut stream = BufReader::new(stream);
 
     let mut request_line = String::new();
-    stream.read_line(&mut request_line).await?;
+    stream.read_line(&mut request_line).await.map_err(|e| AuthError::Other(e.to_string()))?;
 
     let redirect_url = request_line
         .split_whitespace()
         .nth(1)
-        .ok_or("No redirect URL found")?;
-    let redirect_url = Url::parse(&format!("{}{}", redirect_uri, redirect_url))?;
+        .ok_or_else(|| AuthError::Other("No redirect URL found".into()))?;
+    let redirect_url = Url::parse(&format!("{}{}", redirect_uri, redirect_url)).map_err(|e| AuthError::Other(e.to_string()))?;
 
     let code = AuthorizationCode::new(
         redirect_url
             .query_pairs()
             .find(|(key, _)| key == "code")
             .map(|(_, value)| value.into_owned())
-            .ok_or("No authorization code found in redirect URL")?,
+            .ok_or_else(|| AuthError::Other("No authorization code found in redirect URL".into()))?,
     );
 
     let token_response = client
         .exchange_code(code)
         .set_pkce_verifier(pkce_verifier)
         .request_async(async_http_client)
-        .await?;
+        .await
+        .map_err(|e| AuthError::OAuth(e.to_string()))?;
 
     let access_token = token_response.access_token().secret();
     let refresh_token = token_response
@@ -124,7 +147,10 @@ pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::
         .expires_in()
         .unwrap_or_else(|| Duration::from_secs(3600));
     let expiry = SystemTime::now() + expires_in;
-    let expiry_secs = expiry.duration_since(UNIX_EPOCH)?.as_secs();
+    let expiry_secs = expiry
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| AuthError::Other(e.to_string()))?
+        .as_secs();
 
     // Store tokens securely
     store_value("access_token", access_token)?;
@@ -138,55 +164,63 @@ pub async fn authenticate(redirect_port: u16) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
-pub fn get_access_token() -> Result<String, Box<dyn std::error::Error>> {
+pub fn get_access_token() -> Result<String, AuthError> {
     if let Some(val) = get_value("access_token")? {
         Ok(val)
     } else {
-        Err("No access token".into())
+        Err(AuthError::Other("No access token".into()))
     }
 }
 
-pub fn get_refresh_token() -> Result<Option<String>, Box<dyn std::error::Error>> {
+pub fn get_refresh_token() -> Result<Option<String>, AuthError> {
     Ok(get_value("refresh_token")?)
 }
 
-fn get_access_token_expiry() -> Result<Option<u64>, Box<dyn std::error::Error>> {
+fn get_access_token_expiry() -> Result<Option<u64>, AuthError> {
     Ok(get_value(ACCESS_TOKEN_EXPIRY_KEY)?.map(|v| v.parse().unwrap_or(0)))
 }
 
-pub async fn refresh_access_token() -> Result<String, Box<dyn std::error::Error>> {
+pub async fn refresh_access_token() -> Result<String, AuthError> {
     if let Ok(mock_token) = std::env::var("MOCK_REFRESH_TOKEN") {
         let new_token = mock_token;
         let expiry = SystemTime::now() + Duration::from_secs(3600);
-        let expiry_secs = expiry.duration_since(UNIX_EPOCH)?.as_secs();
+        let expiry_secs = expiry
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| AuthError::Other(e.to_string()))?
+            .as_secs();
         store_value("access_token", &new_token)?;
         store_value(ACCESS_TOKEN_EXPIRY_KEY, &expiry_secs.to_string())?;
         return Ok(new_token);
     }
-    let client_id = ClientId::new(std::env::var("GOOGLE_CLIENT_ID")?);
-    let client_secret = ClientSecret::new(std::env::var("GOOGLE_CLIENT_SECRET")?);
-    let token_url = TokenUrl::new("https://oauth2.googleapis.com/token".to_string())?;
+    let client_id = ClientId::new(std::env::var("GOOGLE_CLIENT_ID").map_err(|e| AuthError::Other(e.to_string()))?);
+    let client_secret = ClientSecret::new(std::env::var("GOOGLE_CLIENT_SECRET").map_err(|e| AuthError::Other(e.to_string()))?);
+    let token_url = TokenUrl::new("https://oauth2.googleapis.com/token".to_string()).map_err(|e| AuthError::OAuth(e.to_string()))?;
 
     let client = BasicClient::new(
         client_id,
         Some(client_secret),
-        AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())?,
+        AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())
+            .map_err(|e| AuthError::OAuth(e.to_string()))?,
         Some(token_url),
     );
 
-    let refresh_token = get_refresh_token()?.ok_or("No refresh token found")?;
+    let refresh_token = get_refresh_token()?.ok_or_else(|| AuthError::Other("No refresh token found".into()))?;
 
     let token_response = client
         .exchange_refresh_token(&oauth2::RefreshToken::new(refresh_token))
         .request_async(async_http_client)
-        .await?;
+        .await
+        .map_err(|e| AuthError::OAuth(e.to_string()))?;
 
     let access_token = token_response.access_token().secret();
     let expires_in = token_response
         .expires_in()
         .unwrap_or_else(|| Duration::from_secs(3600));
     let expiry = SystemTime::now() + expires_in;
-    let expiry_secs = expiry.duration_since(UNIX_EPOCH)?.as_secs();
+    let expiry_secs = expiry
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| AuthError::Other(e.to_string()))?
+        .as_secs();
     store_value("access_token", access_token)?;
     store_value(ACCESS_TOKEN_EXPIRY_KEY, &expiry_secs.to_string())?;
 
@@ -194,9 +228,12 @@ pub async fn refresh_access_token() -> Result<String, Box<dyn std::error::Error>
 }
 
 /// Ensure the stored access token is valid, refreshing it if expired.
-pub async fn ensure_access_token_valid() -> Result<String, Box<dyn std::error::Error>> {
+pub async fn ensure_access_token_valid() -> Result<String, AuthError> {
     let expiry = get_access_token_expiry()?.unwrap_or(0);
-    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| AuthError::Other(e.to_string()))?
+        .as_secs();
     if expiry <= now + 60 {
         // expired or about to expire in the next minute
         refresh_access_token().await

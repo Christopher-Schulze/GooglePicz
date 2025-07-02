@@ -3,30 +3,20 @@
 use chrono::{DateTime, Utc, TimeZone};
 use rusqlite::{params, Connection};
 use rusqlite_migration::{Migrations, M};
-use std::error::Error;
-use std::fmt;
+use thiserror::Error;
 use std::path::Path;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum CacheError {
+    #[error("Database Error: {0}")]
     DatabaseError(String),
+    #[error("Serialization Error: {0}")]
     SerializationError(String),
+    #[error("Deserialization Error: {0}")]
     DeserializationError(String),
+    #[error("Other Error: {0}")]
     Other(String),
 }
-
-impl fmt::Display for CacheError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            CacheError::DatabaseError(msg) => write!(f, "Database Error: {}", msg),
-            CacheError::SerializationError(msg) => write!(f, "Serialization Error: {}", msg),
-            CacheError::DeserializationError(msg) => write!(f, "Deserialization Error: {}", msg),
-            CacheError::Other(msg) => write!(f, "Other Error: {}", msg),
-        }
-    }
-}
-
-impl Error for CacheError {}
 
 pub struct CacheManager {
     conn: Connection,
