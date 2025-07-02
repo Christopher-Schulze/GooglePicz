@@ -38,6 +38,30 @@ git clone https://github.com/Christopher-Schulze/GooglePicz.git
 cd GooglePicz
 ```
 
+## 🚀 Quick Start
+
+1. Create OAuth credentials in the [Google Cloud Console](https://console.developers.google.com/).
+2. Export the required environment variables so the application can authenticate:
+
+```bash
+export GOOGLE_CLIENT_ID=your_client_id
+export GOOGLE_CLIENT_SECRET=your_client_secret
+```
+
+3. Run the GUI application:
+
+```bash
+cargo run --package googlepicz
+```
+
+   Or launch the command line interface:
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- sync
+```
+
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for optional settings via `AppConfig`.
+
 ## 🏗️ Project Structure
 
 ```
