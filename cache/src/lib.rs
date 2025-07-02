@@ -112,9 +112,14 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
              DROP TABLE media_items;\
              ALTER TABLE media_items_new RENAME TO media_items;\
              ALTER TABLE media_metadata_new RENAME TO media_metadata;\
-             ALTER TABLE album_media_items_new RENAME TO album_media_items;\
-             PRAGMA foreign_keys=on;\
-             UPDATE schema_version SET version = 6;"
+            ALTER TABLE album_media_items_new RENAME TO album_media_items;\
+            PRAGMA foreign_keys=on;\
+            UPDATE schema_version SET version = 6;"
+        ),
+        M::up(
+            "CREATE INDEX IF NOT EXISTS idx_media_metadata_creation_time ON media_metadata (creation_time);\
+             CREATE INDEX IF NOT EXISTS idx_media_items_mime_type ON media_items (mime_type);\
+             UPDATE schema_version SET version = 7;"
         ),
     ]);
     migrations
