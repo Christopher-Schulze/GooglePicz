@@ -125,6 +125,10 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
             "CREATE INDEX IF NOT EXISTS idx_album_media_items_album_id ON album_media_items (album_id);\
              UPDATE schema_version SET version = 8;"
         ),
+        M::up(
+            "CREATE INDEX IF NOT EXISTS idx_album_media_items_media_item_id ON album_media_items (media_item_id);\
+             UPDATE schema_version SET version = 9;"
+        ),
     ]);
     migrations
         .to_latest(conn)

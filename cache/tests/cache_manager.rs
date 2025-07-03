@@ -28,7 +28,7 @@ fn test_new_applies_migrations() {
     let version: i64 = conn
         .query_row("SELECT version FROM schema_version", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 8);
+    assert_eq!(version, 9);
 }
 
 #[test]
@@ -105,4 +105,32 @@ fn test_update_last_sync() {
     cm.update_last_sync(now).unwrap();
     let stored = cm.get_last_sync().unwrap();
     assert!(stored.timestamp() - now.timestamp() <= 1);
+}
+
+#[test]
+fn test_explain_date_range_uses_index() {
+    let file = NamedTempFile::new().unwrap();
+    let _ = CacheManager::new(file.path()).unwrap();
+    let conn = Connection::open(file.path()).unwrap();
+    let mut stmt = conn
+        .prepare(
+            "EXPLAIN QUERY PLAN SELECT m.id FROM media_items m JOIN media_metadata md ON m.id = md.media_item_id WHERE md.creation_time >= ?1 AND md.creation_time <= ?2",
+        )
+        .unwrap();
+    let plan: String = stmt.query_row([0i64, 0i64], |row| row.get(3)).unwrap();
+    assert!(plan.contains("idx_media_metadata_creation_time"), "plan was {}", plan);
+}
+
+#[test]
+fn test_explain_album_filter_uses_index() {
+    let file = NamedTempFile::new().unwrap();
+    let _ = CacheManager::new(file.path()).unwrap();
+    let conn = Connection::open(file.path()).unwrap();
+    let mut stmt = conn
+        .prepare(
+            "EXPLAIN QUERY PLAN SELECT m.id FROM media_items m JOIN album_media_items ami ON m.id = ami.media_item_id JOIN media_metadata md ON m.id = md.media_item_id WHERE ami.album_id = ?1",
+        )
+        .unwrap();
+    let plan: String = stmt.query_row(["a"], |row| row.get(3)).unwrap();
+    assert!(plan.contains("INDEX"), "plan was {}", plan);
 }
