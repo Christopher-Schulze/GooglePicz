@@ -8,10 +8,9 @@
 
 use thiserror::Error;
 use std::fs;
-use std::path::PathBuf;
 use std::process::Command;
 
-use toml::Value;
+pub mod utils;
 
 #[derive(Debug, Error)]
 pub enum PackagingError {
@@ -51,37 +50,7 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
     }
 }
 
-fn get_project_root() -> PathBuf {
-    let mut dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    loop {
-        let candidate = dir.join("Cargo.toml");
-        if candidate.exists() {
-            if let Ok(contents) = fs::read_to_string(&candidate) {
-                if contents.contains("[workspace]") {
-                    return dir;
-                }
-            }
-        }
-        if !dir.pop() {
-            break;
-        }
-    }
-    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-}
-
-fn workspace_version() -> Result<String, PackagingError> {
-    let cargo_toml = fs::read_to_string(get_project_root().join("Cargo.toml"))
-        .map_err(|e| PackagingError::Other(format!("Failed to read Cargo.toml: {}", e)))?;
-    let value: Value = toml::from_str(&cargo_toml)
-        .map_err(|e| PackagingError::Other(format!("Failed to parse Cargo.toml: {}", e)))?;
-    value
-        .get("workspace")
-        .and_then(|ws| ws.get("package"))
-        .and_then(|pkg| pkg.get("version"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .ok_or_else(|| PackagingError::Other("workspace.package.version not found".into()))
-}
+use utils::{get_project_root, workspace_version};
 
 pub fn bundle_licenses() -> Result<(), PackagingError> {
     tracing::info!("Bundling licenses...");
@@ -290,16 +259,8 @@ mod tests {
     use super::*;
     use serial_test::serial;
     use std::fs;
-    use std::path::PathBuf;
+    use crate::utils::get_project_root;
 
-    // Helper to find the project root (where Cargo.toml is)
-    fn get_project_root() -> PathBuf {
-        let mut current_dir = std::env::current_dir().unwrap();
-        while !current_dir.join("Cargo.toml").exists() {
-            current_dir.pop();
-        }
-        current_dir
-    }
 
     #[test]
     #[serial]

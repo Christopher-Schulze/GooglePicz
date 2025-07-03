@@ -1,44 +1,14 @@
 use packaging::package_all;
+use packaging::utils::{get_project_root, workspace_version};
 use serial_test::serial;
 use std::fs;
-use std::path::PathBuf;
-use toml::Value;
 
-fn get_workspace_root() -> PathBuf {
-    let mut dir = std::env::current_dir().unwrap();
-    loop {
-        let candidate = dir.join("Cargo.toml");
-        if candidate.exists() {
-            if let Ok(contents) = fs::read_to_string(&candidate) {
-                if contents.contains("[workspace]") {
-                    return dir;
-                }
-            }
-        }
-        if !dir.pop() {
-            break;
-        }
-    }
-    std::env::current_dir().unwrap()
-}
-
-fn workspace_version(root: &PathBuf) -> String {
-    let contents = fs::read_to_string(root.join("Cargo.toml")).unwrap();
-    let value: Value = toml::from_str(&contents).unwrap();
-    value
-        .get("workspace")
-        .and_then(|ws| ws.get("package"))
-        .and_then(|pkg| pkg.get("version"))
-        .and_then(|v| v.as_str())
-        .unwrap()
-        .to_string()
-}
 
 #[test]
 #[serial]
 fn test_package_all_mock() {
     std::env::set_var("MOCK_COMMANDS", "1");
-    let root = get_workspace_root();
+    let root = get_project_root();
 
     if cfg!(target_os = "linux") {
         let deb_dir = root.join("target/debian");
@@ -47,7 +17,7 @@ fn test_package_all_mock() {
     }
 
     if cfg!(target_os = "windows") {
-        let version = workspace_version(&root);
+        let version = workspace_version().unwrap();
         let win_dir = root.join("target/windows");
         fs::create_dir_all(&win_dir).unwrap();
         fs::write(win_dir.join(format!("GooglePicz-{}-Setup.exe", version)), b"test").unwrap();
@@ -57,14 +27,14 @@ fn test_package_all_mock() {
     assert!(result.is_ok(), "Packaging failed: {:?}", result.err());
 
     if cfg!(target_os = "linux") {
-        let version = workspace_version(&root);
+        let version = workspace_version().unwrap();
         let deb_file = root.join(format!("GooglePicz-{}.deb", version));
         assert!(deb_file.exists(), "Expected {:?} to exist", deb_file);
         fs::remove_file(deb_file).unwrap();
     }
 
     if cfg!(target_os = "windows") {
-        let version = workspace_version(&root);
+        let version = workspace_version().unwrap();
         let exe = root.join(format!("target/windows/GooglePicz-{}-Setup.exe", version));
         assert!(exe.exists(), "Expected {:?} to exist", exe);
         fs::remove_file(exe).unwrap();
@@ -72,3 +42,5 @@ fn test_package_all_mock() {
 
     std::env::remove_var("MOCK_COMMANDS");
 }
+
+
