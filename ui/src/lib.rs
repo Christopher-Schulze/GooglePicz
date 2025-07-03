@@ -558,21 +558,28 @@ impl Application for GooglePiczUI {
             .spacing(20)
             .align_items(iced::Alignment::Center);
 
-        let mut error_column = Column::new().spacing(5);
-        for (i, msg) in self.errors.iter().enumerate() {
-            let row = row![
-                text(msg.clone()).size(16),
-                button("Dismiss").on_press(Message::DismissError(i))
-            ]
-            .spacing(10)
-            .align_items(iced::Alignment::Center);
-            error_column =
-                error_column.push(container(row).style(error_container_style()).padding(10));
-        }
         let error_banner = if self.errors.is_empty() {
             None
         } else {
-            Some(error_column)
+            let mut banner = Column::new().spacing(5);
+            banner = banner.push(
+                row![
+                    text("Operation failed").size(16),
+                    button("Dismiss All").on_press(Message::ClearErrors)
+                ]
+                .spacing(10)
+                .align_items(iced::Alignment::Center),
+            );
+            for (i, msg) in self.errors.iter().enumerate() {
+                let row = row![
+                    text(msg.clone()).size(16),
+                    button("Dismiss").on_press(Message::DismissError(i))
+                ]
+                .spacing(10)
+                .align_items(iced::Alignment::Center);
+                banner = banner.push(row);
+            }
+            Some(container(banner).style(error_container_style()).padding(10).width(Length::Fill))
         };
 
         let album_dialog = if self.creating_album {
