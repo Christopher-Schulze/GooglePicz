@@ -156,6 +156,24 @@ cargo run --package googlepicz --bin sync_cli -- clear-cache
 
 Clears all cached media items.
 
+```bash
+cargo run --package googlepicz --bin sync_cli -- create-album "My Album"
+```
+
+Creates a new album and stores it in the cache.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- delete-album ALBUM_ID
+```
+
+Deletes the album from Google Photos and the local cache.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- cache-stats
+```
+
+Displays the number of cached albums and media items.
+
 ## 🐳 CI Docker Image
 
 The repository includes a `Dockerfile.ci` used to build a container image with stable Rust and the packaging tools required for CI. To build and publish the image:

@@ -86,7 +86,8 @@ See the following documents for additional details:
 
 Run the `sync_cli` binary for manual synchronization or to inspect the local cache.
 Like the GUI, it reads settings from `~/.googlepicz/config` via `AppConfig`.
-The tool exposes subcommands for `sync`, `status`, `clear-cache` and `list-albums` and prints progress updates
+The tool exposes subcommands for `sync`, `status`, `clear-cache`, `list-albums`,
+`create-album`, `delete-album` and `cache-stats` and prints progress updates
 to stdout while downloading items. The source code lives in
 `app/src/bin/sync_cli.rs`.
 
@@ -119,6 +120,24 @@ cargo run --package googlepicz --bin sync_cli -- clear-cache
 ```
 
 Removes all cached media items.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- create-album "My Album"
+```
+
+Creates a new album and stores it in the cache.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- delete-album ALBUM_ID
+```
+
+Deletes the album from Google Photos and the local cache.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- cache-stats
+```
+
+Shows how many albums and media items are cached locally.
 
 ## Packaging & Signing
 
