@@ -140,10 +140,22 @@ cargo run --package googlepicz --bin sync_cli -- create-album "My Album"
 Creates a new album and stores it in the cache.
 
 ```bash
+cargo run --package googlepicz --bin sync_cli -- rename-album ALBUM_ID "New Title"
+```
+
+Renames the specified album in Google Photos and updates the local cache.
+
+```bash
 cargo run --package googlepicz --bin sync_cli -- delete-album ALBUM_ID
 ```
 
 Deletes the album from Google Photos and the local cache.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- list-photos --album ALBUM_ID
+```
+
+Lists cached photos, optionally filtering by album ID. Omit `--album` to list all photos.
 
 ```bash
 cargo run --package googlepicz --bin sync_cli -- cache-stats

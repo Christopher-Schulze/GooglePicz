@@ -4,8 +4,10 @@ use api_client;
 use iced::widget::image::Handle;
 use reqwest;
 use std::path::PathBuf;
-use tokio::fs;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 use thiserror::Error;
+use tokio::fs;
 
 #[derive(Debug, Error)]
 pub enum ImageLoaderError {
@@ -19,12 +21,17 @@ pub enum ImageLoaderError {
 pub struct ImageLoader {
     cache_dir: PathBuf,
     client: reqwest::Client,
+    semaphore: Arc<Semaphore>,
 }
 
 impl ImageLoader {
     pub fn new(cache_dir: PathBuf) -> Self {
         let client = reqwest::Client::new();
-        Self { cache_dir, client }
+        Self {
+            cache_dir,
+            client,
+            semaphore: Arc::new(Semaphore::new(4)),
+        }
     }
 
     pub async fn load_thumbnail(
@@ -32,6 +39,7 @@ impl ImageLoader {
         media_id: &str,
         base_url: &str,
     ) -> Result<Handle, ImageLoaderError> {
+        let _permit = self.semaphore.acquire().await.expect("semaphore");
         // Create thumbnail URL (150x150 pixels)
         let thumbnail_url = format!("{}=w150-h150-c", base_url);
 
@@ -81,6 +89,7 @@ impl ImageLoader {
         media_id: &str,
         base_url: &str,
     ) -> Result<Handle, ImageLoaderError> {
+        let _permit = self.semaphore.acquire().await.expect("semaphore");
         let full_url = format!("{}=d", base_url);
         let cache_path = self
             .cache_dir
@@ -122,11 +131,15 @@ impl ImageLoader {
 
     #[allow(dead_code)]
     pub async fn preload_thumbnails(&self, media_items: &[api_client::MediaItem], count: usize) {
-        for item in media_items.iter().take(count) {
-            if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {
-                tracing::error!("Failed to preload thumbnail for {}: {}", &item.id, e);
-            }
-        }
+        let futures = media_items
+            .iter()
+            .take(count)
+            .map(|item| async move {
+                if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {
+                    tracing::error!("Failed to preload thumbnail for {}: {}", &item.id, e);
+                }
+            });
+        futures::future::join_all(futures).await;
     }
 }
 

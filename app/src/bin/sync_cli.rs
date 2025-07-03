@@ -60,6 +60,19 @@ enum Commands {
         /// ID of the album to delete
         id: String,
     },
+    /// Rename an existing album
+    RenameAlbum {
+        /// ID of the album to rename
+        id: String,
+        /// New title of the album
+        title: String,
+    },
+    /// List cached photos
+    ListPhotos {
+        /// Optional album ID to filter by
+        #[arg(long)]
+        album: Option<String>,
+    },
     /// Show statistics about cached data
     CacheStats,
 }
@@ -162,6 +175,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cache = CacheManager::new(&db_path)?;
             cache.delete_album(&id)?;
             println!("Album deleted: {}", id);
+        }
+        Commands::RenameAlbum { id, title } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let token = ensure_access_token_valid().await?;
+            let client = ApiClient::new(token);
+            let album = client.rename_album(&id, &title).await?;
+            let cache = CacheManager::new(&db_path)?;
+            cache.rename_album(&id, &title)?;
+            let shown_title = album.title.unwrap_or(title);
+            println!("Album renamed: {} (id: {})", shown_title, id);
+        }
+        Commands::ListPhotos { album } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            let photos = if let Some(album_id) = album {
+                cache.get_media_items_by_album(&album_id)?
+            } else {
+                cache.get_all_media_items()?
+            };
+            for item in photos {
+                println!("{} - {}", item.id, item.filename);
+            }
         }
         Commands::CacheStats => {
             if !db_path.exists() {

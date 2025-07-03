@@ -137,6 +137,35 @@ fn test_delete_album_updates_cache() {
 }
 
 #[test]
+fn test_rename_album_updates_cache() {
+    let dir = tempdir().unwrap();
+    let base = dir.path().join(".googlepicz");
+    std::fs::create_dir_all(&base).unwrap();
+    let db = base.join("cache.sqlite");
+    let cache = CacheManager::new(&db).unwrap();
+    let album = api_client::Album {
+        id: "1".into(),
+        title: Some("Album".into()),
+        product_url: None,
+        is_writeable: None,
+        media_items_count: None,
+        cover_photo_base_url: None,
+        cover_photo_media_item_id: None,
+    };
+    cache.insert_album(&album).unwrap();
+
+    cli_command_in_home(dir.path())
+        .args(&["rename-album", "1", "Renamed"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Album renamed"));
+
+    let cache = CacheManager::new(&db).unwrap();
+    let albums = cache.get_all_albums().unwrap();
+    assert_eq!(albums[0].title.as_deref(), Some("Renamed"));
+}
+
+#[test]
 fn test_cache_stats_with_data() {
     let dir = tempdir().unwrap();
     let base = dir.path().join(".googlepicz");
@@ -179,4 +208,34 @@ fn test_sync_updates_cache() {
     assert!(!items.is_empty());
     let last_sync = cache.get_last_sync().unwrap();
     assert!(last_sync.timestamp() > 0);
+}
+
+#[test]
+fn test_list_photos_by_album() {
+    let dir = tempdir().unwrap();
+    let base = dir.path().join(".googlepicz");
+    std::fs::create_dir_all(&base).unwrap();
+    let db = base.join("cache.sqlite");
+    let cache = CacheManager::new(&db).unwrap();
+    let album = api_client::Album {
+        id: "a1".into(),
+        title: Some("Album".into()),
+        product_url: None,
+        is_writeable: None,
+        media_items_count: None,
+        cover_photo_base_url: None,
+        cover_photo_media_item_id: None,
+    };
+    cache.insert_album(&album).unwrap();
+    let item = sample_item("1");
+    cache.insert_media_item(&item).unwrap();
+    cache
+        .associate_media_item_with_album(&item.id, &album.id)
+        .unwrap();
+
+    cli_command_in_home(dir.path())
+        .args(&["list-photos", "--album", "a1"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(&item.filename));
 }
