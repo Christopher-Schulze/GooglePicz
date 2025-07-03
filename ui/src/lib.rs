@@ -553,6 +553,7 @@ impl Application for GooglePiczUI {
                 Some(ts) => format!("Last synced {}", ts.to_rfc3339()),
                 None => "Never synced".to_string(),
             }))
+            .push(text(format!("Errors: {}", self.errors.len())))
             .spacing(20)
             .align_items(iced::Alignment::Center);
 
