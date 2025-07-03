@@ -21,6 +21,21 @@ mod config;
     about = "GooglePicz synchronization CLI"
 )]
 struct Cli {
+    /// Override log level (e.g. info, debug)
+    #[arg(long)]
+    log_level: Option<String>,
+    /// Override OAuth redirect port
+    #[arg(long)]
+    oauth_redirect_port: Option<u16>,
+    /// Override number of thumbnails to preload
+    #[arg(long)]
+    thumbnails_preload: Option<usize>,
+    /// Override sync interval in minutes
+    #[arg(long)]
+    sync_interval_minutes: Option<u64>,
+    /// Path to config file
+    #[arg(long)]
+    config: Option<PathBuf>,
     #[command(subcommand)]
     command: Commands,
 }
@@ -53,7 +68,13 @@ enum Commands {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    let cfg = config::AppConfig::load();
+    let overrides = config::AppConfigOverrides {
+        log_level: cli.log_level.clone(),
+        oauth_redirect_port: cli.oauth_redirect_port,
+        thumbnails_preload: cli.thumbnails_preload,
+        sync_interval_minutes: cli.sync_interval_minutes,
+    };
+    let cfg = config::AppConfig::load_from(cli.config.clone()).apply_overrides(&overrides);
     let base_dir = home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".googlepicz");

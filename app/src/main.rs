@@ -1,6 +1,7 @@
 //! Main application entry point for GooglePicz.
 
 use auth::{authenticate, ensure_access_token_valid};
+use clap::Parser;
 use std::path::PathBuf;
 use sync::Syncer;
 use tokio::fs;
@@ -13,9 +14,36 @@ use tracing_subscriber::EnvFilter;
 use ui;
 mod config;
 
+#[derive(Parser, Debug)]
+#[command(name = "googlepicz", about = "Google Photos Desktop Client")]
+struct Cli {
+    /// Override log level (e.g. info, debug)
+    #[arg(long)]
+    log_level: Option<String>,
+    /// Override OAuth redirect port
+    #[arg(long)]
+    oauth_redirect_port: Option<u16>,
+    /// Override number of thumbnails to preload
+    #[arg(long)]
+    thumbnails_preload: Option<usize>,
+    /// Override sync interval in minutes
+    #[arg(long)]
+    sync_interval_minutes: Option<u64>,
+    /// Path to config file
+    #[arg(long)]
+    config: Option<PathBuf>,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cfg = config::AppConfig::load();
+    let cli = Cli::parse();
+    let overrides = config::AppConfigOverrides {
+        log_level: cli.log_level.clone(),
+        oauth_redirect_port: cli.oauth_redirect_port,
+        thumbnails_preload: cli.thumbnails_preload,
+        sync_interval_minutes: cli.sync_interval_minutes,
+    };
+    let cfg = config::AppConfig::load_from(cli.config.clone()).apply_overrides(&overrides);
     let log_dir = dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".googlepicz");

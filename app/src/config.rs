@@ -10,13 +10,24 @@ pub struct AppConfig {
     pub sync_interval_minutes: u64,
 }
 
+pub struct AppConfigOverrides {
+    pub log_level: Option<String>,
+    pub oauth_redirect_port: Option<u16>,
+    pub thumbnails_preload: Option<usize>,
+    pub sync_interval_minutes: Option<u64>,
+}
+
 impl AppConfig {
-    pub fn load() -> Self {
+    pub fn load_from(path: Option<PathBuf>) -> Self {
         let mut builder = config::Config::builder();
-        if let Some(home) = dirs::home_dir() {
-            let path: PathBuf = home.join(".googlepicz").join("config");
-            builder = builder.add_source(config::File::from(path).required(false));
-        }
+        let path = match path {
+            Some(p) => p,
+            None => dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".googlepicz")
+                .join("config"),
+        };
+        builder = builder.add_source(config::File::from(path).required(false));
         let cfg = builder.build().unwrap_or_default();
 
         let log_level = cfg
@@ -32,5 +43,21 @@ impl AppConfig {
             thumbnails_preload,
             sync_interval_minutes,
         }
+    }
+
+    pub fn apply_overrides(mut self, ov: &AppConfigOverrides) -> Self {
+        if let Some(l) = &ov.log_level {
+            self.log_level = l.clone();
+        }
+        if let Some(p) = ov.oauth_redirect_port {
+            self.oauth_redirect_port = p;
+        }
+        if let Some(t) = ov.thumbnails_preload {
+            self.thumbnails_preload = t;
+        }
+        if let Some(s) = ov.sync_interval_minutes {
+            self.sync_interval_minutes = s;
+        }
+        self
     }
 }
