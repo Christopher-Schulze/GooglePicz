@@ -37,3 +37,30 @@ fn sync_cli_list_albums_no_cache() {
         .success()
         .stdout(contains("No cache found"));
 }
+
+#[test]
+fn sync_cli_create_album_no_cache() {
+    build_cmd()
+        .args(&["create-album", "Test"])
+        .assert()
+        .success()
+        .stdout(contains("No cache found"));
+}
+
+#[test]
+fn sync_cli_delete_album_no_cache() {
+    build_cmd()
+        .args(&["delete-album", "1"])
+        .assert()
+        .success()
+        .stdout(contains("No cache found"));
+}
+
+#[test]
+fn sync_cli_cache_stats_no_cache() {
+    build_cmd()
+        .arg("cache-stats")
+        .assert()
+        .success()
+        .stdout(contains("No cache found"));
+}

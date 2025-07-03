@@ -36,3 +36,27 @@ fn test_list_albums() {
         .assert()
         .success();
 }
+
+#[test]
+fn test_create_album() {
+    cli_command()
+        .args(&["create-album", "Test"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_delete_album() {
+    cli_command()
+        .args(&["delete-album", "1"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_cache_stats() {
+    cli_command()
+        .arg("cache-stats")
+        .assert()
+        .success();
+}
