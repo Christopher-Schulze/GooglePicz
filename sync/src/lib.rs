@@ -7,7 +7,7 @@ use chrono::{DateTime, Datelike, Utc};
 use serde_json::json;
 use thiserror::Error;
 use std::path::Path;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio::task::{spawn_local, JoinHandle};
 use tokio::time::{sleep, Duration};
 
@@ -179,23 +179,36 @@ impl Syncer {
         interval: Duration,
         progress_tx: mpsc::UnboundedSender<SyncProgress>,
         error_tx: mpsc::UnboundedSender<String>,
-    ) -> JoinHandle<()> {
-        spawn_local(async move {
+    ) -> (JoinHandle<()>, oneshot::Sender<()>) {
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
+        let handle = spawn_local(async move {
             let mut syncer = self;
+            let mut backoff = 1u64;
             loop {
-                if let Err(e) =
-                    syncer
-                        .sync_media_items(Some(progress_tx.clone()), Some(error_tx.clone()))
-                        .await
-                {
-                    tracing::error!("Periodic sync failed: {}", e);
-                    if let Err(send_err) = error_tx.send(format!("Periodic sync failed: {}", e)) {
-                        tracing::error!("Failed to forward error: {}", send_err);
+                tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        break;
                     }
+                    _ = async {
+                        if let Err(e) =
+                            syncer
+                                .sync_media_items(Some(progress_tx.clone()), Some(error_tx.clone()))
+                                .await
+                        {
+                            let msg = format!("Periodic sync failed: {}", e);
+                            let _ = error_tx.send(msg.clone());
+                            let wait = backoff.min(300);
+                            backoff = (backoff * 2).min(300);
+                            sleep(Duration::from_secs(wait)).await;
+                        } else {
+                            backoff = 1;
+                            sleep(interval).await;
+                        }
+                    } => {}
                 }
-                sleep(interval).await;
             }
-        })
+        });
+        (handle, shutdown_tx)
     }
 }
 

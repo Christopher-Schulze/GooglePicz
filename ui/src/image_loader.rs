@@ -5,6 +5,15 @@ use iced::widget::image::Handle;
 use reqwest;
 use std::path::PathBuf;
 use tokio::fs;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ImageLoaderError {
+    #[error("network error: {0}")]
+    Request(String),
+    #[error("io error: {0}")]
+    Io(String),
+}
 
 #[derive(Debug, Clone)]
 pub struct ImageLoader {
@@ -22,7 +31,7 @@ impl ImageLoader {
         &self,
         media_id: &str,
         base_url: &str,
-    ) -> Result<Handle, Box<dyn std::error::Error>> {
+    ) -> Result<Handle, ImageLoaderError> {
         // Create thumbnail URL (150x150 pixels)
         let thumbnail_url = format!("{}=w150-h150-c", base_url);
 
@@ -38,16 +47,28 @@ impl ImageLoader {
         }
 
         // Download thumbnail
-        let response = self.client.get(&thumbnail_url).send().await?;
-        let bytes = response.bytes().await?;
+        let response = self
+            .client
+            .get(&thumbnail_url)
+            .send()
+            .await
+            .map_err(|e| ImageLoaderError::Request(e.to_string()))?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| ImageLoaderError::Request(e.to_string()))?;
 
         // Ensure cache directory exists
         if let Some(parent) = cache_path.parent() {
-            fs::create_dir_all(parent).await?;
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| ImageLoaderError::Io(e.to_string()))?;
         }
 
         // Save to cache
-        fs::write(&cache_path, &bytes).await?;
+        fs::write(&cache_path, &bytes)
+            .await
+            .map_err(|e| ImageLoaderError::Io(e.to_string()))?;
 
         // Create handle
         let handle = Handle::from_path(&cache_path);
@@ -59,7 +80,7 @@ impl ImageLoader {
         &self,
         media_id: &str,
         base_url: &str,
-    ) -> Result<Handle, Box<dyn std::error::Error>> {
+    ) -> Result<Handle, ImageLoaderError> {
         let full_url = format!("{}=d", base_url);
         let cache_path = self
             .cache_dir
@@ -70,14 +91,26 @@ impl ImageLoader {
             return Ok(Handle::from_path(&cache_path));
         }
 
-        let response = self.client.get(&full_url).send().await?;
-        let bytes = response.bytes().await?;
+        let response = self
+            .client
+            .get(&full_url)
+            .send()
+            .await
+            .map_err(|e| ImageLoaderError::Request(e.to_string()))?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| ImageLoaderError::Request(e.to_string()))?;
 
         if let Some(parent) = cache_path.parent() {
-            fs::create_dir_all(parent).await?;
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| ImageLoaderError::Io(e.to_string()))?;
         }
 
-        fs::write(&cache_path, &bytes).await?;
+        fs::write(&cache_path, &bytes)
+            .await
+            .map_err(|e| ImageLoaderError::Io(e.to_string()))?;
 
         Ok(Handle::from_path(&cache_path))
     }

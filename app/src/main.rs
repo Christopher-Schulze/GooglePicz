@@ -113,7 +113,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                 error!("❌ Cannot synchronize without a valid access token");
             }
 
-            let _handle = if ensure_access_token_valid().await.is_ok() {
+            let (handle, shutdown) = if ensure_access_token_valid().await.is_ok() {
                 syncer.start_periodic_sync(interval, tx, err_tx)
             } else {
                 error!("❌ Cannot start periodic sync without a valid token");
@@ -123,6 +123,8 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
             if let Err(e) = ui_thread.join() {
                 error!("UI thread panicked: {:?}", e);
             }
+            let _ = shutdown.send(());
+            let _ = handle.await;
         }
         Err(e) => {
             error!("❌ Failed to initialize syncer: {}", e);
