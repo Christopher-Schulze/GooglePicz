@@ -1,5 +1,7 @@
 use cache::CacheManager;
 use clap::{Parser, Subcommand};
+use api_client::ApiClient;
+use auth::ensure_access_token_valid;
 use dirs::home_dir;
 use std::path::PathBuf;
 use sync::{SyncProgress, Syncer};
@@ -33,6 +35,18 @@ enum Commands {
     ClearCache,
     /// Display all cached albums
     ListAlbums,
+    /// Create a new album
+    CreateAlbum {
+        /// Title of the new album
+        title: String,
+    },
+    /// Delete an existing album
+    DeleteAlbum {
+        /// ID of the album to delete
+        id: String,
+    },
+    /// Show statistics about cached data
+    CacheStats,
 }
 
 #[tokio::main]
@@ -102,6 +116,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .unwrap_or_else(|| "Untitled".to_string());
                 println!("{} (id: {})", title, album.id);
             }
+        }
+        Commands::CreateAlbum { title } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let token = ensure_access_token_valid().await?;
+            let client = ApiClient::new(token);
+            let album = client.create_album(&title).await?;
+            let cache = CacheManager::new(&db_path)?;
+            cache.insert_album(&album)?;
+            let shown_title = album.title.unwrap_or(title);
+            println!("Album created: {} (id: {})", shown_title, album.id);
+        }
+        Commands::DeleteAlbum { id } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let token = ensure_access_token_valid().await?;
+            let client = ApiClient::new(token);
+            client.delete_album(&id).await?;
+            let cache = CacheManager::new(&db_path)?;
+            cache.delete_album(&id)?;
+            println!("Album deleted: {}", id);
+        }
+        Commands::CacheStats => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            let albums = cache.get_all_albums()?.len();
+            let items = cache.get_all_media_items()?.len();
+            println!("Albums: {}", albums);
+            println!("Media items: {}", items);
         }
     }
 

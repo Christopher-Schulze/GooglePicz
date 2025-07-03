@@ -11,6 +11,7 @@ auth = { workspace = true }
 sync = { workspace = true }
 ui = { workspace = true }
 cache = { workspace = true }
+api_client = { workspace = true }
 config = "0.13"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
