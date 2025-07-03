@@ -16,6 +16,7 @@ auth = { path = "../auth" }
 tracing = { workspace = true }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1"
+futures = "0.3"
 
 [dev-dependencies]
 httpmock = "0.6"
