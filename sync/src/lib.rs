@@ -62,7 +62,13 @@ impl Syncer {
 
         let last_sync = match self.cache_manager.get_last_sync() {
             Ok(ts) => ts,
-            Err(_) => DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH),
+            Err(e) => {
+                let msg = format!("Failed to get last sync time: {}", e);
+                if let Some(tx) = &error {
+                    let _ = tx.send(msg.clone());
+                }
+                DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH)
+            }
         };
         let filter = json!({
             "dateFilter": {
