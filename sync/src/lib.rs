@@ -118,7 +118,11 @@ impl Syncer {
                 })?;
                 total_synced += 1;
                 if let Some(tx) = &progress {
-                    let _ = tx.send(SyncProgress::ItemSynced(total_synced));
+                    if let Err(e) = tx.send(SyncProgress::ItemSynced(total_synced)) {
+                        if let Some(err) = &error {
+                            let _ = err.send(format!("Failed to send progress update: {}", e));
+                        }
+                    }
                 }
             }
 
@@ -137,8 +141,12 @@ impl Syncer {
             "Synchronization complete. Total media items synced: {}.",
             total_synced
         );
-        if let Some(tx) = progress {
-            let _ = tx.send(SyncProgress::Finished(total_synced));
+        if let Some(tx) = &progress {
+            if let Err(e) = tx.send(SyncProgress::Finished(total_synced)) {
+                if let Some(err) = &error {
+                    let _ = err.send(format!("Failed to send progress update: {}", e));
+                }
+            }
         }
         self.cache_manager
             .update_last_sync(Utc::now())
