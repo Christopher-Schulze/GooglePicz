@@ -62,6 +62,15 @@ cargo run --package googlepicz --bin sync_cli -- sync
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for optional settings via `AppConfig`.
 
+## ❓ Troubleshooting
+
+Having trouble starting the application? Here are a few common issues:
+
+- **Missing environment variables** – Ensure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set before launching. See the configuration guide linked above.
+- **OAuth redirect fails** – Check that the redirect port in your config is open and not blocked by a firewall.
+- **Packaging errors** – The packager relies on external tools like `cargo deb` and `makensis`. Use the `MOCK_COMMANDS` environment variable to run packaging tests without these tools.
+- **Developing without network access** – Set `MOCK_API_CLIENT=1` and `MOCK_KEYRING=1` to enable offline mode while testing.
+
 ## 🏗️ Project Structure
 
 ```

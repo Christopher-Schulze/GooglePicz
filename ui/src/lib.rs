@@ -2,7 +2,7 @@
 
 mod image_loader;
 
-pub use image_loader::ImageLoader;
+pub use image_loader::{ImageLoader, ImageLoaderError};
 
 use api_client::{Album, ApiClient, MediaItem};
 use auth;
