@@ -134,3 +134,19 @@ fn test_explain_album_filter_uses_index() {
     let plan: String = stmt.query_row(["a"], |row| row.get(3)).unwrap();
     assert!(plan.contains("INDEX"), "plan was {}", plan);
 }
+
+#[test]
+fn test_explain_mime_filter_uses_index() {
+    let file = NamedTempFile::new().unwrap();
+    let _ = CacheManager::new(file.path()).unwrap();
+    let conn = Connection::open(file.path()).unwrap();
+    let mut stmt = conn
+        .prepare(
+            "EXPLAIN QUERY PLAN SELECT m.id FROM media_items m \
+             JOIN media_metadata md ON m.id = md.media_item_id \
+             WHERE m.mime_type = ?1",
+        )
+        .unwrap();
+    let plan: String = stmt.query_row(["image/jpeg"], |row| row.get(3)).unwrap();
+    assert!(plan.contains("idx_media_items_mime_type"), "plan was {}", plan);
+}
