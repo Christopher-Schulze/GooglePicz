@@ -163,3 +163,20 @@ fn test_cache_stats_with_data() {
         .stdout(predicates::str::contains("Albums: 1"))
         .stdout(predicates::str::contains("Media items: 1"));
 }
+
+#[test]
+fn test_sync_updates_cache() {
+    let dir = tempdir().unwrap();
+    cli_command_in_home(dir.path())
+        .arg("sync")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Finished sync"));
+
+    let db = dir.path().join(".googlepicz").join("cache.sqlite");
+    let cache = CacheManager::new(&db).unwrap();
+    let items = cache.get_all_media_items().unwrap();
+    assert!(!items.is_empty());
+    let last_sync = cache.get_last_sync().unwrap();
+    assert!(last_sync.timestamp() > 0);
+}
