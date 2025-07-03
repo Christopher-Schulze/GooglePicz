@@ -6,7 +6,6 @@ use reqwest;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use futures::future;
 use thiserror::Error;
 use tokio::fs;
 

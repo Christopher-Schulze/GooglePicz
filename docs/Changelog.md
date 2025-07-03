@@ -1,5 +1,10 @@
 # Changelog
 
+## 2025-07-03
+- Added `rename-album` subcommand to `sync_cli` for updating album titles via the command line.
+- Updated documentation and README with usage examples.
+- Added integration test verifying cache updates after renaming an album.
+
 ## 2025-06-29 (Fortsetzung)
 - **Workspace Restrukturierung:**
   - Erstellung einer dedizierten `app`-Crate für die Hauptanwendung

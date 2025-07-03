@@ -137,6 +137,35 @@ fn test_delete_album_updates_cache() {
 }
 
 #[test]
+fn test_rename_album_updates_cache() {
+    let dir = tempdir().unwrap();
+    let base = dir.path().join(".googlepicz");
+    std::fs::create_dir_all(&base).unwrap();
+    let db = base.join("cache.sqlite");
+    let cache = CacheManager::new(&db).unwrap();
+    let album = api_client::Album {
+        id: "1".into(),
+        title: Some("Album".into()),
+        product_url: None,
+        is_writeable: None,
+        media_items_count: None,
+        cover_photo_base_url: None,
+        cover_photo_media_item_id: None,
+    };
+    cache.insert_album(&album).unwrap();
+
+    cli_command_in_home(dir.path())
+        .args(&["rename-album", "1", "Renamed"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Album renamed"));
+
+    let cache = CacheManager::new(&db).unwrap();
+    let albums = cache.get_all_albums().unwrap();
+    assert_eq!(albums[0].title.as_deref(), Some("Renamed"));
+}
+
+#[test]
 fn test_cache_stats_with_data() {
     let dir = tempdir().unwrap();
     let base = dir.path().join(".googlepicz");

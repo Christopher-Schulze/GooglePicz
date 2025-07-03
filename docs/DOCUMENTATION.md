@@ -163,6 +163,12 @@ cargo run --package googlepicz --bin sync_cli -- create-album "My Album"
 Creates a new album and stores it in the cache.
 
 ```bash
+cargo run --package googlepicz --bin sync_cli -- rename-album ALBUM_ID "New Title"
+```
+
+Renames the album and updates the local cache.
+
+```bash
 cargo run --package googlepicz --bin sync_cli -- delete-album ALBUM_ID
 ```
 
