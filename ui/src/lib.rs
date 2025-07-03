@@ -175,9 +175,9 @@ impl Application for GooglePiczUI {
             None
         };
 
-        let thumbnail_cache_path = home_dir.join(".googlepicz").join("thumbnails");
+        let image_cache_dir = home_dir.join(".googlepicz");
 
-        let image_loader = Arc::new(Mutex::new(ImageLoader::new(thumbnail_cache_path)));
+        let image_loader = Arc::new(Mutex::new(ImageLoader::new(image_cache_dir)));
 
         let progress_receiver = progress_flag.map(|rx| Arc::new(Mutex::new(rx)));
         let error_receiver = error_flag.map(|rx| Arc::new(Mutex::new(rx)));

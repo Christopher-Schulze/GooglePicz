@@ -15,7 +15,8 @@ async fn test_thumbnail_cached() {
     let url = format!("{}/img.jpg", server.url(""));
 
     loader.load_thumbnail("1", &url).await.unwrap();
-    assert!(dir.path().join("thumbnails/1.jpg").exists());
+    let thumb_path = dir.path().join("thumbnails").join("1.jpg");
+    assert!(thumb_path.exists());
     mock.assert_hits(1);
 
     // Second call should use cache
@@ -36,7 +37,8 @@ async fn test_full_image_cached() {
     let url = format!("{}/img.jpg", server.url(""));
 
     loader.load_full_image("1", &url).await.unwrap();
-    assert!(dir.path().join("full/1.jpg").exists());
+    let full_path = dir.path().join("full").join("1.jpg");
+    assert!(full_path.exists());
     mock.assert_hits(1);
 
     loader.load_full_image("1", &url).await.unwrap();
