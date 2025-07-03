@@ -106,7 +106,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
 
             info!("📥 Starting synchronization...");
             if ensure_access_token_valid().await.is_ok() {
-                if let Err(e) = syncer.sync_media_items(Some(tx.clone())).await {
+                if let Err(e) = syncer.sync_media_items(Some(tx.clone()), Some(err_tx.clone())).await {
                     error!("❌ Synchronization failed: {}", e);
                 }
             } else {
