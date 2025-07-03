@@ -54,6 +54,7 @@ impl Syncer {
     pub async fn sync_media_items(
         &mut self,
         progress: Option<mpsc::UnboundedSender<SyncProgress>>,
+        error: Option<mpsc::UnboundedSender<String>>,
     ) -> Result<(), SyncError> {
         tracing::info!("Starting media item synchronization...");
         let mut page_token: Option<String> = None;
@@ -77,7 +78,11 @@ impl Syncer {
 
         loop {
             let token = ensure_access_token_valid().await.map_err(|e| {
-                SyncError::AuthenticationError(format!("Failed to refresh token: {}", e))
+                let msg = format!("Failed to refresh token: {}", e);
+                if let Some(tx) = &error {
+                    let _ = tx.send(msg.clone());
+                }
+                SyncError::AuthenticationError(msg)
             })?;
             self.api_client.set_access_token(token);
 
@@ -86,7 +91,11 @@ impl Syncer {
                 .search_media_items(None, 100, page_token.clone(), Some(filter.clone()))
                 .await
                 .map_err(|e| {
-                    SyncError::ApiClientError(format!("Failed to list media items from API: {}", e))
+                    let msg = format!("Failed to list media items from API: {}", e);
+                    if let Some(tx) = &error {
+                        let _ = tx.send(msg.clone());
+                    }
+                    SyncError::ApiClientError(msg)
                 })?;
 
             if media_items.is_empty() {
@@ -95,7 +104,11 @@ impl Syncer {
 
             for item in media_items {
                 self.cache_manager.insert_media_item(&item).map_err(|e| {
-                    SyncError::CacheError(format!("Failed to insert media item into cache: {}", e))
+                    let msg = format!("Failed to insert media item into cache: {}", e);
+                    if let Some(tx) = &error {
+                        let _ = tx.send(msg.clone());
+                    }
+                    SyncError::CacheError(msg)
                 })?;
                 total_synced += 1;
                 if let Some(tx) = &progress {
@@ -123,7 +136,13 @@ impl Syncer {
         }
         self.cache_manager
             .update_last_sync(Utc::now())
-            .map_err(|e| SyncError::CacheError(format!("Failed to update last sync: {}", e)))?;
+            .map_err(|e| {
+                let msg = format!("Failed to update last sync: {}", e);
+                if let Some(tx) = &error {
+                    let _ = tx.send(msg.clone());
+                }
+                SyncError::CacheError(msg)
+            })?;
         Ok(())
     }
 
@@ -136,7 +155,11 @@ impl Syncer {
         spawn_local(async move {
             let mut syncer = self;
             loop {
-                if let Err(e) = syncer.sync_media_items(Some(progress_tx.clone())).await {
+                if let Err(e) =
+                    syncer
+                        .sync_media_items(Some(progress_tx.clone()), Some(error_tx.clone()))
+                        .await
+                {
                     tracing::error!("Periodic sync failed: {}", e);
                     let _ = error_tx.send(format!("Periodic sync failed: {}", e));
                 }
@@ -176,7 +199,7 @@ mod tests {
         let db_path = temp_file.path();
 
         let mut syncer = Syncer::new(db_path).await.expect("Failed to create syncer");
-        let result = syncer.sync_media_items(None).await;
+        let result = syncer.sync_media_items(None, None).await;
         assert!(result.is_ok(), "Synchronization failed: {:?}", result.err());
 
         let all_cached_items = syncer

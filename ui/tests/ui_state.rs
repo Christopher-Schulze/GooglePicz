@@ -2,6 +2,7 @@ use ui::{GooglePiczUI, Message};
 use iced::Application;
 use tempfile::tempdir;
 use api_client::{MediaItem, MediaMetadata};
+use serial_test::serial;
 
 fn sample_item() -> MediaItem {
     MediaItem {
@@ -20,6 +21,7 @@ fn sample_item() -> MediaItem {
 }
 
 #[test]
+#[serial]
 fn test_initial_state() {
     let dir = tempdir().unwrap();
     std::env::set_var("HOME", dir.path());
@@ -32,6 +34,7 @@ fn test_initial_state() {
 }
 
 #[test]
+#[serial]
 fn test_select_and_close_photo() {
     let dir = tempdir().unwrap();
     std::env::set_var("HOME", dir.path());
@@ -48,6 +51,7 @@ fn test_select_and_close_photo() {
 }
 
 #[test]
+#[serial]
 fn test_dismiss_error() {
     let dir = tempdir().unwrap();
     std::env::set_var("HOME", dir.path());

@@ -14,7 +14,7 @@ async fn test_sync_flow_mock() {
     let file = NamedTempFile::new().unwrap();
     let (tx, mut rx) = mpsc::unbounded_channel();
     let mut syncer = Syncer::new(file.path()).await.unwrap();
-    syncer.sync_media_items(Some(tx)).await.unwrap();
+    syncer.sync_media_items(Some(tx), None).await.unwrap();
     assert!(rx.recv().await.is_some());
     let cache = CacheManager::new(file.path()).unwrap();
     let items = cache.get_all_media_items().unwrap();
