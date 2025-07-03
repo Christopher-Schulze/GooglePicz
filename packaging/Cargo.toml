@@ -8,6 +8,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing = { workspace = true }
 toml = "0.5"
 thiserror = { workspace = true }
+which = "4"
 
 [dev-dependencies]
 serial_test = "2"

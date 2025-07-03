@@ -9,6 +9,7 @@
 use thiserror::Error;
 use std::fs;
 use std::process::Command;
+use which::which;
 
 pub mod utils;
 
@@ -18,12 +19,22 @@ pub enum PackagingError {
     CommandError(String),
     #[error("Other Error: {0}")]
     Other(String),
+    #[error("Missing Command: {0}")]
+    MissingCommand(String),
+}
+
+fn command_available(cmd: &str) -> bool {
+    which(cmd).is_ok()
 }
 
 fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
     tracing::info!("Running command: {} {:?}", cmd, args);
     if std::env::var("MOCK_COMMANDS").is_ok() {
         return Ok(());
+    }
+
+    if !command_available(cmd) {
+        return Err(PackagingError::MissingCommand(cmd.to_string()));
     }
 
     let output = Command::new(cmd)
@@ -121,6 +132,11 @@ fn create_macos_installer() -> Result<(), PackagingError> {
         )?;
         run_command("xcrun", &["stapler", "staple", dmg_path])?;
     }
+
+    let version = workspace_version()?;
+    let versioned = format!("target/release/GooglePicz-{}.dmg", version);
+    fs::rename(dmg_path, &versioned)
+        .map_err(|e| PackagingError::Other(format!("Failed to rename dmg: {}", e)))?;
 
     Ok(())
 }
