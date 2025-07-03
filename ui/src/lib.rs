@@ -376,6 +376,7 @@ impl Application for GooglePiczUI {
                 }
             },
             Message::SyncError(err_msg) => {
+                tracing::error!("Sync error: {}", err_msg);
                 self.errors.push(err_msg);
                 return GooglePiczUI::error_timeout();
             }

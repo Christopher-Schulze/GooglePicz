@@ -65,7 +65,9 @@ impl Syncer {
             Err(e) => {
                 let msg = format!("Failed to get last sync time: {}", e);
                 if let Some(tx) = &error {
-                    let _ = tx.send(msg.clone());
+                    if let Err(send_err) = tx.send(msg.clone()) {
+                        tracing::error!("Failed to forward error: {}", send_err);
+                    }
                 }
                 DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH)
             }
@@ -86,7 +88,9 @@ impl Syncer {
             let token = ensure_access_token_valid().await.map_err(|e| {
                 let msg = format!("Failed to refresh token: {}", e);
                 if let Some(tx) = &error {
-                    let _ = tx.send(msg.clone());
+                    if let Err(send_err) = tx.send(msg.clone()) {
+                        tracing::error!("Failed to forward error: {}", send_err);
+                    }
                 }
                 SyncError::AuthenticationError(msg)
             })?;
@@ -99,7 +103,9 @@ impl Syncer {
                 .map_err(|e| {
                     let msg = format!("Failed to list media items from API: {}", e);
                     if let Some(tx) = &error {
-                        let _ = tx.send(msg.clone());
+                        if let Err(send_err) = tx.send(msg.clone()) {
+                            tracing::error!("Failed to forward error: {}", send_err);
+                        }
                     }
                     SyncError::ApiClientError(msg)
                 })?;
@@ -112,7 +118,9 @@ impl Syncer {
                 self.cache_manager.insert_media_item(&item).map_err(|e| {
                     let msg = format!("Failed to insert media item into cache: {}", e);
                     if let Some(tx) = &error {
-                        let _ = tx.send(msg.clone());
+                        if let Err(send_err) = tx.send(msg.clone()) {
+                            tracing::error!("Failed to forward error: {}", send_err);
+                        }
                     }
                     SyncError::CacheError(msg)
                 })?;
@@ -120,7 +128,9 @@ impl Syncer {
                 if let Some(tx) = &progress {
                     if let Err(e) = tx.send(SyncProgress::ItemSynced(total_synced)) {
                         if let Some(err) = &error {
-                            let _ = err.send(format!("Failed to send progress update: {}", e));
+                            if let Err(send_err) = err.send(format!("Failed to send progress update: {}", e)) {
+                                tracing::error!("Failed to forward error: {}", send_err);
+                            }
                         }
                     }
                 }
@@ -144,7 +154,9 @@ impl Syncer {
         if let Some(tx) = &progress {
             if let Err(e) = tx.send(SyncProgress::Finished(total_synced)) {
                 if let Some(err) = &error {
-                    let _ = err.send(format!("Failed to send progress update: {}", e));
+                    if let Err(send_err) = err.send(format!("Failed to send progress update: {}", e)) {
+                        tracing::error!("Failed to forward error: {}", send_err);
+                    }
                 }
             }
         }
@@ -153,7 +165,9 @@ impl Syncer {
             .map_err(|e| {
                 let msg = format!("Failed to update last sync: {}", e);
                 if let Some(tx) = &error {
-                    let _ = tx.send(msg.clone());
+                    if let Err(send_err) = tx.send(msg.clone()) {
+                        tracing::error!("Failed to forward error: {}", send_err);
+                    }
                 }
                 SyncError::CacheError(msg)
             })?;
@@ -175,7 +189,9 @@ impl Syncer {
                         .await
                 {
                     tracing::error!("Periodic sync failed: {}", e);
-                    let _ = error_tx.send(format!("Periodic sync failed: {}", e));
+                    if let Err(send_err) = error_tx.send(format!("Periodic sync failed: {}", e)) {
+                        tracing::error!("Failed to forward error: {}", send_err);
+                    }
                 }
                 sleep(interval).await;
             }
