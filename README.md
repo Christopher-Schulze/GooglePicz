@@ -5,6 +5,7 @@
 
   [![Rust](https://img.shields.io/badge/Rust-1.70+-orange?logo=rust)](https://www.rust-lang.org/)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![CI](https://github.com/Christopher-Schulze/GooglePicz/actions/workflows/ci.yml/badge.svg)](https://github.com/Christopher-Schulze/GooglePicz/actions/workflows/ci.yml)
   [![Project Status: WIP](https://img.shields.io/badge/status-WIP-yellow)](https://github.com/Christopher-Schulze/GooglePicz)
 </div>
 
@@ -88,13 +89,15 @@ GooglePicz/
 See the following documents for additional details:
 - [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) – detailed technical documentation.
 - [Configuration Guide](docs/CONFIGURATION.md) – lists available `AppConfig` options.
+- Command line flags (e.g. `--log-level debug`) can override config values at runtime.
 - [Example Config](docs/EXAMPLE_CONFIG.md) – sample `AppConfig` file.
 - [Release Artifacts Guide](docs/RELEASE_ARTIFACTS.md) – how to create installers.
 
 ## Sync CLI
 
 Run the `sync_cli` binary for manual synchronization or to inspect the local cache.
-Like the GUI, it reads settings from `~/.googlepicz/config` via `AppConfig`.
+Like the GUI, it reads settings from `~/.googlepicz/config` via `AppConfig` and supports
+the same command line overrides (e.g. `--log-level debug`).
 The tool exposes subcommands for `sync`, `status`, `clear-cache`, `list-albums`,
 `create-album`, `delete-album` and `cache-stats` and prints progress updates
 to stdout while downloading items. The source code lives in
