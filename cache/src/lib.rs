@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc, TimeZone};
 use rusqlite::{params, Connection};
+use std::sync::{Arc, Mutex};
 use rusqlite_migration::{Migrations, M};
 use thiserror::Error;
 use std::path::Path;
@@ -18,8 +19,9 @@ pub enum CacheError {
     Other(String),
 }
 
+#[derive(Clone)]
 pub struct CacheManager {
-    conn: Connection,
+    conn: Arc<Mutex<Connection>>,
 }
 
 fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
@@ -166,7 +168,7 @@ impl CacheManager {
             .map_err(|e| CacheError::DatabaseError(format!("Failed to open database: {}", e)))?;
         apply_migrations(&mut conn)?;
 
-        Ok(CacheManager { conn })
+        Ok(CacheManager { conn: Arc::new(Mutex::new(conn)) })
     }
 
     pub fn insert_media_item(&self, item: &api_client::MediaItem) -> Result<(), CacheError> {
@@ -184,7 +186,8 @@ impl CacheManager {
             .parse::<i64>()
             .map_err(|e| CacheError::SerializationError(e.to_string()))?;
 
-        self.conn
+        let mut conn = self.conn.lock().unwrap();
+        conn
             .execute(
                 "INSERT OR REPLACE INTO media_items (
                     id, description, product_url, base_url, mime_type, filename
@@ -202,7 +205,7 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to insert media item: {}", e))
             })?;
 
-        self.conn
+        conn
             .execute(
                 "INSERT OR REPLACE INTO media_metadata (
                     media_item_id, creation_time, width, height
@@ -215,7 +218,8 @@ impl CacheManager {
     }
 
     pub fn get_media_item(&self, id: &str) -> Result<Option<api_client::MediaItem>, CacheError> {
-        let mut stmt = self.conn
+        let mut conn = self.conn.lock().unwrap();
+        let mut stmt = conn
             .prepare(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
                  FROM media_items m
@@ -262,8 +266,8 @@ impl CacheManager {
 
     pub fn get_all_media_items(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let start = std::time::Instant::now();
-        let mut stmt = self
-            .conn
+        let mut conn = self.conn.lock().unwrap();
+        let mut stmt = conn
             .prepare(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
                  FROM media_items m
@@ -305,7 +309,8 @@ impl CacheManager {
     }
 
     pub fn get_media_items_by_mime_type(&self, mime: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let mut stmt = self.conn
+        let mut conn = self.conn.lock().unwrap();
+        let mut stmt = conn
             .prepare(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
                  FROM media_items m
@@ -346,7 +351,8 @@ impl CacheManager {
 
     pub fn get_media_items_by_filename(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let like_pattern = format!("%{}%", pattern);
-        let mut stmt = self.conn
+        let mut conn = self.conn.lock().unwrap();
+        let mut stmt = conn
             .prepare(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
                  FROM media_items m
@@ -386,7 +392,8 @@ impl CacheManager {
     }
 
     pub fn insert_album(&self, album: &api_client::Album) -> Result<(), CacheError> {
-        self.conn
+        let mut conn = self.conn.lock().unwrap();
+        conn
             .execute(
                 "INSERT OR REPLACE INTO albums (
                     id, title, product_url, is_writeable, media_items_count, cover_photo_base_url, cover_photo_media_item_id
@@ -407,14 +414,16 @@ impl CacheManager {
     }
 
     pub fn delete_album(&self, album_id: &str) -> Result<(), CacheError> {
-        self.conn
+        let mut conn = self.conn.lock().unwrap();
+        conn
             .execute("DELETE FROM albums WHERE id = ?1", params![album_id])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to delete album: {}", e)))?;
         Ok(())
     }
 
     pub fn rename_album(&self, album_id: &str, new_title: &str) -> Result<(), CacheError> {
-        self.conn
+        let mut conn = self.conn.lock().unwrap();
+        conn
             .execute(
                 "UPDATE albums SET title = ?1 WHERE id = ?2",
                 params![new_title, album_id],
@@ -424,7 +433,8 @@ impl CacheManager {
     }
 
     pub fn get_all_albums(&self) -> Result<Vec<api_client::Album>, CacheError> {
-        let mut stmt = self.conn
+        let mut conn = self.conn.lock().unwrap();
+        let mut stmt = conn
             .prepare(
                 "SELECT id, title, product_url, is_writeable, media_items_count, cover_photo_base_url, cover_photo_media_item_id FROM albums",
             )
@@ -454,7 +464,8 @@ impl CacheManager {
     }
 
     pub fn associate_media_item_with_album(&self, media_item_id: &str, album_id: &str) -> Result<(), CacheError> {
-        self.conn
+        let mut conn = self.conn.lock().unwrap();
+        conn
             .execute(
                 "INSERT OR REPLACE INTO album_media_items (album_id, media_item_id) VALUES (?1, ?2)",
                 params![album_id, media_item_id],
@@ -464,7 +475,8 @@ impl CacheManager {
     }
 
     pub fn get_media_items_by_album(&self, album_id: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let mut stmt = self.conn
+        let mut conn = self.conn.lock().unwrap();
+        let mut stmt = conn
             .prepare(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
                  FROM media_items m
@@ -505,7 +517,8 @@ impl CacheManager {
     }
 
     pub fn get_media_items_by_date_range(&self, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let mut stmt = self.conn
+        let mut conn = self.conn.lock().unwrap();
+        let mut stmt = conn
             .prepare(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
                  FROM media_items m
@@ -545,26 +558,28 @@ impl CacheManager {
     }
 
     pub fn delete_media_item(&self, id: &str) -> Result<(), CacheError> {
-        self.conn
+        let mut conn = self.conn.lock().unwrap();
+        conn
             .execute("DELETE FROM media_items WHERE id = ?1", params![id])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to delete media item: {}", e)))?;
         Ok(())
     }
 
     pub fn clear_cache(&self) -> Result<(), CacheError> {
-        self.conn
+        let mut conn = self.conn.lock().unwrap();
+        conn
             .execute("DELETE FROM album_media_items", [])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear album_media_items: {}", e)))?;
-        self.conn
+        conn
             .execute("DELETE FROM albums", [])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear albums: {}", e)))?;
-        self.conn
+        conn
             .execute("DELETE FROM media_metadata", [])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear media_metadata: {}", e)))?;
-        self.conn
+        conn
             .execute("DELETE FROM media_items", [])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear cache: {}", e)))?;
-        self.conn
+        conn
             .execute(
                 "UPDATE last_sync SET timestamp = '1970-01-01T00:00:00Z' WHERE id = 1",
                 [],
@@ -574,8 +589,8 @@ impl CacheManager {
     }
 
     pub fn get_last_sync(&self) -> Result<DateTime<Utc>, CacheError> {
-        let mut stmt = self
-            .conn
+        let mut conn = self.conn.lock().unwrap();
+        let mut stmt = conn
             .prepare("SELECT timestamp FROM last_sync WHERE id = 1")
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
         let ts: String = stmt
@@ -587,13 +602,95 @@ impl CacheManager {
     }
 
     pub fn update_last_sync(&self, ts: DateTime<Utc>) -> Result<(), CacheError> {
-        self.conn
+        let mut conn = self.conn.lock().unwrap();
+        conn
             .execute(
                 "UPDATE last_sync SET timestamp = ?1 WHERE id = 1",
                 params![ts.to_rfc3339()],
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to update last sync: {}", e)))?;
         Ok(())
+    }
+
+    pub async fn insert_media_item_async(&self, item: api_client::MediaItem) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.insert_media_item(&item))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn get_all_media_items_async(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_all_media_items())
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn get_last_sync_async(&self) -> Result<DateTime<Utc>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_last_sync())
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn update_last_sync_async(&self, ts: DateTime<Utc>) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.update_last_sync(ts))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn insert_album_async(&self, album: api_client::Album) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.insert_album(&album))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn associate_media_item_with_album_async(
+        &self,
+        media_item_id: String,
+        album_id: String,
+    ) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.associate_media_item_with_album(&media_item_id, &album_id))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn rename_album_async(&self, album_id: String, new_title: String) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.rename_album(&album_id, &new_title))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn delete_album_async(&self, album_id: String) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.delete_album(&album_id))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn delete_media_item_async(&self, id: String) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.delete_media_item(&id))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn get_all_albums_async(&self) -> Result<Vec<api_client::Album>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_all_albums())
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn get_media_items_by_album_async(&self, album_id: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_items_by_album(&album_id))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
     }
 }
 
