@@ -11,6 +11,8 @@ use tracing::{error, info};
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use tracing_subscriber::EnvFilter;
+#[cfg(feature = "console")]
+use console_subscriber;
 use ui;
 mod config;
 
@@ -32,6 +34,9 @@ struct Cli {
     /// Path to config file
     #[arg(long)]
     config: Option<PathBuf>,
+    /// Enable tokio console for debugging
+    #[arg(long)]
+    debug_console: bool,
 }
 
 #[tokio::main]
@@ -42,6 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         oauth_redirect_port: cli.oauth_redirect_port,
         thumbnails_preload: cli.thumbnails_preload,
         sync_interval_minutes: cli.sync_interval_minutes,
+        debug_console: cli.debug_console,
     };
     let cfg = config::AppConfig::load_from(cli.config.clone()).apply_overrides(&overrides);
     let log_dir = dirs::home_dir()
@@ -55,6 +61,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_env_filter(EnvFilter::new(cfg.log_level.clone()))
         .with_writer(std::io::stdout.and(file_writer))
         .init();
+
+    if cfg.debug_console {
+        #[cfg(feature = "console")]
+        {
+            let _ = std::env::var("TOKIO_CONSOLE");
+            console_subscriber::init();
+        }
+    }
 
     let local = LocalSet::new();
     local.run_until(main_inner(cfg)).await

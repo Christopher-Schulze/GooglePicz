@@ -11,6 +11,7 @@ serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 api_client = { path = "../api_client" }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
