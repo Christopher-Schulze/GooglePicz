@@ -20,7 +20,8 @@ async fn test_periodic_sync_reports_error() {
             // remove API mocking so periodic sync fails when calling the network
             std::env::remove_var("MOCK_API_CLIENT");
             let (prog_tx, _prog_rx) = mpsc::unbounded_channel();
-            let (handle, shutdown, mut err_rx) = syncer.start_periodic_sync(Duration::from_millis(10), prog_tx);
+            let (err_tx, mut err_rx) = mpsc::unbounded_channel();
+            let (handle, shutdown) = syncer.start_periodic_sync(Duration::from_millis(10), prog_tx, err_tx);
             let err = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap();
             assert!(err.is_some());
             let _ = shutdown.send(());

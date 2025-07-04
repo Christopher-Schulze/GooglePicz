@@ -178,8 +178,8 @@ impl Syncer {
         self,
         interval: Duration,
         progress_tx: mpsc::UnboundedSender<SyncProgress>,
-    ) -> (JoinHandle<()>, oneshot::Sender<()>, mpsc::UnboundedReceiver<String>) {
-        let (error_tx, error_rx) = mpsc::unbounded_channel();
+        error_tx: mpsc::UnboundedSender<String>,
+    ) -> (JoinHandle<()>, oneshot::Sender<()>) {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
         let handle = spawn_local(async move {
             let mut syncer = self;
@@ -208,7 +208,7 @@ impl Syncer {
                 }
             }
         });
-        (handle, shutdown_tx, error_rx)
+        (handle, shutdown_tx)
     }
 }
 

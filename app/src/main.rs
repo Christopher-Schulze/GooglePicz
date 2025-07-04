@@ -149,11 +149,12 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                 error!("❌ Cannot synchronize without a valid access token");
             }
 
-            let (handle, shutdown, err_rx) = if ensure_access_token_valid().await.is_ok() {
-                syncer.start_periodic_sync(interval, tx)
+            let (err_tx, err_rx) = tokio::sync::mpsc::unbounded_channel();
+            let (handle, shutdown) = if ensure_access_token_valid().await.is_ok() {
+                syncer.start_periodic_sync(interval, tx, err_tx)
             } else {
                 error!("❌ Cannot start periodic sync without a valid token");
-                syncer.start_periodic_sync(interval, tx)
+                syncer.start_periodic_sync(interval, tx, err_tx)
             };
 
             let ui_thread = std::thread::spawn(move || {
