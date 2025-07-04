@@ -1,4 +1,4 @@
-use cache::CacheManager;
+use cache::{CacheManager, CacheError};
 use tempfile::NamedTempFile;
 use api_client::{MediaItem, MediaMetadata};
 use chrono::Utc;
@@ -187,4 +187,30 @@ async fn test_async_wrappers() {
     let items = cache.get_all_media_items_async().await.unwrap();
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].id, item.id);
+}
+
+#[test]
+fn test_poisoned_mutex_returns_error() {
+    let file = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(file.path()).unwrap();
+    let cache_clone = cache.clone();
+    let _ = std::panic::catch_unwind(|| {
+        let _guard = cache_clone.lock_conn().unwrap();
+        panic!("boom");
+    });
+    let result = cache.get_all_media_items();
+    assert!(matches!(result, Err(CacheError::Other(_))));
+}
+
+#[tokio::test]
+async fn test_poisoned_mutex_returns_error_async() {
+    let file = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(file.path()).unwrap();
+    let cache_clone = cache.clone();
+    let _ = std::panic::catch_unwind(|| {
+        let _guard = cache_clone.lock_conn().unwrap();
+        panic!("boom");
+    });
+    let result = cache.get_all_media_items_async().await;
+    assert!(matches!(result, Err(CacheError::Other(_))));
 }
