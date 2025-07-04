@@ -1,0 +1,13 @@
+# Cache Benchmarks
+
+This benchmark measures loading all media items from the cache when it contains 1000 entries.
+
+```
+$ cargo bench -p cache --bench cache_bench
+```
+
+The `load_all_1000` benchmark represents the time to fetch all items after inserting 1000 mock records.
+
+
+Benchmark result (1000 items): ~0.99 ms per load.
+

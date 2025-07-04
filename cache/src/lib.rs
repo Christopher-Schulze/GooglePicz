@@ -150,6 +150,10 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
              PRAGMA foreign_keys=on;\
              UPDATE schema_version SET version = 10;"
         ),
+        M::up(
+            "CREATE INDEX IF NOT EXISTS idx_media_items_is_favorite ON media_items (is_favorite);\
+             UPDATE schema_version SET version = 11;"
+        ),
     ]);
     migrations
         .to_latest(conn)
@@ -363,6 +367,47 @@ impl CacheManager {
 
         let iter = stmt
             .query_map(params![like_pattern], |row| {
+                let ts: i64 = row.get(5)?;
+                let w: i64 = row.get(6)?;
+                let h: i64 = row.get(7)?;
+                Ok(api_client::MediaItem {
+                    id: row.get(0)?,
+                    description: row.get(1)?,
+                    product_url: row.get(2)?,
+                    base_url: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    media_metadata: api_client::MediaMetadata {
+                        creation_time: Self::ts_to_rfc3339(ts),
+                        width: w.to_string(),
+                        height: h.to_string(),
+                    },
+                    filename: row.get(8)?,
+                })
+            })
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
+
+        let mut items = Vec::new();
+        for item in iter {
+            items.push(item.map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
+            })?);
+        }
+        Ok(items)
+    }
+
+    pub fn get_favorite_media_items(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let mut conn = self.conn.lock().unwrap();
+        let mut stmt = conn
+            .prepare(
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                 FROM media_items m
+                 JOIN media_metadata md ON m.id = md.media_item_id
+                 WHERE m.is_favorite = 1",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let iter = stmt
+            .query_map([], |row| {
                 let ts: i64 = row.get(5)?;
                 let w: i64 = row.get(6)?;
                 let h: i64 = row.get(7)?;
@@ -692,6 +737,13 @@ impl CacheManager {
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
+
+    pub async fn get_favorite_media_items_async(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_favorite_media_items())
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
 }
 
 // Die Unit-Tests sind wie in deinem Input (ausgelassen für Zeichenlimit), aber alles vollständig!
@@ -794,6 +846,29 @@ mod tests {
         item.media_metadata.width = "not_a_number".into();
         let result = cache.insert_media_item(&item);
         assert!(matches!(result, Err(CacheError::SerializationError(_))));
+    }
+
+    #[test]
+    fn test_get_favorite_media_items() {
+        let tmp = NamedTempFile::new().expect("create temp file");
+        let cache = CacheManager::new(tmp.path()).expect("create cache manager");
+
+        let fav = sample_media_item("fav");
+        cache.insert_media_item(&fav).expect("insert fav");
+        {
+            let conn = cache.conn.lock().unwrap();
+            conn.execute(
+                "UPDATE media_items SET is_favorite = 1 WHERE id = ?1",
+                params![fav.id],
+            )
+            .unwrap();
+        }
+        let not_fav = sample_media_item("n1");
+        cache.insert_media_item(&not_fav).expect("insert");
+
+        let items = cache.get_favorite_media_items().expect("query");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, fav.id);
     }
 }
 

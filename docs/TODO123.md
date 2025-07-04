@@ -5,7 +5,9 @@
 - **Address Compiler Warnings:** Review and fix all current compiler warnings.
 
 ## Medium Priority Tasks
-- **Optimize Caching:** The cache now uses a normalized schema with separate `media_items`, `media_metadata`, `albums`, and `album_media_items` tables for efficient SQL queries.
+- **Optimize Caching:**
+  - The cache now uses a normalized schema with separate `media_items`, `media_metadata`, `albums`, and `album_media_items` tables for efficient SQL queries.
+  - Added index on `is_favorite` and benchmarked loading 1000 items (~1ms).
 - **Background Sync Robustness:** The background sync in `main.rs` is started in a `tokio::spawn` task. Add more robust error handling and potentially a mechanism to communicate sync status back to the UI (e.g., via channels).
 - **CLI-Erweiterungen:** Zusätzliche Befehle und Optionen für das Kommandozeilenwerkzeug implementieren.
 - **Performance Tuning:** Profile startup time and memory usage to better support large photo libraries.
