@@ -3,7 +3,7 @@
 use auth::{authenticate, ensure_access_token_valid};
 use clap::Parser;
 use std::path::PathBuf;
-use sync::Syncer;
+use sync::{Syncer, SyncTaskError};
 use tokio::fs;
 use tokio::task::LocalSet;
 use tokio::time::Duration;
@@ -145,7 +145,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                 error!("❌ Cannot synchronize without a valid access token");
             }
 
-            let (err_tx, err_rx) = tokio::sync::mpsc::unbounded_channel();
+            let (err_tx, err_rx) = tokio::sync::mpsc::unbounded_channel::<SyncTaskError>();
             let (sync_handle, sync_shutdown) = if ensure_access_token_valid().await.is_ok() {
                 syncer.start_periodic_sync(interval, tx, err_tx.clone())
             } else {

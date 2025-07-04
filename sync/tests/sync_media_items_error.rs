@@ -1,4 +1,4 @@
-use sync::{Syncer, SyncProgress};
+use sync::{Syncer, SyncProgress, SyncTaskError};
 use serial_test::serial;
 use tempfile::NamedTempFile;
 use tokio::sync::mpsc;
@@ -17,7 +17,7 @@ async fn test_sync_media_items_reports_error() {
     // drop mock so sync_media_items fails when calling API
     std::env::remove_var("MOCK_API_CLIENT");
     let (prog_tx, mut prog_rx) = mpsc::unbounded_channel();
-    let (err_tx, mut err_rx) = mpsc::unbounded_channel();
+    let (err_tx, mut err_rx) = mpsc::unbounded_channel::<SyncTaskError>();
     let result = syncer
         .sync_media_items(Some(prog_tx), Some(err_tx))
         .await;
