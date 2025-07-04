@@ -174,6 +174,30 @@ cargo run --package googlepicz --bin sync_cli -- cache-stats
 
 Displays the number of cached albums and media items.
 
+## 📈 Performance Profiling
+
+Enable detailed tracing spans and Tokio's console to diagnose slow operations.
+Install the console viewer:
+
+```bash
+cargo install tokio-console
+```
+
+Run it in a separate terminal:
+
+```bash
+tokio-console
+```
+
+Launch the application with the profiling features enabled:
+
+```bash
+cargo run --package googlepicz --features sync/trace-spans,ui/trace-spans -- --debug-console
+```
+
+The console will display asynchronous task metrics while span timings are
+written to `~/.googlepicz/googlepicz.log`.
+
 ## 🐳 CI Docker Image
 
 The repository includes a `Dockerfile.ci` used to build a container image with stable Rust and the packaging tools required for CI. To build and publish the image:

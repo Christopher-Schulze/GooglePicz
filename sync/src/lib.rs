@@ -35,6 +35,7 @@ pub enum SyncProgress {
 }
 
 impl Syncer {
+    #[cfg_attr(feature = "trace-spans", tracing::instrument)]
     pub async fn new(db_path: &Path) -> Result<Self, SyncError> {
         let access_token = ensure_access_token_valid().await.map_err(|e| {
             SyncError::AuthenticationError(format!("Failed to get access token: {}", e))
@@ -51,6 +52,7 @@ impl Syncer {
         })
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, progress, error)))]
     pub async fn sync_media_items(
         &mut self,
         progress: Option<mpsc::UnboundedSender<SyncProgress>>,
@@ -178,6 +180,7 @@ impl Syncer {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, progress_tx, error_tx)))]
     pub fn start_periodic_sync(
         self,
         interval: Duration,
