@@ -76,3 +76,44 @@ fn test_sync_error_added() {
     let _ = ui.update(Message::SyncError(SyncTaskError::Other("boom".into())));
     assert!(ui.error_count() > 0);
 }
+
+#[test]
+#[serial]
+fn test_rename_dialog_state() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let _ = ui.update(Message::ShowRenameAlbumDialog("a1".into(), "Old".into()));
+    assert_eq!(ui.renaming_album(), Some("a1".into()));
+    assert_eq!(ui.rename_album_title(), "Old");
+    let _ = ui.update(Message::CancelRenameAlbum);
+    assert!(ui.renaming_album().is_none());
+}
+
+#[test]
+#[serial]
+fn test_delete_dialog_state() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let _ = ui.update(Message::ShowDeleteAlbumDialog("a1".into()));
+    assert_eq!(ui.deleting_album(), Some("a1".into()));
+    let _ = ui.update(Message::CancelDeleteAlbum);
+    assert!(ui.deleting_album().is_none());
+}
+
+#[test]
+#[serial]
+fn test_search_input() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let _ = ui.update(Message::SearchInputChanged("query".into()));
+    assert_eq!(ui.search_query(), "query");
+}
