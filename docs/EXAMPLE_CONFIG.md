@@ -7,6 +7,7 @@ log_level = "debug"
 oauth_redirect_port = 9000
 thumbnails_preload = 30
 sync_interval_minutes = 15
+debug_console = false
 ```
 
 Adjust the values as needed.

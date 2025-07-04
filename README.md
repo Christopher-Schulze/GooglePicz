@@ -71,6 +71,7 @@ Having trouble starting the application? Here are a few common issues:
 - **OAuth redirect fails** – Check that the redirect port in your config is open and not blocked by a firewall.
 - **Packaging errors** – The packager relies on external tools like `cargo deb` and `makensis`. Use the `MOCK_COMMANDS` environment variable to run packaging tests without these tools.
 - **Developing without network access** – Set `MOCK_API_CLIENT=1` and `MOCK_KEYRING=1` to enable offline mode while testing.
+- **Need more insight into async tasks?** – Set `debug_console = true` in `~/.googlepicz/config` or pass `--debug-console` to print detailed Tokio diagnostics.
 
 ## 🏗️ Project Structure
 
