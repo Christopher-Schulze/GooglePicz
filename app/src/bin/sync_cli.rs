@@ -38,6 +38,9 @@ struct Cli {
     /// Enable tokio console for debugging
     #[arg(long)]
     debug_console: bool,
+    /// Store auth tokens in ~/.googlepicz/tokens.json instead of the system keyring
+    #[arg(long)]
+    use_file_store: bool,
     #[command(subcommand)]
     command: Commands,
 }
@@ -69,6 +72,10 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+
+    if cli.use_file_store {
+        std::env::set_var("USE_FILE_STORE", "1");
+    }
 
     let overrides = config::AppConfigOverrides {
         log_level: cli.log_level.clone(),

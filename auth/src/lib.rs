@@ -28,6 +28,10 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "file-store")]
 use serde_json;
 
+/// Environment variable that forces using the file-based token store when the
+/// `file-store` feature is compiled in.
+const USE_FILE_STORE_ENV: &str = "USE_FILE_STORE";
+
 const KEYRING_SERVICE_NAME: &str = "GooglePicz";
 const ACCESS_TOKEN_EXPIRY_KEY: &str = "access_token_expiry";
 /// Seconds before expiry when we proactively refresh the token.
@@ -94,8 +98,13 @@ fn store_value(key: &str, value: &str) -> Result<(), AuthError> {
             .lock()
             .map_err(|_| AuthError::Other("Poisoned mock store lock".into()))?;
         store.insert(key.to_string(), value.to_string());
-        Ok(())
-    } else {
+        return Ok(());
+    }
+    #[cfg(feature = "file-store")]
+    if std::env::var(USE_FILE_STORE_ENV).is_ok() {
+        return store_value_file(key, value);
+    }
+    {
         let entry = Entry::new(KEYRING_SERVICE_NAME, key)
             .map_err(|e| AuthError::Keyring(e.to_string()))?;
         match entry.set_password(value) {
@@ -120,8 +129,13 @@ fn get_value(key: &str) -> Result<Option<String>, AuthError> {
         let store = MOCK_STORE
             .lock()
             .map_err(|_| AuthError::Other("Poisoned mock store lock".into()))?;
-        Ok(store.get(key).cloned())
-    } else {
+        return Ok(store.get(key).cloned());
+    }
+    #[cfg(feature = "file-store")]
+    if std::env::var(USE_FILE_STORE_ENV).is_ok() {
+        return get_value_file(key);
+    }
+    {
         let entry = Entry::new(KEYRING_SERVICE_NAME, key)
             .map_err(|e| AuthError::Keyring(e.to_string()))?;
         match entry.get_password() {
@@ -525,5 +539,21 @@ mod tests {
         cancel_scheduled_refresh();
         std::env::remove_var("MOCK_REFRESH_TOKEN");
         std::env::remove_var("MOCK_KEYRING");
+    }
+
+    #[cfg(feature = "file-store")]
+    #[tokio::test]
+    #[serial]
+    async fn test_store_tokens_in_file() {
+        use tempfile::TempDir;
+        let dir = TempDir::new().unwrap();
+        std::env::set_var(USE_FILE_STORE_ENV, "1");
+        std::env::set_var("HOME", dir.path());
+        store_value("access_token", "file_token").unwrap();
+        let val = get_value("access_token").unwrap();
+        assert_eq!(val.unwrap(), "file_token");
+        let path = dir.path().join(".googlepicz").join("tokens.json");
+        assert!(path.exists());
+        std::env::remove_var(USE_FILE_STORE_ENV);
     }
 }

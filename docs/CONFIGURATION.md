@@ -15,3 +15,9 @@ Values can be placed in `~/.googlepicz/config` and are loaded via the [config](h
 Create or edit `~/.googlepicz/config` and provide any of these keys to customize the application. Setting `debug_console = true` turns on Tokio's debugging console.
 
 All settings can also be overridden at runtime using command line options. Run `googlepicz --help` or `sync_cli --help` to see the available flags. The `debug_console` option can be enabled with the `--debug-console` flag.
+
+If the application is built with the optional `file-store` feature, authentication
+tokens may be written to `~/.googlepicz/tokens.json` instead of the system
+keyring. Enable this behaviour by passing `--use-file-store` on the command line
+or by setting the environment variable `USE_FILE_STORE=1` before running the
+tools.
