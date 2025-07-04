@@ -84,13 +84,20 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
         tracing::debug!("stderr: {}", stderr);
     }
 
-    if output.status.success() {
+    let status = output.status;
+    if status.code() == Some(0) {
         Ok(())
     } else {
-        Err(PackagingError::CommandError(format!(
-            "{} exited with {}",
-            cmd, output.status
-        )))
+        let code = status
+            .code()
+            .map(|c| c.to_string())
+            .unwrap_or_else(|| "signal".into());
+        let msg = if stderr.trim().is_empty() {
+            format!("{} exited with code {}", cmd, code)
+        } else {
+            format!("{} exited with code {}: {}", cmd, code, stderr.trim())
+        };
+        Err(PackagingError::CommandError(msg))
     }
 }
 
@@ -290,11 +297,32 @@ fn create_linux_package() -> Result<(), PackagingError> {
 
 pub fn create_installer() -> Result<(), PackagingError> {
     if cfg!(target_os = "macos") {
-        create_macos_installer()
+        create_macos_installer()?;
+        let root = get_project_root();
+        let version = workspace_version()?;
+        let dmg = root.join(format!("target/release/GooglePicz-{}.dmg", version));
+        if !dmg.exists() && std::env::var("MOCK_COMMANDS").is_err() {
+            return Err(PackagingError::Other(format!("Expected installer {:?} not found", dmg)));
+        }
+        Ok(())
     } else if cfg!(target_os = "windows") {
-        create_windows_installer()
+        create_windows_installer()?;
+        let root = get_project_root();
+        let version = workspace_version()?;
+        let exe = root.join(format!("target/windows/GooglePicz-{}-Setup.exe", version));
+        if !exe.exists() && std::env::var("MOCK_COMMANDS").is_err() {
+            return Err(PackagingError::Other(format!("Expected installer {:?} not found", exe)));
+        }
+        Ok(())
     } else if cfg!(target_os = "linux") {
-        create_linux_package()
+        create_linux_package()?;
+        let root = get_project_root();
+        let version = workspace_version()?;
+        let deb = root.join(format!("GooglePicz-{}.deb", version));
+        if !deb.exists() && std::env::var("MOCK_COMMANDS").is_err() {
+            return Err(PackagingError::Other(format!("Expected installer {:?} not found", deb)));
+        }
+        Ok(())
     } else {
         tracing::info!("Installer creation not supported on this OS");
         Ok(())
