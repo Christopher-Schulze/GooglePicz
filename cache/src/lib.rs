@@ -129,6 +129,25 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
             "CREATE INDEX IF NOT EXISTS idx_album_media_items_media_item_id ON album_media_items (media_item_id);\
              UPDATE schema_version SET version = 9;"
         ),
+        M::up(
+            "PRAGMA foreign_keys=off;\
+             CREATE TABLE albums_new (\
+                 id TEXT PRIMARY KEY,\
+                 title TEXT,\
+                 product_url TEXT,\
+                 is_writeable INTEGER,\
+                 media_items_count INTEGER,\
+                 cover_photo_base_url TEXT,\
+                 cover_photo_media_item_id TEXT,\
+                 FOREIGN KEY(cover_photo_media_item_id) REFERENCES media_items(id) ON DELETE SET NULL\
+             );\
+             INSERT INTO albums_new (id, title, product_url, is_writeable, media_items_count, cover_photo_base_url, cover_photo_media_item_id)\
+                 SELECT id, title, product_url, is_writeable, CAST(media_items_count AS INTEGER), cover_photo_base_url, cover_photo_media_item_id FROM albums;\
+             DROP TABLE albums;\
+             ALTER TABLE albums_new RENAME TO albums;\
+             PRAGMA foreign_keys=on;\
+             UPDATE schema_version SET version = 10;"
+        ),
     ]);
     migrations
         .to_latest(conn)
