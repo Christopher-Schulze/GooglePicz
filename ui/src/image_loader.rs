@@ -6,7 +6,7 @@ use reqwest;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use futures::future;
+use futures::future::join_all;
 use thiserror::Error;
 use tokio::fs;
 
@@ -140,7 +140,7 @@ impl ImageLoader {
                     tracing::error!("Failed to preload thumbnail for {}: {}", &item.id, e);
                 }
             });
-        futures::future::join_all(futures).await;
+        join_all(futures).await;
     }
 }
 
