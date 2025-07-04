@@ -122,31 +122,31 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
     match Syncer::new(&db_path).await {
         Ok(mut syncer) => {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-            let (err_tx, err_rx) = tokio::sync::mpsc::unbounded_channel();
             let preload = cfg.thumbnails_preload;
-            let ui_thread = std::thread::spawn(move || {
-                if let Err(e) = ui::run(Some(rx), Some(err_rx), preload) {
-                    error!("UI error: {}", e);
-                }
-            });
 
             let interval = Duration::from_secs(cfg.sync_interval_minutes * 60);
 
             info!("📥 Starting synchronization...");
             if ensure_access_token_valid().await.is_ok() {
-                if let Err(e) = syncer.sync_media_items(Some(tx.clone()), Some(err_tx.clone())).await {
+                if let Err(e) = syncer.sync_media_items(Some(tx.clone()), None).await {
                     error!("❌ Synchronization failed: {}", e);
                 }
             } else {
                 error!("❌ Cannot synchronize without a valid access token");
             }
 
-            let (handle, shutdown) = if ensure_access_token_valid().await.is_ok() {
-                syncer.start_periodic_sync(interval, tx, err_tx)
+            let (handle, shutdown, err_rx) = if ensure_access_token_valid().await.is_ok() {
+                syncer.start_periodic_sync(interval, tx)
             } else {
                 error!("❌ Cannot start periodic sync without a valid token");
-                syncer.start_periodic_sync(interval, tx, err_tx)
+                syncer.start_periodic_sync(interval, tx)
             };
+
+            let ui_thread = std::thread::spawn(move || {
+                if let Err(e) = ui::run(Some(rx), Some(err_rx), preload) {
+                    error!("UI error: {}", e);
+                }
+            });
 
             if let Err(e) = ui_thread.join() {
                 error!("UI thread panicked: {:?}", e);
