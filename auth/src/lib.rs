@@ -414,4 +414,29 @@ mod tests {
         std::env::remove_var("MOCK_REFRESH_TOKEN");
         std::env::remove_var("MOCK_KEYRING");
     }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_access_token_missing() {
+        std::env::set_var("MOCK_KEYRING", "1");
+        {
+            let mut store = MOCK_STORE.lock().unwrap();
+            store.remove("access_token");
+        }
+        let result = get_access_token();
+        assert!(result.is_err());
+        std::env::remove_var("MOCK_KEYRING");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_refresh_access_token_missing_vars() {
+        std::env::set_var("MOCK_KEYRING", "1");
+        std::env::remove_var("MOCK_REFRESH_TOKEN");
+        std::env::remove_var("GOOGLE_CLIENT_ID");
+        std::env::remove_var("GOOGLE_CLIENT_SECRET");
+        let result = refresh_access_token().await;
+        assert!(result.is_err());
+        std::env::remove_var("MOCK_KEYRING");
+    }
 }

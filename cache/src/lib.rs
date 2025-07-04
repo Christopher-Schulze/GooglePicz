@@ -660,5 +660,22 @@ mod tests {
             .unwrap();
         assert_eq!(ts, "1970-01-01T00:00:00Z");
     }
+
+    #[test]
+    fn test_cache_manager_new_invalid_path() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let result = CacheManager::new(dir.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_insert_media_item_invalid_metadata() {
+        let tmp = NamedTempFile::new().expect("create temp file");
+        let cache = CacheManager::new(tmp.path()).expect("create cache manager");
+        let mut item = sample_media_item("1");
+        item.media_metadata.width = "not_a_number".into();
+        let result = cache.insert_media_item(&item);
+        assert!(matches!(result, Err(CacheError::SerializationError(_))));
+    }
 }
 
