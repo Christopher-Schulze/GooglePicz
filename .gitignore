@@ -39,8 +39,6 @@ dist/
 *.msi
 *.exe
 
-# Cargo lock file
-Cargo.lock
 
 # Temporary files
 *.tmp
