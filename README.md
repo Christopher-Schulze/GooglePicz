@@ -162,11 +162,13 @@ Signing requires a few environment variables:
 - `WINDOWS_CERT` and `WINDOWS_CERT_PASSWORD` – code signing certificate for Windows.
 - `LINUX_SIGN_KEY` – GPG key ID used by `dpkg-sig` to sign the generated `.deb` (optional).
 
-The packager also requires a few external tools to be available in your `PATH`:
+The packager also requires a few external tools to be available in your `PATH`.
+See the [required tools table](docs/RELEASE_ARTIFACTS.md#required-tools) for
+installation commands.
 
-- `cargo-deb` – creates Debian packages (`cargo install cargo-deb`)
-- `cargo-bundle` – bundles macOS apps (`cargo install cargo-bundle`)
-- `cargo-bundle-licenses` – collects license metadata (`cargo install cargo-bundle-licenses`)
+- `cargo-deb` – creates Debian packages
+- `cargo-bundle` – bundles macOS apps
+- `cargo-bundle-licenses` – collects license metadata
 - `makensis` – part of the NSIS suite used for Windows installers
 
 Set these variables in your shell or CI environment before running `cargo run --package packaging --bin packager`.
