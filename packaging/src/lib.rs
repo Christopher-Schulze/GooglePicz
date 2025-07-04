@@ -94,6 +94,10 @@ fn create_macos_installer() -> Result<(), PackagingError> {
             "codesign",
             &["--deep", "--force", "-s", &identity, app_path],
         )?;
+        run_command(
+            "codesign",
+            &["--verify", "--deep", "--strict", app_path],
+        )?;
     }
 
     let dmg_path = "target/release/GooglePicz.dmg";
@@ -113,6 +117,7 @@ fn create_macos_installer() -> Result<(), PackagingError> {
     )?;
     if !identity.is_empty() {
         run_command("codesign", &["--force", "-s", &identity, dmg_path])?;
+        run_command("codesign", &["--verify", dmg_path])?;
     }
 
     if let Ok(apple_id) = std::env::var("APPLE_ID") {
@@ -131,6 +136,7 @@ fn create_macos_installer() -> Result<(), PackagingError> {
             ],
         )?;
         run_command("xcrun", &["stapler", "staple", dmg_path])?;
+        run_command("xcrun", &["stapler", "validate", dmg_path])?;
     }
 
     let version = workspace_version()?;
@@ -189,6 +195,7 @@ fn create_windows_installer() -> Result<(), PackagingError> {
                         target,
                     ],
                 )?;
+                run_command("signtool", &["verify", "/pa", target])?;
             }
         }
     }
@@ -236,6 +243,7 @@ fn create_linux_package() -> Result<(), PackagingError> {
         if !key_id.is_empty() {
             let deb_str = deb_path.to_string_lossy();
             run_command("dpkg-sig", &["--sign", "builder", "-k", &key_id, &deb_str])?;
+            run_command("dpkg-sig", &["--verify", &deb_str])?;
         }
     }
 
