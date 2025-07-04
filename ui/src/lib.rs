@@ -39,6 +39,7 @@ fn error_container_style() -> iced::theme::Container {
     }))
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument(skip(progress, errors)))]
 pub fn run(
     progress: Option<mpsc::UnboundedReceiver<SyncProgress>>,
     errors: Option<mpsc::UnboundedReceiver<String>>,
@@ -154,6 +155,7 @@ impl Application for GooglePiczUI {
         usize,
     );
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(flags)))]
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
         let (progress_flag, error_flag, preload_count) = flags;
         let mut init_errors = Vec::new();
@@ -217,6 +219,7 @@ impl Application for GooglePiczUI {
         String::from("GooglePicz - Google Photos Manager")
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::LoadPhotos => {
@@ -524,6 +527,7 @@ impl Application for GooglePiczUI {
         Command::none()
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     fn subscription(&self) -> Subscription<Message> {
         let mut subs: Vec<Subscription<Message>> = Vec::new();
 
@@ -556,6 +560,7 @@ impl Application for GooglePiczUI {
         Subscription::batch(subs)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     fn view(&self) -> Element<Message> {
         let mut header = row![
             text("GooglePicz").size(24),

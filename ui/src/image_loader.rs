@@ -36,6 +36,7 @@ impl ImageLoader {
         }
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn load_thumbnail(
         &self,
         media_id: &str,
@@ -88,6 +89,7 @@ impl ImageLoader {
         Ok(handle)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn load_full_image(
         &self,
         media_id: &str,
@@ -136,6 +138,7 @@ impl ImageLoader {
     }
 
     #[allow(dead_code)]
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, media_items)))]
     pub async fn preload_thumbnails(&self, media_items: &[api_client::MediaItem], count: usize) {
         let start = Instant::now();
         let stream = futures::stream::iter(media_items.iter().take(count));
