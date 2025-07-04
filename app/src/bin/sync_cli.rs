@@ -100,6 +100,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio::spawn(async move {
                 while let Some(p) = rx.recv().await {
                     match p {
+                        SyncProgress::Started => println!("Sync started"),
+                        SyncProgress::Retrying(wait) => println!("Retrying in {}s", wait),
                         SyncProgress::ItemSynced(n) => println!("Synced {} items...", n),
                         SyncProgress::Finished(total) => println!("Finished sync: {} items", total),
                     }
