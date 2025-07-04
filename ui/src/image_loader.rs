@@ -11,13 +11,17 @@ use std::time::Instant;
 use thiserror::Error;
 use tokio::fs;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ImageLoaderError {
     #[error("network error: {0}")]
-    Request(String),
+    Network(String),
+    #[error("timeout")]
+    Timeout,
+    #[error("not found")]
+    NotFound,
     #[error("io error: {0}")]
     Io(String),
-    #[error("semaphore closed")] 
+    #[error("semaphore closed")]
     SemaphoreClosed,
 }
 
@@ -30,7 +34,14 @@ pub struct ImageLoader {
 
 impl ImageLoader {
     pub fn new(cache_dir: PathBuf) -> Self {
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .expect("failed to build client");
+        Self::with_client(cache_dir, client)
+    }
+
+    pub fn with_client(cache_dir: PathBuf, client: reqwest::Client) -> Self {
         Self {
             cache_dir,
             client,
@@ -70,11 +81,32 @@ impl ImageLoader {
             .get(&thumbnail_url)
             .send()
             .await
-            .map_err(|e| ImageLoaderError::Request(e.to_string()))?;
+            .map_err(|e| {
+                if e.is_timeout() {
+                    ImageLoaderError::Timeout
+                } else {
+                    ImageLoaderError::Network(e.to_string())
+                }
+            })?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(ImageLoaderError::NotFound);
+        }
+        if !response.status().is_success() {
+            return Err(ImageLoaderError::Network(format!(
+                "HTTP {}",
+                response.status()
+            )));
+        }
         let bytes = response
             .bytes()
             .await
-            .map_err(|e| ImageLoaderError::Request(e.to_string()))?;
+            .map_err(|e| {
+                if e.is_timeout() {
+                    ImageLoaderError::Timeout
+                } else {
+                    ImageLoaderError::Network(e.to_string())
+                }
+            })?;
 
         // Ensure cache directory exists
         if let Some(parent) = cache_path.parent() {
@@ -122,11 +154,32 @@ impl ImageLoader {
             .get(&full_url)
             .send()
             .await
-            .map_err(|e| ImageLoaderError::Request(e.to_string()))?;
+            .map_err(|e| {
+                if e.is_timeout() {
+                    ImageLoaderError::Timeout
+                } else {
+                    ImageLoaderError::Network(e.to_string())
+                }
+            })?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(ImageLoaderError::NotFound);
+        }
+        if !response.status().is_success() {
+            return Err(ImageLoaderError::Network(format!(
+                "HTTP {}",
+                response.status()
+            )));
+        }
         let bytes = response
             .bytes()
             .await
-            .map_err(|e| ImageLoaderError::Request(e.to_string()))?;
+            .map_err(|e| {
+                if e.is_timeout() {
+                    ImageLoaderError::Timeout
+                } else {
+                    ImageLoaderError::Network(e.to_string())
+                }
+            })?;
 
         if let Some(parent) = cache_path.parent() {
             fs::create_dir_all(parent)
