@@ -28,7 +28,7 @@ fn test_new_applies_migrations() {
     let version: i64 = conn
         .query_row("SELECT version FROM schema_version", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 9);
+    assert_eq!(version, 10);
 }
 
 #[test]
@@ -105,6 +105,33 @@ fn test_update_last_sync() {
     cm.update_last_sync(now).unwrap();
     let stored = cm.get_last_sync().unwrap();
     assert!(stored.timestamp() - now.timestamp() <= 1);
+}
+
+#[test]
+fn test_cover_photo_fk_sets_null() {
+    let file = NamedTempFile::new().unwrap();
+    let cm = CacheManager::new(file.path()).unwrap();
+    let item = sample_item("1");
+    cm.insert_media_item(&item).unwrap();
+    let album = api_client::Album {
+        id: "a1".into(),
+        title: Some("Album".into()),
+        product_url: None,
+        is_writeable: None,
+        media_items_count: Some("1".into()),
+        cover_photo_base_url: None,
+        cover_photo_media_item_id: Some(item.id.clone()),
+    };
+    cm.insert_album(&album).unwrap();
+    cm.delete_media_item(&item.id).unwrap();
+    let conn = Connection::open(file.path()).unwrap();
+    let mut stmt = conn
+        .prepare("SELECT cover_photo_media_item_id FROM albums WHERE id = ?1")
+        .unwrap();
+    let val: Option<String> = stmt
+        .query_row([album.id.as_str()], |row| row.get(0))
+        .unwrap();
+    assert!(val.is_none());
 }
 
 #[test]
