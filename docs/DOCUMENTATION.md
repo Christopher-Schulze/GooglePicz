@@ -20,6 +20,36 @@ GooglePicz is a native Google Photos client being developed in Rust. The applica
 - **sync**: Handles synchronization with Google Photos
 - **packaging**: Handles application packaging
 
+### Crate Interactions
+
+```
+            +-------+            
+            |  app  |
+            +---+---+
+                |
+                v
+            +---+---+
+            |   ui  |
+            +---+---+
+                |
+                v
++-----------+     +-------------+
+|   sync    |<--->| api_client  |
++-----------+     +-------------+
+      |
+      v
+   +-----+
+   |cache|
+   +-----+
+      ^
+      |
+   +-----+
+   | auth|
+   +-----+
+```
+
+The `app` crate launches the UI and coordinates other modules. During startup, the UI triggers the OAuth flow in the `auth` crate to obtain an access token. The `sync` crate uses this token through `api_client` to fetch photos and album data, storing the results via the `cache` crate. The UI then queries the cache to render thumbnails and albums, while sync continues to update the cache in the background.
+
 ## 🛠️ Technologies
 
 ### Core Technologies
