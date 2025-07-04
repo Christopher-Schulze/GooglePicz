@@ -5,8 +5,16 @@ This document describes how to build installers for all supported platforms.
 ## Prerequisites
 
 - Rust toolchain installed (`rustup`)
-- `cargo-deb` for creating Debian packages (`cargo install cargo-deb`)
 - Required signing credentials if you want signed binaries
+
+### Required Tools {#required-tools}
+
+| Tool | Purpose | Installation |
+| --- | --- | --- |
+| `cargo-deb` | Build Debian packages | `cargo install cargo-deb` |
+| `cargo-bundle` | Bundle macOS apps | `cargo install cargo-bundle` |
+| `cargo-bundle-licenses` | Collect license metadata | `cargo install cargo-bundle-licenses` |
+| `makensis` | Create Windows installers | Install the [NSIS](https://nsis.sourceforge.io/) package |
 
 Environment variables:
 
