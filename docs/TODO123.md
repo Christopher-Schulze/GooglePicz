@@ -14,4 +14,5 @@
 ## Low Priority Tasks
 - **Code Refinements:**
   - In `ui/src/lib.rs`, the creation of the `cache_manager` can be simplified.
-  - Review all `.unwrap()` and `.expect()` calls to ensure they are appropriate and won't cause panics in edge cases.
+  - ~~Review all `.unwrap()` and `.expect()` calls to ensure they are appropriate and won't cause panics in edge cases.~~
+  - Completed: replaced `.expect()` calls in `ui/src/image_loader.rs` with graceful error handling.
