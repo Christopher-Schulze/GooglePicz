@@ -177,3 +177,14 @@ fn test_explain_mime_filter_uses_index() {
     let plan: String = stmt.query_row(["image/jpeg"], |row| row.get(3)).unwrap();
     assert!(plan.contains("idx_media_items_mime_type"), "plan was {}", plan);
 }
+
+#[tokio::test]
+async fn test_async_wrappers() {
+    let file = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(file.path()).unwrap();
+    let item = sample_item("async1");
+    cache.insert_media_item_async(item.clone()).await.unwrap();
+    let items = cache.get_all_media_items_async().await.unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].id, item.id);
+}

@@ -241,8 +241,14 @@ impl Application for GooglePiczUI {
                     let cache_manager = cache_manager.clone();
                     return Command::perform(
                         async move {
-                            let cache = cache_manager.lock().await;
-                            cache.get_all_media_items().map_err(|e| e.to_string())
+                            let cache = {
+                                let guard = cache_manager.lock().await;
+                                guard.clone()
+                            };
+                            cache
+                                .get_all_media_items_async()
+                                .await
+                                .map_err(|e| e.to_string())
                         },
                         Message::PhotosLoaded,
                     );
@@ -410,8 +416,11 @@ impl Application for GooglePiczUI {
                             .await
                             .map_err(|e| e.to_string())?;
                         if let Some(cm) = cache_manager {
-                            let cache = cm.lock().await;
-                            if let Err(e) = cache.insert_album(&album) {
+                            let cache = {
+                                let guard = cm.lock().await;
+                                guard.clone()
+                            };
+                            if let Err(e) = cache.insert_album_async(album.clone()).await {
                                 return Err(e.to_string());
                             }
                         }
@@ -442,9 +451,13 @@ impl Application for GooglePiczUI {
                         let album_id = album.id.clone();
                         return Command::perform(
                             async move {
-                                let cache = cm.lock().await;
+                                let cache = {
+                                    let guard = cm.lock().await;
+                                    guard.clone()
+                                };
                                 cache
-                                    .associate_media_item_with_album(&media_id, &album_id)
+                                    .associate_media_item_with_album_async(media_id.clone(), album_id.clone())
+                                    .await
                                     .map_err(|e| e.to_string())
                             },
                             Message::AlbumAssigned,
@@ -469,8 +482,14 @@ impl Application for GooglePiczUI {
                         let client = ApiClient::new(token);
                         client.rename_album(&id, &title).await.map_err(|e| e.to_string())?;
                         if let Some(cm) = cache_manager {
-                            let cache = cm.lock().await;
-                            cache.rename_album(&id, &title).map_err(|e| e.to_string())?;
+                            let cache = {
+                                let guard = cm.lock().await;
+                                guard.clone()
+                            };
+                            cache
+                                .rename_album_async(id.clone(), title.clone())
+                                .await
+                                .map_err(|e| e.to_string())?;
                         }
                         Ok::<(), String>(())
                     },
@@ -487,8 +506,14 @@ impl Application for GooglePiczUI {
                         let client = ApiClient::new(token);
                         client.delete_album(&id).await.map_err(|e| e.to_string())?;
                         if let Some(cm) = cache_manager {
-                            let cache = cm.lock().await;
-                            cache.delete_album(&id).map_err(|e| e.to_string())?;
+                            let cache = {
+                                let guard = cm.lock().await;
+                                guard.clone()
+                            };
+                            cache
+                                .delete_album_async(id.clone())
+                                .await
+                                .map_err(|e| e.to_string())?;
                         }
                         Ok::<(), String>(())
                     },

@@ -60,7 +60,7 @@ impl Syncer {
         let mut page_token: Option<String> = None;
         let mut total_synced = 0;
 
-        let last_sync = match self.cache_manager.get_last_sync() {
+        let last_sync = match self.cache_manager.get_last_sync_async().await {
             Ok(ts) => ts,
             Err(e) => {
                 let msg = format!("Failed to get last sync time: {}", e);
@@ -115,15 +115,18 @@ impl Syncer {
             }
 
             for item in media_items {
-                self.cache_manager.insert_media_item(&item).map_err(|e| {
-                    let msg = format!("Failed to insert media item into cache: {}", e);
-                    if let Some(tx) = &error {
-                        if let Err(send_err) = tx.send(msg.clone()) {
-                            tracing::error!("Failed to forward error: {}", send_err);
+                self.cache_manager
+                    .insert_media_item_async(item.clone())
+                    .await
+                    .map_err(|e| {
+                        let msg = format!("Failed to insert media item into cache: {}", e);
+                        if let Some(tx) = &error {
+                            if let Err(send_err) = tx.send(msg.clone()) {
+                                tracing::error!("Failed to forward error: {}", send_err);
+                            }
                         }
-                    }
-                    SyncError::CacheError(msg)
-                })?;
+                        SyncError::CacheError(msg)
+                    })?;
                 total_synced += 1;
                 if let Some(tx) = &progress {
                     if let Err(e) = tx.send(SyncProgress::ItemSynced(total_synced)) {
@@ -161,7 +164,8 @@ impl Syncer {
             }
         }
         self.cache_manager
-            .update_last_sync(Utc::now())
+            .update_last_sync_async(Utc::now())
+            .await
             .map_err(|e| {
                 let msg = format!("Failed to update last sync: {}", e);
                 if let Some(tx) = &error {
