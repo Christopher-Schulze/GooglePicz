@@ -146,14 +146,17 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
             }
 
             let (err_tx, err_rx) = tokio::sync::mpsc::unbounded_channel();
-            let (handle, shutdown) = if ensure_access_token_valid().await.is_ok() {
-                syncer.start_periodic_sync(interval, tx, err_tx)
+            let (sync_handle, sync_shutdown) = if ensure_access_token_valid().await.is_ok() {
+                syncer.start_periodic_sync(interval, tx, err_tx.clone())
             } else {
                 error!("❌ Cannot start periodic sync without a valid token");
-                syncer.start_periodic_sync(interval, tx, err_tx)
+                syncer.start_periodic_sync(interval, tx, err_tx.clone())
             };
 
-            let cache_dir = cfg.cache_path.clone();
+            let (refresh_handle, refresh_shutdown) =
+                Syncer::start_token_refresh_task(Duration::from_secs(60), err_tx.clone());
+
+
             let ui_thread = std::thread::spawn(move || {
                 if let Err(e) = ui::run(Some(rx), Some(err_rx), preload, cache_dir) {
                     error!("UI error: {}", e);
@@ -163,8 +166,10 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
             if let Err(e) = ui_thread.join() {
                 error!("UI thread panicked: {:?}", e);
             }
-            let _ = shutdown.send(());
-            let _ = handle.await;
+            let _ = sync_shutdown.send(());
+            let _ = refresh_shutdown.send(());
+            let _ = sync_handle.await;
+            let _ = refresh_handle.await;
         }
         Err(e) => {
             error!("❌ Failed to initialize syncer: {}", e);

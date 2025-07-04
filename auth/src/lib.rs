@@ -11,6 +11,8 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::task::JoinHandle;
+use tokio::time::sleep;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use url::Url;
@@ -28,6 +30,11 @@ use serde_json;
 
 const KEYRING_SERVICE_NAME: &str = "GooglePicz";
 const ACCESS_TOKEN_EXPIRY_KEY: &str = "access_token_expiry";
+/// Seconds before expiry when we proactively refresh the token.
+pub const REFRESH_MARGIN_SECS: u64 = 300;
+
+static SCHEDULED_REFRESH: Lazy<Mutex<Option<JoinHandle<()>>>> =
+    Lazy::new(|| Mutex::new(None));
 
 static MOCK_STORE: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
@@ -263,6 +270,31 @@ fn get_access_token_expiry() -> Result<Option<u64>, AuthError> {
     Ok(get_value(ACCESS_TOKEN_EXPIRY_KEY)?.map(|v| v.parse().unwrap_or(0)))
 }
 
+fn cancel_scheduled_refresh() {
+    if let Some(handle) = SCHEDULED_REFRESH.lock().unwrap().take() {
+        handle.abort();
+    }
+}
+
+fn schedule_token_refresh(expiry: u64) {
+    cancel_scheduled_refresh();
+    let when_secs = expiry.saturating_sub(REFRESH_MARGIN_SECS);
+    let now_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_secs();
+    let delay = when_secs.saturating_sub(now_secs);
+    let handle = tokio::spawn(async move {
+        if delay > 0 {
+            sleep(Duration::from_secs(delay)).await;
+        }
+        if let Err(e) = refresh_access_token().await {
+            tracing::error!("Scheduled token refresh failed: {}", e);
+        }
+    });
+    *SCHEDULED_REFRESH.lock().unwrap() = Some(handle);
+}
+
 pub async fn refresh_access_token() -> Result<String, AuthError> {
     if let Ok(mock_token) = std::env::var("MOCK_REFRESH_TOKEN") {
         let new_token = mock_token;
@@ -312,15 +344,19 @@ pub async fn refresh_access_token() -> Result<String, AuthError> {
 
 /// Ensure the stored access token is valid, refreshing it if expired.
 pub async fn ensure_access_token_valid() -> Result<String, AuthError> {
-    let expiry = get_access_token_expiry()?.unwrap_or(0);
+    let mut expiry = get_access_token_expiry()?.unwrap_or(0);
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| AuthError::Other(e.to_string()))?
         .as_secs();
-    if expiry <= now + 60 {
-        // expired or about to expire in the next minute
-        refresh_access_token().await
+    if expiry <= now + REFRESH_MARGIN_SECS {
+        // expired or about to expire soon
+        let token = refresh_access_token().await?;
+        expiry = get_access_token_expiry()?.unwrap_or(expiry);
+        schedule_token_refresh(expiry);
+        Ok(token)
     } else {
+        schedule_token_refresh(expiry);
         get_access_token()
     }
 }
@@ -437,6 +473,57 @@ mod tests {
         std::env::remove_var("GOOGLE_CLIENT_SECRET");
         let result = refresh_access_token().await;
         assert!(result.is_err());
+        std::env::remove_var("MOCK_KEYRING");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_ensure_access_token_valid_expiring_soon() {
+        cancel_scheduled_refresh();
+        std::env::set_var("MOCK_KEYRING", "1");
+        std::env::set_var("MOCK_REFRESH_TOKEN", "soon_new");
+        store_value("access_token", "soon_old").unwrap();
+        let expiry = SystemTime::now() + Duration::from_secs(10);
+        store_value(
+            ACCESS_TOKEN_EXPIRY_KEY,
+            &expiry
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                .to_string(),
+        )
+        .unwrap();
+        let token = ensure_access_token_valid().await.unwrap();
+        assert_eq!(token, "soon_new");
+        cancel_scheduled_refresh();
+        std::env::remove_var("MOCK_REFRESH_TOKEN");
+        std::env::remove_var("MOCK_KEYRING");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_scheduled_refresh_happens() {
+        cancel_scheduled_refresh();
+        std::env::set_var("MOCK_KEYRING", "1");
+        std::env::set_var("MOCK_REFRESH_TOKEN", "sched_new");
+        store_value("access_token", "sched_old").unwrap();
+        let expiry = SystemTime::now() + Duration::from_secs(REFRESH_MARGIN_SECS + 1);
+        store_value(
+            ACCESS_TOKEN_EXPIRY_KEY,
+            &expiry
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                .to_string(),
+        )
+        .unwrap();
+        let token = ensure_access_token_valid().await.unwrap();
+        assert_eq!(token, "sched_old");
+        tokio::time::sleep(Duration::from_millis(1200)).await;
+        let stored = get_access_token().unwrap();
+        assert_eq!(stored, "sched_new");
+        cancel_scheduled_refresh();
+        std::env::remove_var("MOCK_REFRESH_TOKEN");
         std::env::remove_var("MOCK_KEYRING");
     }
 }
