@@ -214,6 +214,30 @@ impl Syncer {
         });
         (handle, shutdown_tx)
     }
+
+    pub fn start_token_refresh_task(
+        interval: Duration,
+        error_tx: mpsc::UnboundedSender<String>,
+    ) -> (JoinHandle<()>, oneshot::Sender<()>) {
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
+        let handle = spawn_local(async move {
+            loop {
+                tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        break;
+                    }
+                    _ = async {
+                        sleep(interval).await;
+                        if let Err(e) = ensure_access_token_valid().await {
+                            let msg = format!("Token refresh failed: {}", e);
+                            let _ = error_tx.send(msg);
+                        }
+                    } => {}
+                }
+            }
+        });
+        (handle, shutdown_tx)
+    }
 }
 
 #[cfg(test)]
