@@ -33,8 +33,41 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
         return Ok(());
     }
 
+    if cmd == "cargo" {
+        if let Some(sub) = args.first() {
+            match *sub {
+                "deb" => {
+                    if !command_available("cargo-deb") {
+                        return Err(PackagingError::MissingCommand(
+                            "cargo-deb (install with `cargo install cargo-deb`)".into(),
+                        ));
+                    }
+                }
+                "bundle" => {
+                    if !command_available("cargo-bundle") {
+                        return Err(PackagingError::MissingCommand(
+                            "cargo-bundle (install with `cargo install cargo-bundle`)".into(),
+                        ));
+                    }
+                }
+                "bundle-licenses" => {
+                    if !command_available("cargo-bundle-licenses") {
+                        return Err(PackagingError::MissingCommand(
+                            "cargo-bundle-licenses (install with `cargo install cargo-bundle-licenses`)".into(),
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     if !command_available(cmd) {
-        return Err(PackagingError::MissingCommand(cmd.to_string()));
+        let msg = match cmd {
+            "makensis" => "makensis (install NSIS)".to_string(),
+            _ => cmd.to_string(),
+        };
+        return Err(PackagingError::MissingCommand(msg));
     }
 
     let output = Command::new(cmd)
