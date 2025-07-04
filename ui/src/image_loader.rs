@@ -17,6 +17,8 @@ pub enum ImageLoaderError {
     Request(String),
     #[error("io error: {0}")]
     Io(String),
+    #[error("semaphore closed")] 
+    SemaphoreClosed,
 }
 
 #[derive(Debug, Clone)]
@@ -36,13 +38,18 @@ impl ImageLoader {
         }
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn load_thumbnail(
         &self,
         media_id: &str,
         base_url: &str,
     ) -> Result<Handle, ImageLoaderError> {
         let start = Instant::now();
-        let _permit = self.semaphore.acquire().await.expect("semaphore");
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .map_err(|_| ImageLoaderError::SemaphoreClosed)?;
         // Create thumbnail URL (150x150 pixels)
         let thumbnail_url = format!("{}=w150-h150-c", base_url);
 
@@ -88,13 +95,18 @@ impl ImageLoader {
         Ok(handle)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn load_full_image(
         &self,
         media_id: &str,
         base_url: &str,
     ) -> Result<Handle, ImageLoaderError> {
         let start = Instant::now();
-        let _permit = self.semaphore.acquire().await.expect("semaphore");
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .map_err(|_| ImageLoaderError::SemaphoreClosed)?;
         let full_url = format!("{}=d", base_url);
         let cache_path = self
             .cache_dir
@@ -136,6 +148,7 @@ impl ImageLoader {
     }
 
     #[allow(dead_code)]
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, media_items)))]
     pub async fn preload_thumbnails(&self, media_items: &[api_client::MediaItem], count: usize) {
         let start = Instant::now();
         let stream = futures::stream::iter(media_items.iter().take(count));

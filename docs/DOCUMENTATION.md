@@ -20,6 +20,36 @@ GooglePicz is a native Google Photos client being developed in Rust. The applica
 - **sync**: Handles synchronization with Google Photos
 - **packaging**: Handles application packaging
 
+### Crate Interactions
+
+```
+            +-------+            
+            |  app  |
+            +---+---+
+                |
+                v
+            +---+---+
+            |   ui  |
+            +---+---+
+                |
+                v
++-----------+     +-------------+
+|   sync    |<--->| api_client  |
++-----------+     +-------------+
+      |
+      v
+   +-----+
+   |cache|
+   +-----+
+      ^
+      |
+   +-----+
+   | auth|
+   +-----+
+```
+
+The `app` crate launches the UI and coordinates other modules. During startup, the UI triggers the OAuth flow in the `auth` crate to obtain an access token. The `sync` crate uses this token through `api_client` to fetch photos and album data, storing the results via the `cache` crate. The UI then queries the cache to render thumbnails and albums, while sync continues to update the cache in the background.
+
 ## 🛠️ Technologies
 
 ### Core Technologies
@@ -173,6 +203,30 @@ cargo run --package googlepicz --bin sync_cli -- cache-stats
 ```
 
 Displays the number of cached albums and media items.
+
+## 📈 Performance Profiling
+
+Enable detailed tracing spans and Tokio's console to diagnose slow operations.
+Install the console viewer:
+
+```bash
+cargo install tokio-console
+```
+
+Run it in a separate terminal:
+
+```bash
+tokio-console
+```
+
+Launch the application with the profiling features enabled:
+
+```bash
+cargo run --package googlepicz --features sync/trace-spans,ui/trace-spans -- --debug-console
+```
+
+The console will display asynchronous task metrics while span timings are
+written to `~/.googlepicz/googlepicz.log`.
 
 ## 🐳 CI Docker Image
 

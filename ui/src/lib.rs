@@ -39,12 +39,14 @@ fn error_container_style() -> iced::theme::Container {
     }))
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument(skip(progress, errors)))]
 pub fn run(
     progress: Option<mpsc::UnboundedReceiver<SyncProgress>>,
     errors: Option<mpsc::UnboundedReceiver<String>>,
     preload: usize,
+    cache_dir: PathBuf,
 ) -> iced::Result {
-    GooglePiczUI::run(Settings::with_flags((progress, errors, preload)))
+    GooglePiczUI::run(Settings::with_flags((progress, errors, preload, cache_dir)))
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +109,7 @@ pub struct GooglePiczUI {
     synced: u64,
     syncing: bool,
     last_synced: Option<DateTime<Utc>>,
+    sync_status: String,
     state: ViewState,
     selected_album: Option<String>,
     errors: Vec<String>,
@@ -152,13 +155,14 @@ impl Application for GooglePiczUI {
         Option<mpsc::UnboundedReceiver<SyncProgress>>,
         Option<mpsc::UnboundedReceiver<String>>,
         usize,
+        PathBuf,
     );
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(flags)))]
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
-        let (progress_flag, error_flag, preload_count) = flags;
+        let (progress_flag, error_flag, preload_count, cache_dir) = flags;
         let mut init_errors = Vec::new();
-        let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        let cache_path = home_dir.join(".googlepicz").join("cache.sqlite");
+        let cache_path = cache_dir.join("cache.sqlite");
 
         let cache_manager = match CacheManager::new(&cache_path) {
             Ok(cm) => Some(Arc::new(Mutex::new(cm))),
@@ -175,12 +179,15 @@ impl Application for GooglePiczUI {
             None
         };
 
-        let image_cache_dir = home_dir.join(".googlepicz");
-
-        let image_loader = Arc::new(Mutex::new(ImageLoader::new(image_cache_dir)));
+        let image_loader = Arc::new(Mutex::new(ImageLoader::new(cache_dir.clone())));
 
         let progress_receiver = progress_flag.map(|rx| Arc::new(Mutex::new(rx)));
         let error_receiver = error_flag.map(|rx| Arc::new(Mutex::new(rx)));
+
+        let status = match last_synced {
+            Some(ts) => format!("Last synced {}", ts.to_rfc3339()),
+            None => "Never synced".to_string(),
+        };
 
         let app = Self {
             photos: Vec::new(),
@@ -195,6 +202,7 @@ impl Application for GooglePiczUI {
             synced: 0,
             syncing: false,
             last_synced,
+            sync_status: status,
             state: ViewState::Grid,
             selected_album: None,
             errors: init_errors,
@@ -217,6 +225,7 @@ impl Application for GooglePiczUI {
         String::from("GooglePicz - Google Photos Manager")
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::LoadPhotos => {
@@ -371,14 +380,25 @@ impl Application for GooglePiczUI {
                 self.state = ViewState::Grid;
             }
             Message::SyncProgress(progress) => match progress {
+                SyncProgress::Started => {
+                    self.synced = 0;
+                    self.syncing = true;
+                    self.sync_status = "Sync started".into();
+                }
+                SyncProgress::Retrying(wait) => {
+                    self.syncing = false;
+                    self.sync_status = format!("Retrying in {}s", wait);
+                }
                 SyncProgress::ItemSynced(count) => {
                     self.synced = count;
                     self.syncing = true;
+                    self.sync_status = format!("Syncing {} items", count);
                 }
                 SyncProgress::Finished(total) => {
                     self.synced = total;
                     self.syncing = false;
                     self.last_synced = Some(Utc::now());
+                    self.sync_status = format!("Sync completed: {} items", total);
                 }
             },
             Message::SyncError(err_msg) => {
@@ -524,6 +544,7 @@ impl Application for GooglePiczUI {
         Command::none()
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     fn subscription(&self) -> Subscription<Message> {
         let mut subs: Vec<Subscription<Message>> = Vec::new();
 
@@ -556,6 +577,7 @@ impl Application for GooglePiczUI {
         Subscription::batch(subs)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     fn view(&self) -> Element<Message> {
         let mut header = row![
             text("GooglePicz").size(24),
@@ -570,11 +592,7 @@ impl Application for GooglePiczUI {
         }
 
         header = header
-            .push(text(if self.syncing {
-                format!("Syncing {} items...", self.synced)
-            } else {
-                format!("Synced {} items", self.synced)
-            }))
+            .push(text(self.sync_status.clone()))
             .push(text(match self.last_synced {
                 Some(ts) => format!("Last synced {}", ts.to_rfc3339()),
                 None => "Never synced".to_string(),

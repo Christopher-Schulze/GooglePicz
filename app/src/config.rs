@@ -9,6 +9,7 @@ pub struct AppConfig {
     #[allow(dead_code)]
     pub sync_interval_minutes: u64,
     pub debug_console: bool,
+    pub cache_path: PathBuf,
 }
 
 pub struct AppConfigOverrides {
@@ -39,6 +40,14 @@ impl AppConfig {
         let thumbnails_preload = cfg.get_int("thumbnails_preload").unwrap_or(20) as usize;
         let sync_interval_minutes = cfg.get_int("sync_interval_minutes").unwrap_or(5) as u64;
         let debug_console = cfg.get_bool("debug_console").unwrap_or(false);
+        let cache_path = cfg
+            .get_string("cache_path")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                dirs::home_dir()
+                    .unwrap_or_else(|| PathBuf::from("."))
+                    .join(".googlepicz")
+            });
 
         Self {
             log_level,
@@ -46,6 +55,7 @@ impl AppConfig {
             thumbnails_preload,
             sync_interval_minutes,
             debug_console,
+            cache_path,
         }
     }
 

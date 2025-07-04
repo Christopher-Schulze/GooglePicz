@@ -1,4 +1,4 @@
-use sync::Syncer;
+use sync::{Syncer, SyncProgress};
 use serial_test::serial;
 use tempfile::NamedTempFile;
 use tokio::sync::mpsc;
@@ -16,13 +16,18 @@ async fn test_sync_media_items_reports_error() {
     let mut syncer = Syncer::new(file.path()).await.unwrap();
     // drop mock so sync_media_items fails when calling API
     std::env::remove_var("MOCK_API_CLIENT");
-    let (prog_tx, _prog_rx) = mpsc::unbounded_channel();
+    let (prog_tx, mut prog_rx) = mpsc::unbounded_channel();
     let (err_tx, mut err_rx) = mpsc::unbounded_channel();
     let result = syncer
         .sync_media_items(Some(prog_tx), Some(err_tx))
         .await;
     assert!(result.is_err());
     // ensure error forwarded
+    // ensure progress and error forwarded
+    match timeout(Duration::from_secs(5), prog_rx.recv()).await.unwrap() {
+        Some(SyncProgress::Started) => {}
+        other => panic!("expected Started progress, got {:?}", other),
+    }
     let err = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap();
     assert!(err.is_some());
     std::env::remove_var("MOCK_KEYRING");

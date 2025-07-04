@@ -2,7 +2,6 @@ use cache::CacheManager;
 use clap::{Parser, Subcommand};
 use api_client::ApiClient;
 use auth::ensure_access_token_valid;
-use dirs::home_dir;
 use std::path::PathBuf;
 use sync::{SyncProgress, Syncer};
 use tokio::sync::mpsc;
@@ -79,9 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         debug_console: cli.debug_console,
     };
     let cfg = config::AppConfig::load_from(cli.config.clone()).apply_overrides(&overrides);
-    let base_dir = home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".googlepicz");
+    let base_dir = cfg.cache_path.clone();
     std::fs::create_dir_all(&base_dir)?;
     let file_appender = rolling::daily(&base_dir, "googlepicz.log");
     let (file_writer, _guard) = tracing_appender::non_blocking(file_appender);
@@ -100,6 +97,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio::spawn(async move {
                 while let Some(p) = rx.recv().await {
                     match p {
+                        SyncProgress::Started => println!("Sync started"),
+                        SyncProgress::Retrying(wait) => println!("Retrying in {}s", wait),
                         SyncProgress::ItemSynced(n) => println!("Synced {} items...", n),
                         SyncProgress::Finished(total) => println!("Finished sync: {} items", total),
                     }
