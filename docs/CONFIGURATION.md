@@ -9,6 +9,7 @@ Values can be placed in `~/.googlepicz/config` and are loaded via the [config](h
 | `oauth_redirect_port` | `u16` | `8080` | Port used for OAuth redirect during authentication. |
 | `thumbnails_preload` | `usize` | `20` | Number of thumbnails to preload when displaying an album. |
 | `sync_interval_minutes` | `u64` | `5` | Minutes between automatic synchronization runs. |
+| `cache_path` | `String` | `"~/.googlepicz"` | Directory where cache and logs are stored. |
 | `debug_console` | `bool` | `false` | Enable the tokio console subscriber for debugging asynchronous tasks. |
 
 Create or edit `~/.googlepicz/config` and provide any of these keys to customize the application. Setting `debug_console = true` turns on Tokio's debugging console.

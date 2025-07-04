@@ -50,9 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         debug_console: cli.debug_console,
     };
     let cfg = config::AppConfig::load_from(cli.config.clone()).apply_overrides(&overrides);
-    let log_dir = dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".googlepicz");
+    let log_dir = cfg.cache_path.clone();
     std::fs::create_dir_all(&log_dir)?;
     let file_appender = rolling::daily(&log_dir, "googlepicz.log");
     let (file_writer, _guard) = tracing_appender::non_blocking(file_appender);
@@ -89,9 +87,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
     }
 
     // Setup cache directory
-    let cache_dir = dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".googlepicz");
+    let cache_dir = cfg.cache_path.clone();
 
     let db_path = cache_dir.join("cache.sqlite");
 
@@ -157,8 +153,9 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                 syncer.start_periodic_sync(interval, tx, err_tx)
             };
 
+            let cache_dir = cfg.cache_path.clone();
             let ui_thread = std::thread::spawn(move || {
-                if let Err(e) = ui::run(Some(rx), Some(err_rx), preload) {
+                if let Err(e) = ui::run(Some(rx), Some(err_rx), preload, cache_dir) {
                     error!("UI error: {}", e);
                 }
             });
@@ -172,7 +169,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
         Err(e) => {
             error!("❌ Failed to initialize syncer: {}", e);
             error!("💡 The UI will still start, but photos may not be available until sync is working.");
-            ui::run(None, None, cfg.thumbnails_preload)?;
+            ui::run(None, None, cfg.thumbnails_preload, cfg.cache_path.clone())?;
         }
     }
 
