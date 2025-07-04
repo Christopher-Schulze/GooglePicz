@@ -1,4 +1,4 @@
-use sync::Syncer;
+use sync::{Syncer, SyncProgress};
 use cache::CacheManager;
 use serial_test::serial;
 use tempfile::NamedTempFile;
@@ -15,7 +15,10 @@ async fn test_sync_flow_mock() {
     let (tx, mut rx) = mpsc::unbounded_channel();
     let mut syncer = Syncer::new(file.path()).await.unwrap();
     syncer.sync_media_items(Some(tx), None).await.unwrap();
-    assert!(rx.recv().await.is_some());
+    match rx.recv().await {
+        Some(sync::SyncProgress::Started) => {}
+        other => panic!("expected Started progress, got {:?}", other),
+    }
     let cache = CacheManager::new(file.path()).unwrap();
     let items = cache.get_all_media_items().unwrap();
     assert!(!items.is_empty());

@@ -30,7 +30,9 @@ pub struct Syncer {
 
 #[derive(Debug, Clone)]
 pub enum SyncProgress {
+    Started,
     ItemSynced(u64),
+    Retrying(u64),
     Finished(u64),
 }
 
@@ -59,6 +61,13 @@ impl Syncer {
         error: Option<mpsc::UnboundedSender<String>>,
     ) -> Result<(), SyncError> {
         tracing::info!("Starting media item synchronization...");
+        if let Some(tx) = &progress {
+            if let Err(e) = tx.send(SyncProgress::Started) {
+                if let Some(err_tx) = &error {
+                    let _ = err_tx.send(format!("Failed to send progress: {}", e));
+                }
+            }
+        }
         let mut page_token: Option<String> = None;
         let mut total_synced = 0;
 
@@ -206,6 +215,7 @@ impl Syncer {
                             let _ = error_tx.send(msg.clone());
                             let wait = backoff.min(300);
                             backoff = (backoff * 2).min(300);
+                            let _ = progress_tx.send(SyncProgress::Retrying(wait));
                             sleep(Duration::from_secs(wait)).await;
                         } else {
                             backoff = 1;

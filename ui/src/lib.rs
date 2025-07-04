@@ -109,6 +109,7 @@ pub struct GooglePiczUI {
     synced: u64,
     syncing: bool,
     last_synced: Option<DateTime<Utc>>,
+    sync_status: String,
     state: ViewState,
     selected_album: Option<String>,
     errors: Vec<String>,
@@ -183,6 +184,11 @@ impl Application for GooglePiczUI {
         let progress_receiver = progress_flag.map(|rx| Arc::new(Mutex::new(rx)));
         let error_receiver = error_flag.map(|rx| Arc::new(Mutex::new(rx)));
 
+        let status = match last_synced {
+            Some(ts) => format!("Last synced {}", ts.to_rfc3339()),
+            None => "Never synced".to_string(),
+        };
+
         let app = Self {
             photos: Vec::new(),
             albums: Vec::new(),
@@ -196,6 +202,7 @@ impl Application for GooglePiczUI {
             synced: 0,
             syncing: false,
             last_synced,
+            sync_status: status,
             state: ViewState::Grid,
             selected_album: None,
             errors: init_errors,
@@ -373,14 +380,25 @@ impl Application for GooglePiczUI {
                 self.state = ViewState::Grid;
             }
             Message::SyncProgress(progress) => match progress {
+                SyncProgress::Started => {
+                    self.synced = 0;
+                    self.syncing = true;
+                    self.sync_status = "Sync started".into();
+                }
+                SyncProgress::Retrying(wait) => {
+                    self.syncing = false;
+                    self.sync_status = format!("Retrying in {}s", wait);
+                }
                 SyncProgress::ItemSynced(count) => {
                     self.synced = count;
                     self.syncing = true;
+                    self.sync_status = format!("Syncing {} items", count);
                 }
                 SyncProgress::Finished(total) => {
                     self.synced = total;
                     self.syncing = false;
                     self.last_synced = Some(Utc::now());
+                    self.sync_status = format!("Sync completed: {} items", total);
                 }
             },
             Message::SyncError(err_msg) => {
@@ -574,11 +592,7 @@ impl Application for GooglePiczUI {
         }
 
         header = header
-            .push(text(if self.syncing {
-                format!("Syncing {} items...", self.synced)
-            } else {
-                format!("Synced {} items", self.synced)
-            }))
+            .push(text(self.sync_status.clone()))
             .push(text(match self.last_synced {
                 Some(ts) => format!("Last synced {}", ts.to_rfc3339()),
                 None => "Never synced".to_string(),
