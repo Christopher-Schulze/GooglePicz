@@ -15,11 +15,61 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use url::Url;
 use thiserror::Error;
+#[cfg(feature = "file-store")]
+use std::path::PathBuf;
+#[cfg(feature = "file-store")]
+use std::fs;
+#[cfg(feature = "file-store")]
+use std::collections::HashMap as FileMap;
+#[cfg(feature = "file-store")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "file-store")]
+use serde_json;
 
 const KEYRING_SERVICE_NAME: &str = "GooglePicz";
 const ACCESS_TOKEN_EXPIRY_KEY: &str = "access_token_expiry";
 
 static MOCK_STORE: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+#[cfg(feature = "file-store")]
+#[derive(Serialize, Deserialize, Default)]
+struct FileTokens(FileMap<String, String>);
+
+#[cfg(feature = "file-store")]
+fn token_file_path() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".googlepicz")
+        .join("tokens.json")
+}
+
+#[cfg(feature = "file-store")]
+fn store_value_file(key: &str, value: &str) -> Result<(), AuthError> {
+    let path = token_file_path();
+    let mut map = if path.exists() {
+        let data = fs::read_to_string(&path).map_err(|e| AuthError::Other(e.to_string()))?;
+        serde_json::from_str::<FileTokens>(&data).unwrap_or_default().0
+    } else {
+        FileMap::new()
+    };
+    map.insert(key.to_string(), value.to_string());
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| AuthError::Other(e.to_string()))?;
+    }
+    let data = serde_json::to_string(&FileTokens(map)).map_err(|e| AuthError::Other(e.to_string()))?;
+    fs::write(path, data).map_err(|e| AuthError::Other(e.to_string()))
+}
+
+#[cfg(feature = "file-store")]
+fn get_value_file(key: &str) -> Result<Option<String>, AuthError> {
+    let path = token_file_path();
+    if !path.exists() {
+        return Ok(None);
+    }
+    let data = fs::read_to_string(&path).map_err(|e| AuthError::Other(e.to_string()))?;
+    let map = serde_json::from_str::<FileTokens>(&data).unwrap_or_default();
+    Ok(map.0.get(key).cloned())
+}
 
 #[derive(Debug, Error)]
 pub enum AuthError {
@@ -41,10 +91,20 @@ fn store_value(key: &str, value: &str) -> Result<(), AuthError> {
     } else {
         let entry = Entry::new(KEYRING_SERVICE_NAME, key)
             .map_err(|e| AuthError::Keyring(e.to_string()))?;
-        entry
-            .set_password(value)
-            .map_err(|e| AuthError::Keyring(e.to_string()))?;
-        Ok(())
+        match entry.set_password(value) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                #[cfg(feature = "file-store")]
+                {
+                    store_value_file(key, value)?;
+                    Ok(())
+                }
+                #[cfg(not(feature = "file-store"))]
+                {
+                    Err(AuthError::Keyring(e.to_string()))
+                }
+            }
+        }
     }
 }
 
@@ -59,8 +119,31 @@ fn get_value(key: &str) -> Result<Option<String>, AuthError> {
             .map_err(|e| AuthError::Keyring(e.to_string()))?;
         match entry.get_password() {
             Ok(v) => Ok(Some(v)),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(AuthError::Keyring(e.to_string())),
+            Err(keyring::Error::NoEntry) => {
+                #[cfg(feature = "file-store")]
+                {
+                    Ok(get_value_file(key)?)
+                }
+                #[cfg(not(feature = "file-store"))]
+                {
+                    Ok(None)
+                }
+            }
+            Err(e) => {
+                #[cfg(feature = "file-store")]
+                {
+                    let val = get_value_file(key)?;
+                    if val.is_some() {
+                        Ok(val)
+                    } else {
+                        Err(AuthError::Keyring(e.to_string()))
+                    }
+                }
+                #[cfg(not(feature = "file-store"))]
+                {
+                    Err(AuthError::Keyring(e.to_string()))
+                }
+            }
         }
     }
 }
