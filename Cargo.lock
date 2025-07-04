@@ -586,6 +586,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
@@ -4234,6 +4235,7 @@ version = "0.1.0"
 dependencies = [
  "cargo-bundle-licenses",
  "cargo-deb",
+ "serde_json",
  "serial_test",
  "thiserror 1.0.69",
  "tokio",
@@ -5778,12 +5780,14 @@ dependencies = [
  "auth",
  "cache",
  "chrono",
+ "iced",
  "serde_json",
  "serial_test",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "ui",
 ]
 
 [[package]]
