@@ -231,10 +231,21 @@ impl Syncer {
                                 .await
                         {
                             let msg = format!("{}", e);
-                            let _ = error_tx.send(SyncTaskError::PeriodicSyncFailed(msg.clone()));
+                            if let Err(send_err) =
+                                error_tx.send(SyncTaskError::PeriodicSyncFailed(msg.clone()))
+                            {
+                                tracing::error!(error = ?send_err, "Failed to forward periodic sync error");
+                            }
                             let wait = backoff.min(300);
+                            tracing::error!(?e, backoff = wait, "Periodic sync failed");
                             backoff = (backoff * 2).min(300);
-                            let _ = progress_tx.send(SyncProgress::Retrying(wait));
+                            if let Err(send_err) = progress_tx.send(SyncProgress::Retrying(wait)) {
+                                tracing::error!(error = ?send_err, "Failed to send retry progress");
+                                let _ = error_tx.send(SyncTaskError::Other(format!(
+                                    "Failed to send progress update: {}",
+                                    send_err
+                                )));
+                            }
                             sleep(Duration::from_secs(wait)).await;
                         } else {
                             backoff = 1;
@@ -262,7 +273,12 @@ impl Syncer {
                         sleep(interval).await;
                         if let Err(e) = ensure_access_token_valid().await {
                             let msg = format!("{}", e);
-                            let _ = error_tx.send(SyncTaskError::TokenRefreshFailed(msg));
+                            tracing::error!(error = ?e, "Token refresh failed");
+                            if let Err(send_err) =
+                                error_tx.send(SyncTaskError::TokenRefreshFailed(msg))
+                            {
+                                tracing::error!(error = ?send_err, "Failed to forward token refresh error");
+                            }
                         }
                     } => {}
                 }
