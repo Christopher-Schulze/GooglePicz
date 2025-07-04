@@ -9,6 +9,7 @@ tracing = { workspace = true }
 toml = "0.5"
 thiserror = { workspace = true }
 which = "4"
+serde_json = "1"
 
 [dev-dependencies]
 serial_test = "2"
