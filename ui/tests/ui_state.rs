@@ -27,7 +27,7 @@ fn test_initial_state() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (ui, _) = GooglePiczUI::new((None, None, 0));
+    let (ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
     assert_eq!(ui.photo_count(), 0);
     assert_eq!(ui.album_count(), 0);
     assert_eq!(ui.state_debug(), "Grid");
@@ -40,7 +40,7 @@ fn test_select_and_close_photo() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
     let item = sample_item();
 
     let _ = ui.update(Message::SelectPhoto(item.clone()));
@@ -57,7 +57,7 @@ fn test_dismiss_error() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
     let _ = ui.update(Message::SyncError("err".into()));
     assert_eq!(ui.error_count(), 1);
     let _ = ui.update(Message::DismissError(0));
@@ -71,7 +71,7 @@ fn test_sync_error_added() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
     let _ = ui.update(Message::SyncError("boom".into()));
     assert!(ui.error_count() > 0);
 }
