@@ -17,6 +17,8 @@ pub enum ImageLoaderError {
     Request(String),
     #[error("io error: {0}")]
     Io(String),
+    #[error("semaphore closed")] 
+    SemaphoreClosed,
 }
 
 #[derive(Debug, Clone)]
@@ -42,7 +44,11 @@ impl ImageLoader {
         base_url: &str,
     ) -> Result<Handle, ImageLoaderError> {
         let start = Instant::now();
-        let _permit = self.semaphore.acquire().await.expect("semaphore");
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .map_err(|_| ImageLoaderError::SemaphoreClosed)?;
         // Create thumbnail URL (150x150 pixels)
         let thumbnail_url = format!("{}=w150-h150-c", base_url);
 
@@ -94,7 +100,11 @@ impl ImageLoader {
         base_url: &str,
     ) -> Result<Handle, ImageLoaderError> {
         let start = Instant::now();
-        let _permit = self.semaphore.acquire().await.expect("semaphore");
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .map_err(|_| ImageLoaderError::SemaphoreClosed)?;
         let full_url = format!("{}=d", base_url);
         let cache_path = self
             .cache_dir
