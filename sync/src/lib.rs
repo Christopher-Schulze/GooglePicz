@@ -259,4 +259,16 @@ mod tests {
         std::env::remove_var("MOCK_REFRESH_TOKEN");
         std::env::remove_var("MOCK_API_CLIENT");
     }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_syncer_new_invalid_db_path() {
+        std::env::set_var("MOCK_KEYRING", "1");
+        std::env::set_var("MOCK_REFRESH_TOKEN", "token");
+        let dir = tempfile::tempdir().expect("create dir");
+        let result = Syncer::new(dir.path()).await;
+        assert!(result.is_err());
+        std::env::remove_var("MOCK_REFRESH_TOKEN");
+        std::env::remove_var("MOCK_KEYRING");
+    }
 }
