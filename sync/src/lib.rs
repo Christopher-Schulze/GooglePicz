@@ -36,6 +36,16 @@ pub enum SyncProgress {
     Finished(u64),
 }
 
+#[derive(Debug, Clone, Error)]
+pub enum SyncTaskError {
+    #[error("Periodic sync failed: {0}")]
+    PeriodicSyncFailed(String),
+    #[error("Token refresh failed: {0}")]
+    TokenRefreshFailed(String),
+    #[error("Other task error: {0}")]
+    Other(String),
+}
+
 impl Syncer {
     #[cfg_attr(feature = "trace-spans", tracing::instrument)]
     pub async fn new(db_path: &Path) -> Result<Self, SyncError> {
@@ -58,13 +68,16 @@ impl Syncer {
     pub async fn sync_media_items(
         &mut self,
         progress: Option<mpsc::UnboundedSender<SyncProgress>>,
-        error: Option<mpsc::UnboundedSender<String>>,
+        error: Option<mpsc::UnboundedSender<SyncTaskError>>,
     ) -> Result<(), SyncError> {
         tracing::info!("Starting media item synchronization...");
         if let Some(tx) = &progress {
             if let Err(e) = tx.send(SyncProgress::Started) {
                 if let Some(err_tx) = &error {
-                    let _ = err_tx.send(format!("Failed to send progress: {}", e));
+                    let _ = err_tx.send(SyncTaskError::Other(format!(
+                        "Failed to send progress: {}",
+                        e
+                    )));
                 }
             }
         }
@@ -76,7 +89,7 @@ impl Syncer {
             Err(e) => {
                 let msg = format!("Failed to get last sync time: {}", e);
                 if let Some(tx) = &error {
-                    if let Err(send_err) = tx.send(msg.clone()) {
+                    if let Err(send_err) = tx.send(SyncTaskError::Other(msg.clone())) {
                         tracing::error!("Failed to forward error: {}", send_err);
                     }
                 }
@@ -99,7 +112,7 @@ impl Syncer {
             let token = ensure_access_token_valid().await.map_err(|e| {
                 let msg = format!("Failed to refresh token: {}", e);
                 if let Some(tx) = &error {
-                    if let Err(send_err) = tx.send(msg.clone()) {
+                    if let Err(send_err) = tx.send(SyncTaskError::Other(msg.clone())) {
                         tracing::error!("Failed to forward error: {}", send_err);
                     }
                 }
@@ -114,7 +127,7 @@ impl Syncer {
                 .map_err(|e| {
                     let msg = format!("Failed to list media items from API: {}", e);
                     if let Some(tx) = &error {
-                        if let Err(send_err) = tx.send(msg.clone()) {
+                        if let Err(send_err) = tx.send(SyncTaskError::Other(msg.clone())) {
                             tracing::error!("Failed to forward error: {}", send_err);
                         }
                     }
@@ -132,7 +145,7 @@ impl Syncer {
                     .map_err(|e| {
                         let msg = format!("Failed to insert media item into cache: {}", e);
                         if let Some(tx) = &error {
-                            if let Err(send_err) = tx.send(msg.clone()) {
+                            if let Err(send_err) = tx.send(SyncTaskError::Other(msg.clone())) {
                                 tracing::error!("Failed to forward error: {}", send_err);
                             }
                         }
@@ -142,7 +155,10 @@ impl Syncer {
                 if let Some(tx) = &progress {
                     if let Err(e) = tx.send(SyncProgress::ItemSynced(total_synced)) {
                         if let Some(err) = &error {
-                            if let Err(send_err) = err.send(format!("Failed to send progress update: {}", e)) {
+                            if let Err(send_err) = err.send(SyncTaskError::Other(format!(
+                                "Failed to send progress update: {}",
+                                e
+                            ))) {
                                 tracing::error!("Failed to forward error: {}", send_err);
                             }
                         }
@@ -168,7 +184,10 @@ impl Syncer {
         if let Some(tx) = &progress {
             if let Err(e) = tx.send(SyncProgress::Finished(total_synced)) {
                 if let Some(err) = &error {
-                    if let Err(send_err) = err.send(format!("Failed to send progress update: {}", e)) {
+                    if let Err(send_err) = err.send(SyncTaskError::Other(format!(
+                        "Failed to send progress update: {}",
+                        e
+                    ))) {
                         tracing::error!("Failed to forward error: {}", send_err);
                     }
                 }
@@ -180,7 +199,7 @@ impl Syncer {
             .map_err(|e| {
                 let msg = format!("Failed to update last sync: {}", e);
                 if let Some(tx) = &error {
-                    if let Err(send_err) = tx.send(msg.clone()) {
+                    if let Err(send_err) = tx.send(SyncTaskError::Other(msg.clone())) {
                         tracing::error!("Failed to forward error: {}", send_err);
                     }
                 }
@@ -194,7 +213,7 @@ impl Syncer {
         self,
         interval: Duration,
         progress_tx: mpsc::UnboundedSender<SyncProgress>,
-        error_tx: mpsc::UnboundedSender<String>,
+        error_tx: mpsc::UnboundedSender<SyncTaskError>,
     ) -> (JoinHandle<()>, oneshot::Sender<()>) {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
         let handle = spawn_local(async move {
@@ -211,8 +230,8 @@ impl Syncer {
                                 .sync_media_items(Some(progress_tx.clone()), Some(error_tx.clone()))
                                 .await
                         {
-                            let msg = format!("Periodic sync failed: {}", e);
-                            let _ = error_tx.send(msg.clone());
+                            let msg = format!("{}", e);
+                            let _ = error_tx.send(SyncTaskError::PeriodicSyncFailed(msg.clone()));
                             let wait = backoff.min(300);
                             backoff = (backoff * 2).min(300);
                             let _ = progress_tx.send(SyncProgress::Retrying(wait));
@@ -230,7 +249,7 @@ impl Syncer {
 
     pub fn start_token_refresh_task(
         interval: Duration,
-        error_tx: mpsc::UnboundedSender<String>,
+        error_tx: mpsc::UnboundedSender<SyncTaskError>,
     ) -> (JoinHandle<()>, oneshot::Sender<()>) {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
         let handle = spawn_local(async move {
@@ -242,8 +261,8 @@ impl Syncer {
                     _ = async {
                         sleep(interval).await;
                         if let Err(e) = ensure_access_token_valid().await {
-                            let msg = format!("Token refresh failed: {}", e);
-                            let _ = error_tx.send(msg);
+                            let msg = format!("{}", e);
+                            let _ = error_tx.send(SyncTaskError::TokenRefreshFailed(msg));
                         }
                     } => {}
                 }

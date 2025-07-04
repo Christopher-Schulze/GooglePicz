@@ -1,4 +1,4 @@
-use sync::Syncer;
+use sync::{Syncer, SyncTaskError};
 use serial_test::serial;
 use tokio::sync::mpsc;
 use tokio::time::{timeout, Duration};
@@ -8,7 +8,7 @@ use tokio::time::{timeout, Duration};
 async fn test_token_refresh_task_reports_error() {
     std::env::set_var("MOCK_KEYRING", "1");
     // No refresh token so refresh will fail
-    let (err_tx, mut err_rx) = mpsc::unbounded_channel();
+    let (err_tx, mut err_rx) = mpsc::unbounded_channel::<SyncTaskError>();
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {

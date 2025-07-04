@@ -19,7 +19,7 @@ use iced::Color;
 use iced::{executor, Application, Command, Element, Length, Settings, Subscription, Theme};
 use std::path::PathBuf;
 use std::sync::Arc;
-use sync::SyncProgress;
+use sync::{SyncProgress, SyncTaskError};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
@@ -42,7 +42,7 @@ fn error_container_style() -> iced::theme::Container {
 #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(progress, errors)))]
 pub fn run(
     progress: Option<mpsc::UnboundedReceiver<SyncProgress>>,
-    errors: Option<mpsc::UnboundedReceiver<String>>,
+    errors: Option<mpsc::UnboundedReceiver<SyncTaskError>>,
     preload: usize,
     cache_dir: PathBuf,
 ) -> iced::Result {
@@ -64,7 +64,7 @@ pub enum Message {
     SelectAlbum(Option<String>),
     ClosePhoto,
     SyncProgress(SyncProgress),
-    SyncError(String),
+    SyncError(SyncTaskError),
     DismissError(usize),
     ShowCreateAlbumDialog,
     AlbumTitleChanged(String),
@@ -105,7 +105,7 @@ pub struct GooglePiczUI {
     thumbnails: std::collections::HashMap<String, Handle>,
     full_images: std::collections::HashMap<String, Handle>,
     progress_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<SyncProgress>>>>,
-    error_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<String>>>>,
+    error_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<SyncTaskError>>>>,
     synced: u64,
     syncing: bool,
     last_synced: Option<DateTime<Utc>>,
@@ -153,7 +153,7 @@ impl Application for GooglePiczUI {
     type Theme = Theme;
     type Flags = (
         Option<mpsc::UnboundedReceiver<SyncProgress>>,
-        Option<mpsc::UnboundedReceiver<String>>,
+        Option<mpsc::UnboundedReceiver<SyncTaskError>>,
         usize,
         PathBuf,
     );
@@ -403,7 +403,7 @@ impl Application for GooglePiczUI {
             },
             Message::SyncError(err_msg) => {
                 tracing::error!("Sync error: {}", err_msg);
-                self.errors.push(err_msg);
+                self.errors.push(err_msg.to_string());
                 return GooglePiczUI::error_timeout();
             }
             Message::DismissError(index) => {

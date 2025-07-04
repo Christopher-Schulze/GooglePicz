@@ -1,4 +1,5 @@
 use ui::{GooglePiczUI, Message};
+use sync::SyncTaskError;
 use iced::Application;
 use tempfile::tempdir;
 use api_client::{MediaItem, MediaMetadata};
@@ -58,7 +59,7 @@ fn test_dismiss_error() {
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
     let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
-    let _ = ui.update(Message::SyncError("err".into()));
+    let _ = ui.update(Message::SyncError(SyncTaskError::Other("err".into())));
     assert_eq!(ui.error_count(), 1);
     let _ = ui.update(Message::DismissError(0));
     assert_eq!(ui.error_count(), 0);
@@ -72,6 +73,6 @@ fn test_sync_error_added() {
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
     let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
-    let _ = ui.update(Message::SyncError("boom".into()));
+    let _ = ui.update(Message::SyncError(SyncTaskError::Other("boom".into())));
     assert!(ui.error_count() > 0);
 }
