@@ -36,6 +36,9 @@ struct Cli {
     /// Path to config file
     #[arg(long)]
     config: Option<PathBuf>,
+    /// Enable tokio console for debugging
+    #[arg(long)]
+    debug_console: bool,
     #[command(subcommand)]
     command: Commands,
 }
@@ -73,6 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         oauth_redirect_port: cli.oauth_redirect_port,
         thumbnails_preload: cli.thumbnails_preload,
         sync_interval_minutes: cli.sync_interval_minutes,
+        debug_console: cli.debug_console,
     };
     let cfg = config::AppConfig::load_from(cli.config.clone()).apply_overrides(&overrides);
     let base_dir = home_dir()

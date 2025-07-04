@@ -242,6 +242,7 @@ impl CacheManager {
     }
 
     pub fn get_all_media_items(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let start = std::time::Instant::now();
         let mut stmt = self
             .conn
             .prepare(
@@ -280,6 +281,7 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
             })?);
         }
+        tracing::info!("cache_load_time_ms" = %start.elapsed().as_millis(), "items" = items.len());
         Ok(items)
     }
 

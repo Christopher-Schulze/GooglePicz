@@ -6,7 +6,8 @@ use reqwest;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use futures::future::join_all;
+use futures::StreamExt;
+use std::time::Instant;
 use thiserror::Error;
 use tokio::fs;
 
@@ -40,6 +41,7 @@ impl ImageLoader {
         media_id: &str,
         base_url: &str,
     ) -> Result<Handle, ImageLoaderError> {
+        let start = Instant::now();
         let _permit = self.semaphore.acquire().await.expect("semaphore");
         // Create thumbnail URL (150x150 pixels)
         let thumbnail_url = format!("{}=w150-h150-c", base_url);
@@ -82,6 +84,7 @@ impl ImageLoader {
         // Create handle
         let handle = Handle::from_path(&cache_path);
 
+        tracing::info!("thumbnail_time_ms" = %start.elapsed().as_millis(), "id" = media_id);
         Ok(handle)
     }
 
@@ -90,6 +93,7 @@ impl ImageLoader {
         media_id: &str,
         base_url: &str,
     ) -> Result<Handle, ImageLoaderError> {
+        let start = Instant::now();
         let _permit = self.semaphore.acquire().await.expect("semaphore");
         let full_url = format!("{}=d", base_url);
         let cache_path = self
@@ -122,6 +126,7 @@ impl ImageLoader {
             .await
             .map_err(|e| ImageLoaderError::Io(e.to_string()))?;
 
+        tracing::info!("full_image_time_ms" = %start.elapsed().as_millis(), "id" = media_id);
         Ok(Handle::from_path(&cache_path))
     }
 
@@ -132,15 +137,16 @@ impl ImageLoader {
 
     #[allow(dead_code)]
     pub async fn preload_thumbnails(&self, media_items: &[api_client::MediaItem], count: usize) {
-        let futures = media_items
-            .iter()
-            .take(count)
-            .map(|item| async move {
+        let start = Instant::now();
+        let stream = futures::stream::iter(media_items.iter().take(count));
+        stream
+            .for_each_concurrent(None, |item| async move {
                 if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {
                     tracing::error!("Failed to preload thumbnail for {}: {}", &item.id, e);
                 }
-            });
-        join_all(futures).await;
+            })
+            .await;
+        tracing::info!("preload_time_ms" = %start.elapsed().as_millis(), "count" = count);
     }
 }
 
