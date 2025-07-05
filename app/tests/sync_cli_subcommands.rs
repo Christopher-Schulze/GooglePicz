@@ -82,3 +82,21 @@ fn sync_cli_add_to_album_no_cache() {
         .success()
         .stdout(contains("No cache found"));
 }
+
+#[test]
+fn sync_cli_list_album_items_no_cache() {
+    build_cmd()
+        .args(&["list-album-items", "1"])
+        .assert()
+        .success()
+        .stdout(contains("No cache found"));
+}
+
+#[test]
+fn sync_cli_export_albums_no_cache() {
+    build_cmd()
+        .args(&["export-albums", "--file", "out.json"])
+        .assert()
+        .success()
+        .stdout(contains("No cache found"));
+}
