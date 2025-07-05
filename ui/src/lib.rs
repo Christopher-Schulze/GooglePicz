@@ -530,21 +530,18 @@ impl Application for GooglePiczUI {
             #[cfg(feature = "gstreamer")]
             Message::PlayVideo(item) => {
                 let url = format!("{}=dv", item.base_url);
-                if let Ok(mut player) = GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
-                    let _ = player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
-                    self.state = ViewState::PlayingVideo(player);
-                } else {
-                    let msg = "Failed to start video".to_string();
-                    self.errors.push(msg.clone());
-                    self.log_error(&msg);
-                    return GooglePiczUI::error_timeout();
                 match GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
                     Ok(mut player) => {
-                        player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
+                        let _ = player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
                         self.state = ViewState::PlayingVideo(player);
                     }
                     Err(e) => {
-                        let msg = format!("Failed to start video: {e}. Missing codecs?");
+                        let detail = e.to_string();
+                        let msg = if detail.to_lowercase().contains("initialize") {
+                            "GStreamer not available".to_string()
+                        } else {
+                            format!("Failed to start video: {detail}. Missing codecs?")
+                        };
                         self.errors.push(msg.clone());
                         self.log_error(&msg);
                         return GooglePiczUI::error_timeout();

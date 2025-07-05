@@ -28,4 +28,4 @@ harness = false
 
 [[test]]
 name = "video_playback"
-path = "tests/video_playback.rs"
+path = "video_playback.rs"

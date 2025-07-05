@@ -27,6 +27,7 @@ cargo-bundle-licenses = "0.4"
 assert_cmd = "2"
 predicates = "2"
 tempfile = "3"
+which = "5"
 
 [features]
 console = ["console-subscriber"]
