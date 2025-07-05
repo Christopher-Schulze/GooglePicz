@@ -71,6 +71,9 @@ jobs:
       - name: Verify metadata and artifacts
         run: cargo run --package packaging --bin ci_checks
 
+      - name: Run packager
+        run: cargo run --package packaging --bin packager
+
       - name: Upload Linux artifact
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4

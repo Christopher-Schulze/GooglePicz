@@ -1,4 +1,4 @@
-use ui::{GooglePiczUI, Message};
+use ui::{GooglePiczUI, Message, SearchMode};
 use sync::SyncTaskError;
 use iced::Application;
 use tempfile::tempdir;
@@ -117,4 +117,17 @@ fn test_search_input() {
     let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
     let _ = ui.update(Message::SearchInputChanged("query".into()));
     assert_eq!(ui.search_query(), "query");
+}
+
+#[test]
+#[serial]
+fn test_search_mode() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    assert_eq!(ui.search_mode(), SearchMode::Filename);
+    let _ = ui.update(Message::SearchModeChanged(SearchMode::Favoriten));
+    assert_eq!(ui.search_mode(), SearchMode::Favoriten);
 }

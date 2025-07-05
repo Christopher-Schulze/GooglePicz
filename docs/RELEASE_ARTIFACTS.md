@@ -42,3 +42,10 @@ Environment variables:
 
 These paths include the workspace version from `Cargo.toml` to guarantee
 reproducible artifact names across Linux, macOS and Windows.
+
+### GitHub Actions
+
+The workflow in `.github/workflows/rust.yml` runs the packager on
+Linux, macOS and Windows. Each run uploads the generated `.deb`, `.dmg`
+and Windows installer via `upload-artifact`. You can download these
+artifacts from the workflow run page without building them locally.
