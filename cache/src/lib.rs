@@ -918,6 +918,14 @@ impl CacheManager {
             .map_err(|e| CacheError::SerializationError(e.to_string()))
     }
 
+    pub fn export_albums<P: AsRef<Path>>(&self, path: P) -> Result<(), CacheError> {
+        let albums = self.get_all_albums()?;
+        let file = std::fs::File::create(path.as_ref())
+            .map_err(|e| CacheError::Other(format!("Failed to create export file: {}", e)))?;
+        serde_json::to_writer(file, &albums)
+            .map_err(|e| CacheError::SerializationError(e.to_string()))
+    }
+
     pub fn import_media_items<P: AsRef<Path>>(&self, path: P) -> Result<(), CacheError> {
         let file = std::fs::File::open(path.as_ref())
             .map_err(|e| CacheError::Other(format!("Failed to open import file: {}", e)))?;
@@ -967,6 +975,16 @@ impl CacheManager {
     {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.export_media_items(path))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn export_albums_async<P>(&self, path: P) -> Result<(), CacheError>
+    where
+        P: AsRef<Path> + Send + 'static,
+    {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.export_albums(path))
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }

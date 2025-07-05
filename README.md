@@ -160,11 +160,13 @@ See the following documents for additional details:
 
 Run the `sync_cli` binary for manual synchronization or to inspect the local cache.
 Like the GUI, it reads settings from `~/.googlepicz/config` via `AppConfig` and supports
-the same command line overrides (e.g. `--log-level debug`).
+the same command line overrides (e.g. `--log-level debug`). Available options include
+`--oauth-redirect-port`, `--thumbnails-preload`, `--sync-interval-minutes`, `--config`,
+`--debug-console` and `--use-file-store`.
 The tool exposes subcommands for `sync`, `status`, `clear-cache`, `list-albums`,
-`create-album`, `delete-album` and `cache-stats` and prints progress updates
-to stdout while downloading items. The source code lives in
-`app/src/bin/sync_cli.rs`.
+`create-album`, `delete-album`, `cache-stats`, `list-items`, `show-item`,
+`export-items`, `import-items` and `export-albums` and prints progress updates
+to stdout while downloading items. The source code lives in `app/src/bin/sync_cli.rs`.
 
 ```bash
 cargo run --package googlepicz --bin sync_cli -- sync
@@ -213,6 +215,36 @@ cargo run --package googlepicz --bin sync_cli -- cache-stats
 ```
 
 Shows how many albums and media items are cached locally.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- list-items --limit 5
+```
+
+Lists cached media items, optionally limiting the output.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- show-item ITEM_ID
+```
+
+Displays the JSON metadata for a single cached media item.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- export-items --file items.json
+```
+
+Exports all cached media items to a file.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- import-items --file items.json
+```
+
+Imports media items from a file.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- export-albums --file albums.json
+```
+
+Exports all cached albums to a file.
 
 ## Packaging & Signing
 

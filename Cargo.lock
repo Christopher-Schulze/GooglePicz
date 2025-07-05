@@ -2555,6 +2555,7 @@ dependencies = [
  "console-subscriber",
  "dirs",
  "predicates 2.1.5",
+ "serde_json",
  "sync",
  "tempfile",
  "tokio",
