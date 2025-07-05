@@ -165,6 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Sync => {
             let mut syncer = Syncer::new(&db_path).await?;
             let (tx, mut rx) = mpsc::unbounded_channel();
+            let (err_tx, mut err_rx) = mpsc::unbounded_channel();
             tokio::spawn(async move {
                 while let Some(p) = rx.recv().await {
                     match p {
@@ -175,8 +176,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             });
+            tokio::spawn(async move {
+                while let Some(e) = err_rx.recv().await {
+                    tracing::error!("sync error: {}", e);
+                    eprintln!("Error: {}", e);
+                }
+            });
             syncer
-                .sync_media_items(Some(tx), None, None, None)
+                .sync_media_items(Some(tx), Some(err_tx), None, None)
                 .await?;
         }
         Commands::Status => {

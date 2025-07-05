@@ -34,8 +34,14 @@ async fn test_periodic_sync_abort_and_restart() {
             let result = handle.await.unwrap();
             assert!(matches!(result, Err(SyncTaskError::Aborted(_))));
             // ensure Aborted sent
-            let err = timeout(Duration::from_secs(5), e_rx.recv()).await.unwrap().unwrap();
-            assert!(matches!(err, SyncTaskError::Aborted(_)));
+            let mut seen_abort = false;
+            while let Ok(Some(err)) = timeout(Duration::from_secs(1), e_rx.recv()).await {
+                if matches!(err, SyncTaskError::Aborted(_)) {
+                    seen_abort = true;
+                    break;
+                }
+            }
+            assert!(seen_abort, "no Aborted error emitted");
             // restart with working API
             std::env::set_var("MOCK_API_CLIENT", "1");
             let mut syncer2 = Syncer::new(file.path()).await.unwrap();

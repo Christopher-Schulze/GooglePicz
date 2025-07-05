@@ -530,14 +530,6 @@ impl Application for GooglePiczUI {
             #[cfg(feature = "gstreamer")]
             Message::PlayVideo(item) => {
                 let url = format!("{}=dv", item.base_url);
-                if let Ok(mut player) = GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
-                    let _ = player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
-                    self.state = ViewState::PlayingVideo(player);
-                } else {
-                    let msg = "Failed to start video".to_string();
-                    self.errors.push(msg.clone());
-                    self.log_error(&msg);
-                    return GooglePiczUI::error_timeout();
                 match GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
                     Ok(mut player) => {
                         player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
@@ -590,10 +582,10 @@ impl Application for GooglePiczUI {
             Message::SyncError(err_msg) => {
                 tracing::error!("Sync error: {}", err_msg);
                 let detail = match &err_msg {
-                    SyncTaskError::TokenRefreshFailed(msg)
-                    | SyncTaskError::PeriodicSyncFailed(msg)
-                    | SyncTaskError::Other(msg)
-                    | SyncTaskError::Aborted(msg) => msg.clone(),
+                    SyncTaskError::TokenRefreshFailed { message, .. }
+                    | SyncTaskError::PeriodicSyncFailed { message, .. }
+                    | SyncTaskError::Other { message, .. }
+                    | SyncTaskError::Aborted(message) => message.clone(),
                     SyncTaskError::RestartAttempt(attempt) => format!("Restart attempt {attempt}"),
                 };
                 if let Some(idx) = detail.find("last_success:") {
