@@ -1206,6 +1206,14 @@ impl CacheManager {
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
+
+    pub async fn get_faces_for_media_item(&self, _id: &str) -> Result<Vec<face_recognition::Face>, CacheError> {
+        Ok(Vec::new())
+    }
+
+    pub async fn update_face_name(&self, _id: &str, _idx: usize, _name: &str) -> Result<(), CacheError> {
+        Ok(())
+    }
 }
 
 // Die Unit-Tests sind wie in deinem Input (ausgelassen für Zeichenlimit), aber alles vollständig!

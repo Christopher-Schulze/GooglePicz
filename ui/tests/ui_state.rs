@@ -196,3 +196,26 @@ fn test_save_settings() {
     assert_eq!(saved.cache_path, PathBuf::from(new_cache_str));
     assert!(!ui.settings_open());
 }
+
+#[test]
+#[serial]
+fn test_faces_loaded_and_rename() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let item = sample_item();
+
+    let _ = ui.update(Message::SelectPhoto(item.clone()));
+    ui.update(Message::FacesLoaded(
+        item.id.clone(),
+        Ok(vec![face_recognition::Face { name: None, rect: (0, 0, 1, 1) }]),
+    ));
+    assert_eq!(ui.face_count(), 1);
+    ui.update(Message::StartRenameFace(0));
+    ui.update(Message::FaceNameChanged("Alice".into()));
+    let _ = ui.update(Message::SaveFaceName);
+    assert_eq!(ui.face_name(0), Some("Alice".into()));
+}
+
