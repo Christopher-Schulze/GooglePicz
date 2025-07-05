@@ -10,6 +10,9 @@ tempfile = "3"
 cache = { path = "../../cache" }
 api_client = { path = "../../api_client" }
 gstreamer_iced = "0.1"
+auth = { path = "../../auth" }
+sync = { path = "../../sync", default-features = false }
+ui = { path = "../../ui", default-features = false }
 
 [[test]]
 name = "album_e2e"
@@ -29,3 +32,8 @@ harness = false
 [[test]]
 name = "video_playback"
 path = "tests/video_playback.rs"
+
+[[test]]
+name = "auth_sync_ui_e2e"
+path = "tests/auth_sync_ui_e2e.rs"
+harness = false
