@@ -27,5 +27,10 @@ path = "tests/search_e2e.rs"
 harness = false
 
 [[test]]
+name = "album_add_photo_e2e"
+path = "tests/album_add_photo_e2e.rs"
+harness = false
+
+[[test]]
 name = "video_playback"
 path = "video_playback.rs"

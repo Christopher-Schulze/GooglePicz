@@ -10,6 +10,7 @@ use api_client::{Album, ApiClient, MediaItem};
 use app_config::AppConfig;
 use auth;
 use cache::CacheManager;
+use face_recognition;
 use chrono::{DateTime, Utc};
 use iced::subscription;
 use iced::widget::container::Appearance;
@@ -99,6 +100,12 @@ pub enum Message {
     LoadThumbnail(String, String), // media_id, base_url
     LoadFullImage(String, String),
     FullImageLoaded(String, Result<Handle, String>),
+    LoadFaces(String),
+    FacesLoaded(String, Result<Vec<face_recognition::Face>, String>),
+    StartRenameFace(usize),
+    FaceNameChanged(String),
+    SaveFaceName,
+    CancelFaceName,
     SelectPhoto(MediaItem),
     SelectAlbum(Option<String>),
     ClosePhoto,
@@ -200,7 +207,10 @@ impl std::fmt::Display for SearchMode {
 #[derive(Debug)]
 enum ViewState {
     Grid,
-    SelectedPhoto(MediaItem),
+    SelectedPhoto {
+        photo: MediaItem,
+        faces: Vec<face_recognition::Face>,
+    },
     #[cfg(feature = "gstreamer")]
     PlayingVideo(GstreamerIcedBase),
 }
@@ -240,6 +250,8 @@ pub struct GooglePiczUI {
     config_path: PathBuf,
     settings_log_level: String,
     settings_cache_path: String,
+    editing_face: Option<usize>,
+    face_name_input: String,
 }
 
 impl GooglePiczUI {
@@ -291,6 +303,24 @@ impl GooglePiczUI {
 
     pub fn settings_cache_path(&self) -> String {
         self.settings_cache_path.clone()
+    }
+
+    pub fn face_count(&self) -> usize {
+        match &self.state {
+            ViewState::SelectedPhoto { faces, .. } => faces.len(),
+            _ => 0,
+        }
+    }
+
+    pub fn face_name(&self, idx: usize) -> Option<String> {
+        match &self.state {
+            ViewState::SelectedPhoto { faces, .. } => faces.get(idx).and_then(|f| f.name.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn editing_face(&self) -> Option<usize> {
+        self.editing_face
     }
     fn log_error(&self, msg: &str) {
         if let Ok(mut file) = std::fs::OpenOptions::new()
@@ -399,6 +429,8 @@ impl Application for GooglePiczUI {
             config_path,
             settings_log_level: cfg.log_level.clone(),
             settings_cache_path: cfg.cache_path.to_string_lossy().to_string(),
+            editing_face: None,
+            face_name_input: String::new(),
         };
 
         (
@@ -536,10 +568,13 @@ impl Application for GooglePiczUI {
             Message::SelectPhoto(photo) => {
                 let id = photo.id.clone();
                 let url = photo.base_url.clone();
-                self.state = ViewState::SelectedPhoto(photo);
-                return Command::perform(async {}, move |_| {
-                    Message::LoadFullImage(id.clone(), url.clone())
-                });
+                self.state = ViewState::SelectedPhoto { photo, faces: Vec::new() };
+                return Command::batch(vec![
+                    Command::perform(async {}, move |_| {
+                        Message::LoadFullImage(id.clone(), url.clone())
+                    }),
+                    Command::perform(async {}, move |_| Message::LoadFaces(id.clone())),
+                ]);
             }
             Message::SelectAlbum(album_id) => {
                 self.selected_album = album_id;
@@ -557,6 +592,19 @@ impl Application for GooglePiczUI {
                     move |res| Message::FullImageLoaded(media_id, res.map_err(|e| e.to_string())),
                 );
             }
+            Message::LoadFaces(media_id) => {
+                if let Some(cm) = &self.cache_manager {
+                    let cm = cm.clone();
+                    let id_clone = media_id.clone();
+                    return Command::perform(
+                        async move {
+                            let cache = { let guard = cm.lock().await; guard.clone() };
+                            cache.get_faces_for_media_item(&id_clone).await.map_err(|e| e.to_string())
+                        },
+                        move |res| Message::FacesLoaded(media_id, res),
+                    );
+                }
+            }
             Message::FullImageLoaded(media_id, result) => match result {
                 Ok(handle) => {
                     self.full_images.insert(media_id, handle);
@@ -568,6 +616,50 @@ impl Application for GooglePiczUI {
                     return GooglePiczUI::error_timeout();
                 }
             },
+            Message::FacesLoaded(media_id, result) => {
+                if let ViewState::SelectedPhoto { photo, faces } = &mut self.state {
+                    if photo.id == media_id {
+                        *faces = result.unwrap_or_default();
+                    }
+                }
+            }
+            Message::StartRenameFace(idx) => {
+                self.editing_face = Some(idx);
+                if let ViewState::SelectedPhoto { faces, .. } = &self.state {
+                    if let Some(f) = faces.get(idx) {
+                        self.face_name_input = f.name.clone().unwrap_or_default();
+                    }
+                }
+            }
+            Message::FaceNameChanged(name) => {
+                self.face_name_input = name;
+            }
+            Message::SaveFaceName => {
+                if let Some(idx) = self.editing_face.take() {
+                    if let ViewState::SelectedPhoto { faces, photo } = &mut self.state {
+                        if let Some(face) = faces.get_mut(idx) {
+                            face.name = Some(self.face_name_input.clone());
+                        }
+                        if let Some(cm) = &self.cache_manager {
+                            let cm = cm.clone();
+                            let media_id = photo.id.clone();
+                            let name = self.face_name_input.clone();
+                            return Command::perform(
+                                async move {
+                                    let cache = { let guard = cm.lock().await; guard.clone() };
+                                    cache.update_face_name(&media_id, idx, &name).await.map_err(|e| e.to_string())
+                                },
+                                |_| Message::CancelFaceName,
+                            );
+                        }
+                    }
+                }
+                self.face_name_input.clear();
+            }
+            Message::CancelFaceName => {
+                self.editing_face = None;
+                self.face_name_input.clear();
+            }
             Message::ClosePhoto => {
                 self.state = ViewState::Grid;
             }
@@ -738,7 +830,7 @@ impl Application for GooglePiczUI {
             }
             Message::AlbumPicked(album) => {
                 self.assign_selection = Some(album.clone());
-                if let ViewState::SelectedPhoto(photo) = &self.state {
+                if let ViewState::SelectedPhoto { photo, .. } = &self.state {
                     if let Some(cm) = &self.cache_manager {
                         let cm = cm.clone();
                         let media_id = photo.id.clone();
@@ -1181,7 +1273,7 @@ impl Application for GooglePiczUI {
                     ]
                 }
             }
-            ViewState::SelectedPhoto(photo) => {
+            ViewState::SelectedPhoto { photo, faces } => {
                 let img: Element<Message> = if let Some(handle) = self.full_images.get(&photo.id) {
                     image(handle.clone())
                         .width(Length::Fill)
@@ -1201,10 +1293,27 @@ impl Application for GooglePiczUI {
                         title: a.title.clone().unwrap_or_else(|| "Untitled".into()),
                     })
                     .collect();
+                let mut faces_col = column![];
+                for (i, face) in faces.iter().enumerate() {
+                    let row_elem = if self.editing_face == Some(i) {
+                        row![
+                            text_input("Name", &self.face_name_input).on_input(Message::FaceNameChanged),
+                            button("Save").on_press(Message::SaveFaceName),
+                            button("Cancel").on_press(Message::CancelFaceName)
+                        ]
+                    } else {
+                        row![
+                            text(face.name.clone().unwrap_or_else(|| "?".into())),
+                            button("Rename").on_press(Message::StartRenameFace(i))
+                        ]
+                    };
+                    faces_col = faces_col.push(row_elem);
+                }
                 let mut col = column![
                     header,
                     button("Close").on_press(Message::ClosePhoto),
                     img,
+                    faces_col,
                     pick_list(
                         album_opts,
                         self.assign_selection.clone(),
