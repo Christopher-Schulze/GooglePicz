@@ -519,14 +519,27 @@ impl Application for GooglePiczUI {
             #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
             Message::PlayVideo(item) => {
                 let url = format!("{}=dv", item.base_url);
-                if let Ok(mut player) = GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
-                    player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
-                    self.state = ViewState::PlayingVideo(player);
-                } else {
-                    let msg = "Failed to start video".to_string();
-                    self.errors.push(msg.clone());
-                    self.log_error(&msg);
-                    return GooglePiczUI::error_timeout();
+                match url::Url::parse(&url) {
+                    Ok(parsed) => {
+                        match GstreamerIcedBase::new_url(&parsed, false) {
+                            Ok(mut player) => {
+                                player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
+                                self.state = ViewState::PlayingVideo(player);
+                            }
+                            Err(_) => {
+                                let msg = "Failed to start video".to_string();
+                                self.errors.push(msg.clone());
+                                self.log_error(&msg);
+                                return GooglePiczUI::error_timeout();
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let msg = format!("Invalid video URL: {}", e);
+                        self.errors.push(msg.clone());
+                        self.log_error(&msg);
+                        return GooglePiczUI::error_timeout();
+                    }
                 }
             }
             #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
