@@ -132,11 +132,13 @@ cargo build --release
 cargo fmt
 
 # Run linter
-cargo clippy
+cargo clippy --all -- -D warnings
 
 # Run tests
 cargo test
 ```
+Run `cargo fmt` and `cargo clippy --all -- -D warnings` locally before committing
+your changes to ensure consistent formatting and catch linter warnings.
 
 ## 🌎 Environment Variables
 
