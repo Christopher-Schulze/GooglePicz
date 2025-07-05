@@ -1017,7 +1017,7 @@ impl Application for GooglePiczUI {
                                     .get_media_items_by_description(&query)
                                     .map_err(|e| e.to_string()),
                                 SearchMode::Favoriten => cache
-                                    .get_media_items_by_favorite(true)
+                                    .get_favorite_media_items()
                                     .map_err(|e| e.to_string()),
                                 SearchMode::Filename => cache
                                     .get_media_items_by_filename(&query)
@@ -1031,7 +1031,9 @@ impl Application for GooglePiczUI {
                                 SearchMode::CameraMake => cache
                                     .get_media_items_by_camera_make(&query)
                                     .map_err(|e| e.to_string()),
-                                SearchMode::Text => Vec::new(),
+                                SearchMode::Text => cache
+                                    .get_media_items_by_text(&query)
+                                    .map_err(|e| e.to_string()),
                             }?;
 
                             let start_dt = parse_single_date(&start, false);
@@ -1162,11 +1164,14 @@ impl Application for GooglePiczUI {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     fn view(&self) -> Element<Message> {
         let placeholder = match self.search_mode {
+            SearchMode::Filename => "Filename",
+            SearchMode::Description => "Description",
+            SearchMode::Text => "Filename or description",
+            SearchMode::Favoriten => "Favorites", 
             SearchMode::MimeType => "Mime type",
             SearchMode::CameraModel => "Camera model",
             SearchMode::CameraMake => "Camera make",
             SearchMode::DateRange => "YYYY-MM-DD..YYYY-MM-DD",
-            _ => "Search",
         };
 
         let mut header = row![
