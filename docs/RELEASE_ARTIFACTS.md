@@ -25,6 +25,8 @@ This document describes how to build installers for all supported platforms.
 | `cargo-deb` | Build Debian packages | `cargo install cargo-deb` |
 | `cargo-bundle` | Bundle macOS apps | `cargo install cargo-bundle` |
 | `cargo-bundle-licenses` | Collect license metadata | `cargo install cargo-bundle-licenses` |
+| `cargo-rpm` | Build RPM packages | `cargo install cargo-rpm` |
+| `appimagetool` | Create AppImage bundles | Install from your distro or [AppImage releases](https://github.com/AppImage/AppImageKit/releases) |
 | `makensis` | Create Windows installers | Install the [NSIS](https://nsis.sourceforge.io/) package |
 
 Environment variables:
@@ -33,6 +35,7 @@ Environment variables:
 - `APPLE_ID` and `APPLE_PASSWORD` – Apple account used for notarization
 - `WINDOWS_CERT` and `WINDOWS_CERT_PASSWORD` – Code signing certificate for Windows
 - `LINUX_SIGN_KEY` – GPG key ID for signing `.deb` files
+- `LINUX_PACKAGE_FORMAT` – Package type on Linux (`deb`, `rpm` or `appimage`)
 
 Example values:
 
@@ -44,6 +47,40 @@ export WINDOWS_CERT="C:/certs/googlepicz.pfx"
 export WINDOWS_CERT_PASSWORD="secret"
 export LINUX_SIGN_KEY="0xDEADBEEF"
 ```
+
+### Step-by-Step Setup
+
+1. **Install Rust** using `rustup` if it's not already installed:
+
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+2. **Install the required Cargo tools**:
+
+   ```bash
+   cargo install cargo-deb cargo-bundle cargo-bundle-licenses cargo-rpm
+   ```
+
+3. **Install platform utilities**:
+   - **Linux** – install build dependencies and optional signing tools:
+
+     ```bash
+     sudo apt install glib2.0-dev gstreamer1.0-dev libssl-dev dpkg-sig appimagetool
+     ```
+
+     On Fedora/RHEL:
+
+     ```bash
+     sudo dnf install glib2-devel gstreamer1-devel openssl-devel rpm-build appimagetool
+     ```
+
+   - **macOS** – install Xcode command line tools with `xcode-select --install`.
+   - **Windows** – install the NSIS suite so `makensis` is available.
+
+4. With the tools available in your `PATH`, run the packager as shown below.
+   Use `LINUX_PACKAGE_FORMAT=rpm` or `LINUX_PACKAGE_FORMAT=appimage` to switch
+   the output format on Linux.
 
 ## Steps
 
@@ -60,7 +97,7 @@ export LINUX_SIGN_KEY="0xDEADBEEF"
 
    - Windows: `target/windows/GooglePicz-<version>-Setup.exe`
    - macOS: `target/release/GooglePicz.dmg`
-   - Linux: `target/GooglePicz-<version>.deb`
+   - Linux: `target/GooglePicz-<version>.<ext>` where `<ext>` is `deb`, `rpm` or `AppImage`
 
 These paths include the workspace version from `Cargo.toml` to guarantee
 reproducible artifact names across Linux, macOS and Windows.
@@ -85,7 +122,7 @@ Follow these steps to create and sign final release artifacts:
      notarized with `notarytool` and stapled.
    - **Windows** – Both the installer and `googlepicz.exe` are signed using
      `signtool`.
-   - **Linux** – The generated `.deb` is signed via `dpkg-sig`.
+   - **Linux** – The generated package (`.deb`, `.rpm` or `AppImage`) is optionally signed.
 5. The packager verifies each signature (`codesign --verify`, `signtool verify`,
    `dpkg-sig --verify`). Check the console output for any errors.
 6. Upload the versioned artifacts from the `target` directory when creating the

@@ -14,6 +14,22 @@ use which::which;
 
 pub mod utils;
 
+fn find_by_extension(dir: &std::path::Path, ext: &str) -> Option<PathBuf> {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(p) = find_by_extension(&path, ext) {
+                    return Some(p);
+                }
+            } else if path.extension().map(|e| e == ext).unwrap_or(false) {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
 #[derive(Debug, Error)]
 pub enum PackagingError {
     #[error("Command Error: {0}")]
@@ -37,7 +53,12 @@ fn verify_tools() -> Result<(), PackagingError> {
 
     tools.push(("cargo", "cargo"));
     if cfg!(target_os = "linux") {
-        tools.push(("cargo-deb", "cargo-deb (install with `cargo install cargo-deb`)"));
+        let format = std::env::var("LINUX_PACKAGE_FORMAT").unwrap_or_else(|_| "deb".into());
+        match format.as_str() {
+            "rpm" => tools.push(("cargo-rpm", "cargo-rpm (install with `cargo install cargo-rpm`)")),
+            "appimage" => tools.push(("appimagetool", "appimagetool")),
+            _ => tools.push(("cargo-deb", "cargo-deb (install with `cargo install cargo-deb`)")),
+        }
     } else if cfg!(target_os = "macos") {
         tools.push(("cargo-bundle", "cargo-bundle (install with `cargo install cargo-bundle`)"));
         tools.push(("codesign", "codesign"));
@@ -308,23 +329,26 @@ fn create_windows_installer() -> Result<(), PackagingError> {
 
 #[cfg_attr(feature = "trace-spans", tracing::instrument)]
 fn create_linux_package() -> Result<(), PackagingError> {
+    let format = std::env::var("LINUX_PACKAGE_FORMAT").unwrap_or_else(|_| "deb".into());
+    match format.as_str() {
+        "rpm" => create_rpm_package(),
+        "appimage" => create_appimage_package(),
+        _ => create_deb_package(),
+    }
+}
+
+fn create_deb_package() -> Result<(), PackagingError> {
     tracing::info!("Creating Linux .deb package...");
 
-    // Determine the version from the workspace Cargo.toml
     let version = workspace_version()?;
-
-    // Build the package with the explicit version
     run_command("cargo", &["deb", "--deb-version", &version])?;
 
-    // Locate the produced .deb file in target/debian
     let root = get_project_root();
     let deb_dir = root.join("target/debian");
     let deb_entries = match fs::read_dir(&deb_dir) {
         Ok(entries) => entries,
         Err(_) => {
-            if std::env::var("MOCK_COMMANDS").is_ok() {
-                return Ok(());
-            } else {
+            if std::env::var("MOCK_COMMANDS").is_ok() { return Ok(()); } else {
                 return Err(PackagingError::Other("No .deb package produced".into()));
             }
         }
@@ -335,14 +359,11 @@ fn create_linux_package() -> Result<(), PackagingError> {
         .find(|p| p.extension().map(|ext| ext == "deb").unwrap_or(false));
 
     let Some(deb_path) = deb_path else {
-        if std::env::var("MOCK_COMMANDS").is_ok() {
-            return Ok(());
-        } else {
+        if std::env::var("MOCK_COMMANDS").is_ok() { return Ok(()); } else {
             return Err(PackagingError::Other("No .deb package produced".into()));
         }
     };
 
-    // Optionally sign the package
     if let Ok(key_id) = std::env::var("LINUX_SIGN_KEY") {
         if !key_id.is_empty() {
             let deb_str = deb_path.to_string_lossy();
@@ -351,11 +372,50 @@ fn create_linux_package() -> Result<(), PackagingError> {
         }
     }
 
-    // Rename to include the version similar to the Windows installer
     let versioned = root.join(format!("GooglePicz-{}.deb", version));
     fs::rename(&deb_path, &versioned)
         .map_err(|e| PackagingError::Other(format!("Failed to rename .deb: {}", e)))?;
 
+    Ok(())
+}
+
+fn create_rpm_package() -> Result<(), PackagingError> {
+    tracing::info!("Creating Linux .rpm package...");
+
+    let version = workspace_version()?;
+    run_command("cargo", &["rpm", "build", "--release"])?;
+
+    let root = get_project_root();
+    let rpm_path = find_by_extension(&root.join("target"), "rpm");
+    let Some(rpm_path) = rpm_path else {
+        if std::env::var("MOCK_COMMANDS").is_ok() { return Ok(()); } else {
+            return Err(PackagingError::Other("No .rpm package produced".into()));
+        }
+    };
+
+    let versioned = root.join(format!("GooglePicz-{}.rpm", version));
+    fs::rename(&rpm_path, &versioned)
+        .map_err(|e| PackagingError::Other(format!("Failed to rename .rpm: {}", e)))?;
+    Ok(())
+}
+
+fn create_appimage_package() -> Result<(), PackagingError> {
+    tracing::info!("Creating Linux AppImage package...");
+
+    let version = workspace_version()?;
+    run_command("cargo", &["appimage"])?;
+
+    let root = get_project_root();
+    let app_path = find_by_extension(&root.join("target"), "AppImage");
+    let Some(app_path) = app_path else {
+        if std::env::var("MOCK_COMMANDS").is_ok() { return Ok(()); } else {
+            return Err(PackagingError::Other("No AppImage produced".into()));
+        }
+    };
+
+    let versioned = root.join(format!("GooglePicz-{}.AppImage", version));
+    fs::rename(&app_path, &versioned)
+        .map_err(|e| PackagingError::Other(format!("Failed to rename AppImage: {}", e)))?;
     Ok(())
 }
 
@@ -383,9 +443,14 @@ pub fn create_installer() -> Result<(), PackagingError> {
         create_linux_package()?;
         let root = get_project_root();
         let version = workspace_version()?;
-        let deb = root.join(format!("GooglePicz-{}.deb", version));
-        if !deb.exists() && std::env::var("MOCK_COMMANDS").is_err() {
-            return Err(PackagingError::Other(format!("Expected installer {:?} not found", deb)));
+        let format = std::env::var("LINUX_PACKAGE_FORMAT").unwrap_or_else(|_| "deb".into());
+        let path = match format.as_str() {
+            "rpm" => root.join(format!("GooglePicz-{}.rpm", version)),
+            "appimage" => root.join(format!("GooglePicz-{}.AppImage", version)),
+            _ => root.join(format!("GooglePicz-{}.deb", version)),
+        };
+        if !path.exists() && std::env::var("MOCK_COMMANDS").is_err() {
+            return Err(PackagingError::Other(format!("Expected installer {:?} not found", path)));
         }
         Ok(())
     } else {
