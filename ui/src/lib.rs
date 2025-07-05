@@ -1,10 +1,12 @@
 //! User Interface module for GooglePicz.
 
 mod image_loader;
+mod video_downloader;
 #[path = "../app/src/config.rs"]
 mod app_config;
 
 pub use image_loader::{ImageLoader, ImageLoaderError};
+pub use video_downloader::{VideoDownloader, VideoDownloadError};
 
 use api_client::{Album, ApiClient, MediaItem};
 use app_config::AppConfig;
@@ -33,6 +35,8 @@ use tokio::time::{sleep, Duration};
 use gstreamer_iced::{GstreamerIcedBase, GStreamerMessage, PlayStatus};
 #[cfg(feature = "gstreamer")]
 use gstreamer_iced::reexport::url;
+#[cfg(feature = "gstreamer")]
+use gstreamer as gst;
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
 
@@ -142,6 +146,10 @@ pub enum Message {
     VideoEvent(GStreamerMessage),
     #[cfg(feature = "gstreamer")]
     CloseVideo,
+    #[cfg(feature = "gstreamer")]
+    VideoDownloaded(std::path::PathBuf),
+    #[cfg(feature = "gstreamer")]
+    VideoDownloadFailed(String),
     ClearErrors,
     ShowSettings,
     CloseSettings,
@@ -361,6 +369,11 @@ impl Application for GooglePiczUI {
         let error_log_path = cache_dir.join("ui_errors.log");
         let cache_path = cache_dir.join("cache.sqlite");
         let config_path = cache_dir.join("config");
+
+        #[cfg(feature = "gstreamer")]
+        if let Err(e) = gst::init() {
+            init_errors.push(format!("GStreamer initialization failed: {}", e));
+        }
 
         let cache_manager = match CacheManager::new(&cache_path) {
             Ok(cm) => Some(Arc::new(Mutex::new(cm))),
@@ -668,7 +681,31 @@ impl Application for GooglePiczUI {
             #[cfg(feature = "gstreamer")]
             Message::PlayVideo(item) => {
                 let url = format!("{}=dv", item.base_url);
-                match GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
+                let loader = self.image_loader.clone();
+                return Command::perform(
+                    async move {
+                        let cache_dir = { loader.lock().await.cache_dir() };
+                        let path = cache_dir
+                            .join("videos")
+                            .join(format!("{}.mp4", item.id));
+                        if let Err(e) = VideoDownloader::new()
+                            .download_progressive(&url, &path)
+                            .await
+                        {
+                            Err(e.to_string())
+                        } else {
+                            Ok(path)
+                        }
+                    },
+                    |res| match res {
+                        Ok(p) => Message::VideoDownloaded(p),
+                        Err(e) => Message::VideoDownloadFailed(e),
+                    },
+                );
+            }
+            #[cfg(feature = "gstreamer")]
+            Message::VideoDownloaded(path) => {
+                match GstreamerIcedBase::new_url(&url::Url::from_file_path(&path).unwrap(), false) {
                     Ok(mut player) => {
                         let _ = player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
                         self.state = ViewState::PlayingVideo(player);
@@ -685,6 +722,12 @@ impl Application for GooglePiczUI {
                         return GooglePiczUI::error_timeout();
                     }
                 }
+            }
+            #[cfg(feature = "gstreamer")]
+            Message::VideoDownloadFailed(err) => {
+                self.errors.push(err.clone());
+                self.log_error(&err);
+                return GooglePiczUI::error_timeout();
             }
             #[cfg(feature = "gstreamer")]
             Message::VideoEvent(msg) => {

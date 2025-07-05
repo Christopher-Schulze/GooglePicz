@@ -49,6 +49,11 @@ impl ImageLoader {
         }
     }
 
+    /// Return path to the cache directory used by this loader
+    pub fn cache_dir(&self) -> PathBuf {
+        self.cache_dir.clone()
+    }
+
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn load_thumbnail(
         &self,
