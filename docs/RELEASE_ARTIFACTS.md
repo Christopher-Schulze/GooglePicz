@@ -127,3 +127,15 @@ Follow these steps to create and sign final release artifacts:
    `dpkg-sig --verify`). Check the console output for any errors.
 6. Upload the versioned artifacts from the `target` directory when creating the
    GitHub release.
+
+### Uploading the artifacts
+
+The generated installers can be attached to a GitHub release either via the web
+interface or using the `gh` CLI:
+
+```bash
+gh release upload <tag> target/release/GooglePicz-*.dmg GooglePicz-*.{deb,rpm,AppImage} target/windows/GooglePicz-*-Setup.exe
+```
+
+Replace `<tag>` with the version tag you are publishing. Drag‑and‑drop also
+works on the release page.

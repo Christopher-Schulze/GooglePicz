@@ -68,3 +68,73 @@ jobs:
         with:
           name: checksums-${{ runner.os }}
           path: checksums.txt
+
+  build-installers:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            format: deb
+          - os: ubuntu-latest
+            format: rpm
+          - os: ubuntu-latest
+            format: appimage
+          - os: macos-latest
+            format: dmg
+          - os: windows-latest
+            format: nsis
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install cargo tools (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo install cargo-deb
+          cargo install cargo-rpm
+          sudo apt-get update
+          sudo apt-get install -y appimagetool
+
+      - name: Install cargo-bundle
+        if: matrix.os == 'macos-latest'
+        run: cargo install cargo-bundle
+
+      - name: Install NSIS
+        if: matrix.os == 'windows-latest'
+        run: choco install nsis -y
+
+      - name: Build installer
+        run: cargo run --package packaging --bin packager
+        env:
+          LINUX_PACKAGE_FORMAT: ${{ matrix.format }}
+
+      - name: Verify artifacts
+        run: cargo run --package packaging --bin ci_checks
+
+      - name: Upload Linux artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: googlepicz-linux-${{ matrix.format }}
+          path: GooglePicz-*.*
+
+      - name: Upload macOS artifact
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: googlepicz-macos
+          path: target/release/GooglePicz-*.dmg
+
+      - name: Upload Windows artifact
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: googlepicz-windows
+          path: target/windows/GooglePicz-*-Setup.exe
