@@ -219,6 +219,11 @@ impl Syncer {
         let handle = spawn_local(async move {
             let mut syncer = self;
             let mut backoff = 1u64;
+            let mut last_success = syncer
+                .cache_manager
+                .get_last_sync_async()
+                .await
+                .unwrap_or_else(|_| DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH));
             loop {
                 tokio::select! {
                     _ = &mut shutdown_rx => {
@@ -230,7 +235,18 @@ impl Syncer {
                                 .sync_media_items(Some(progress_tx.clone()), Some(error_tx.clone()))
                                 .await
                         {
-                            let msg = format!("{}", e);
+                            let code = match e {
+                                SyncError::AuthenticationError(_) => "auth",
+                                SyncError::ApiClientError(_) => "api",
+                                SyncError::CacheError(_) => "cache",
+                                SyncError::Other(_) => "other",
+                            };
+                            let msg = format!(
+                                "{} | code: {} | last_success: {}",
+                                e,
+                                code,
+                                last_success.to_rfc3339()
+                            );
                             if let Err(send_err) =
                                 error_tx.send(SyncTaskError::PeriodicSyncFailed(msg.clone()))
                             {
@@ -248,6 +264,7 @@ impl Syncer {
                             }
                             sleep(Duration::from_secs(wait)).await;
                         } else {
+                            last_success = Utc::now();
                             backoff = 1;
                             sleep(interval).await;
                         }
@@ -264,6 +281,7 @@ impl Syncer {
     ) -> (JoinHandle<()>, oneshot::Sender<()>) {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
         let handle = spawn_local(async move {
+            let mut last_success = Utc::now();
             loop {
                 tokio::select! {
                     _ = &mut shutdown_rx => {
@@ -272,13 +290,25 @@ impl Syncer {
                     _ = async {
                         sleep(interval).await;
                         if let Err(e) = ensure_access_token_valid().await {
-                            let msg = format!("{}", e);
+                            let code = match &e {
+                                auth::AuthError::Keyring(_) => "keyring",
+                                auth::AuthError::OAuth(_) => "oauth",
+                                auth::AuthError::Other(_) => "other",
+                            };
+                            let msg = format!(
+                                "{} | code: {} | last_success: {}",
+                                e,
+                                code,
+                                last_success.to_rfc3339()
+                            );
                             tracing::error!(error = ?e, "Token refresh failed");
                             if let Err(send_err) =
                                 error_tx.send(SyncTaskError::TokenRefreshFailed(msg))
                             {
                                 tracing::error!(error = ?send_err, "Failed to forward token refresh error");
                             }
+                        } else {
+                            last_success = Utc::now();
                         }
                     } => {}
                 }

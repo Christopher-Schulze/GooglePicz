@@ -26,8 +26,19 @@ async fn test_periodic_sync_reports_error() {
             assert!(matches!(start, Some(SyncProgress::Started)));
             let retry = timeout(Duration::from_secs(5), prog_rx.recv()).await.unwrap();
             assert!(matches!(retry, Some(SyncProgress::Retrying(_))));
-            let err = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap();
-            assert!(err.is_some());
+            let err1 = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap();
+            let err2 = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap();
+            let detail_err = [err1, err2]
+                .into_iter()
+                .flatten()
+                .find(|e| matches!(e, SyncTaskError::PeriodicSyncFailed(_)))
+                .expect("no periodic sync failure");
+            if let SyncTaskError::PeriodicSyncFailed(detail) = detail_err {
+                assert!(detail.contains("last_success"));
+                assert!(detail.contains("code:"));
+            } else {
+                panic!("unexpected error variant: {:?}", detail_err);
+            }
             let _ = shutdown.send(());
             let _ = handle.await;
         })
@@ -62,9 +73,16 @@ async fn test_periodic_sync_progress_send_failure_forwarded() {
             drop(prog_rx);
             // first error is from periodic sync failing, second from progress send failure
             let first = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap();
-            assert!(first.is_some());
             let second = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap();
-            assert!(second.is_some());
+            let primary = [first, second]
+                .into_iter()
+                .flatten()
+                .find(|e| matches!(e, SyncTaskError::PeriodicSyncFailed(_)))
+                .expect("no periodic failure");
+            if let SyncTaskError::PeriodicSyncFailed(msg) = &primary {
+                assert!(msg.contains("last_success"));
+                assert!(msg.contains("code:"));
+            }
             let _ = shutdown.send(());
             let _ = handle.await;
         })

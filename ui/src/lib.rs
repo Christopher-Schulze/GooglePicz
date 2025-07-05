@@ -457,15 +457,22 @@ impl Application for GooglePiczUI {
             },
             Message::SyncError(err_msg) => {
                 tracing::error!("Sync error: {}", err_msg);
-                match err_msg {
-                    SyncTaskError::TokenRefreshFailed(msg) => {
-                        self.errors
-                            .push(format!("Failed to refresh token: {}", msg));
-                    }
-                    other => {
-                        self.errors.push(other.to_string());
+                let detail = match &err_msg {
+                    SyncTaskError::TokenRefreshFailed(msg)
+                    | SyncTaskError::PeriodicSyncFailed(msg)
+                    | SyncTaskError::Other(msg) => msg.clone(),
+                };
+                if let Some(idx) = detail.find("last_success:") {
+                    let ts_str = detail[idx + "last_success:".len()..].trim();
+                    if let Some(end) = ts_str.split_whitespace().next() {
+                        if let Ok(dt) = DateTime::parse_from_rfc3339(end) {
+                            self.last_synced = Some(dt.with_timezone(&Utc));
+                        }
                     }
                 }
+                self.errors.push(err_msg.to_string());
+                self.sync_status = "Sync error".into();
+                self.syncing = false;
                 return GooglePiczUI::error_timeout();
             }
             Message::DismissError(index) => {
