@@ -15,6 +15,7 @@ fn sample_item(id: &str) -> MediaItem {
             creation_time: "2023-01-01T00:00:00Z".into(),
             width: "1".into(),
             height: "1".into(),
+            video: None,
         },
         filename: format!("{}.jpg", id),
     }
@@ -28,7 +29,7 @@ fn test_new_applies_migrations() {
     let version: i64 = conn
         .query_row("SELECT version FROM schema_version", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 11);
+    assert_eq!(version, 12);
 }
 
 #[test]

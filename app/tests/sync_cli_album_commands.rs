@@ -25,6 +25,7 @@ fn sample_item(id: &str) -> api_client::MediaItem {
             creation_time: "2023-01-01T00:00:00Z".into(),
             width: "1".into(),
             height: "1".into(),
+            video: None,
         },
         filename: format!("{}.jpg", id),
     }

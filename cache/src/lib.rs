@@ -154,6 +154,13 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
             "CREATE INDEX IF NOT EXISTS idx_media_items_is_favorite ON media_items (is_favorite);\
              UPDATE schema_version SET version = 11;"
         ),
+        M::up(
+            "ALTER TABLE media_metadata ADD COLUMN camera_make TEXT;\
+             ALTER TABLE media_metadata ADD COLUMN camera_model TEXT;\
+             ALTER TABLE media_metadata ADD COLUMN fps REAL;\
+             ALTER TABLE media_metadata ADD COLUMN status TEXT;\
+             UPDATE schema_version SET version = 12;"
+        ),
     ]);
     migrations
         .to_latest(conn)
@@ -217,9 +224,18 @@ impl CacheManager {
         conn
             .execute(
                 "INSERT OR REPLACE INTO media_metadata (
-                    media_item_id, creation_time, width, height
-                ) VALUES (?1, ?2, ?3, ?4)",
-                params![item.id, creation_ts, width, height],
+                    media_item_id, creation_time, width, height, camera_make, camera_model, fps, status
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    item.id,
+                    creation_ts,
+                    width,
+                    height,
+                    item.media_metadata.video.as_ref().and_then(|v| v.camera_make.clone()),
+                    item.media_metadata.video.as_ref().and_then(|v| v.camera_model.clone()),
+                    item.media_metadata.video.as_ref().and_then(|v| v.fps),
+                    item.media_metadata.video.as_ref().and_then(|v| v.status.clone()),
+                ],
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to insert metadata: {}", e)))?;
 
@@ -230,7 +246,7 @@ impl CacheManager {
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
-                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
                  WHERE m.id = ?1",
@@ -264,8 +280,14 @@ impl CacheManager {
                         let h: i64 = row.get(7).map_err(|e| CacheError::DatabaseError(e.to_string()))?;
                         h.to_string()
                     },
+                    video: Some(api_client::VideoMetadata {
+                        camera_make: row.get(8).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                        camera_model: row.get(9).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                        fps: row.get(10).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                        status: row.get(11).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                    }),
                 },
-                filename: row.get(8).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
+                filename: row.get(12).map_err(|e| CacheError::DatabaseError(e.to_string()))?,
             };
             Ok(Some(item))
         } else {
@@ -278,7 +300,7 @@ impl CacheManager {
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
-                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id",
             )
@@ -299,8 +321,14 @@ impl CacheManager {
                         creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
+                        video: Some(api_client::VideoMetadata {
+                            camera_make: row.get(8)?,
+                            camera_model: row.get(9)?,
+                            fps: row.get(10)?,
+                            status: row.get(11)?,
+                        }),
                     },
-                    filename: row.get(8)?,
+                    filename: row.get(12)?,
                 })
             })
             .map_err(|e| {
@@ -321,7 +349,7 @@ impl CacheManager {
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
-                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
                  WHERE m.mime_type = ?1",
@@ -343,8 +371,14 @@ impl CacheManager {
                         creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
+                        video: Some(api_client::VideoMetadata {
+                            camera_make: row.get(8)?,
+                            camera_model: row.get(9)?,
+                            fps: row.get(10)?,
+                            status: row.get(11)?,
+                        }),
                     },
-                    filename: row.get(8)?,
+                    filename: row.get(12)?,
                 })
             })
             .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
@@ -363,7 +397,7 @@ impl CacheManager {
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
-                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
                  WHERE m.filename LIKE ?1",
@@ -385,8 +419,14 @@ impl CacheManager {
                         creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
+                        video: Some(api_client::VideoMetadata {
+                            camera_make: row.get(8)?,
+                            camera_model: row.get(9)?,
+                            fps: row.get(10)?,
+                            status: row.get(11)?,
+                        }),
                     },
-                    filename: row.get(8)?,
+                    filename: row.get(12)?,
                 })
             })
             .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
@@ -404,7 +444,7 @@ impl CacheManager {
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
-                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
                  WHERE m.is_favorite = 1",
@@ -426,8 +466,14 @@ impl CacheManager {
                         creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
+                        video: Some(api_client::VideoMetadata {
+                            camera_make: row.get(8)?,
+                            camera_model: row.get(9)?,
+                            fps: row.get(10)?,
+                            status: row.get(11)?,
+                        }),
                     },
-                    filename: row.get(8)?,
+                    filename: row.get(12)?,
                 })
             })
             .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
@@ -569,7 +615,7 @@ impl CacheManager {
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
-                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN album_media_items ami ON m.id = ami.media_item_id
                  JOIN media_metadata md ON m.id = md.media_item_id
@@ -592,8 +638,14 @@ impl CacheManager {
                         creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
+                        video: Some(api_client::VideoMetadata {
+                            camera_make: row.get(8)?,
+                            camera_model: row.get(9)?,
+                            fps: row.get(10)?,
+                            status: row.get(11)?,
+                        }),
                     },
-                    filename: row.get(8)?,
+                    filename: row.get(12)?,
                 })
             })
             .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items by album: {}", e)))?;
@@ -611,7 +663,7 @@ impl CacheManager {
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
-                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
                  WHERE md.creation_time >= ?1 AND md.creation_time <= ?2",
@@ -633,8 +685,14 @@ impl CacheManager {
                         creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
+                        video: Some(api_client::VideoMetadata {
+                            camera_make: row.get(8)?,
+                            camera_model: row.get(9)?,
+                            fps: row.get(10)?,
+                            status: row.get(11)?,
+                        }),
                     },
-                    filename: row.get(8)?,
+                    filename: row.get(12)?,
                 })
             })
             .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items by date: {}", e)))?;
@@ -825,6 +883,7 @@ mod tests {
                 creation_time: "2023-01-01T00:00:00Z".into(),
                 width: "1".into(),
                 height: "1".into(),
+                video: None,
             },
             filename: format!("{}.jpg", id),
         }

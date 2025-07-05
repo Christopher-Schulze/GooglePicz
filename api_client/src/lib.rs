@@ -22,7 +22,17 @@ pub struct MediaMetadata {
     pub creation_time: String,
     pub width: String,
     pub height: String,
-    // Other fields like photo, video can be added if needed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video: Option<VideoMetadata>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoMetadata {
+    pub camera_make: Option<String>,
+    pub camera_model: Option<String>,
+    pub fps: Option<f32>,
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -102,6 +112,7 @@ impl ApiClient {
                 creation_time: "2023-01-01T00:00:00Z".into(),
                 width: "1".into(),
                 height: "1".into(),
+                video: None,
             },
             filename: format!("{}.jpg", id),
         }
