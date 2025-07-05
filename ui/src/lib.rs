@@ -24,9 +24,9 @@ use sync::{SyncProgress, SyncTaskError};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
-#[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+#[cfg(feature = "gstreamer")]
 use gstreamer_iced::{GstreamerIcedBase, GStreamerMessage, PlayStatus};
-#[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+#[cfg(feature = "gstreamer")]
 use gstreamer_iced::reexport::url;
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
@@ -111,11 +111,11 @@ pub enum Message {
     SearchInputChanged(String),
     SearchModeChanged(SearchMode),
     PerformSearch,
-    #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+    #[cfg(feature = "gstreamer")]
     PlayVideo(MediaItem),
-    #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+    #[cfg(feature = "gstreamer")]
     VideoEvent(GStreamerMessage),
-    #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+    #[cfg(feature = "gstreamer")]
     CloseVideo,
     ClearErrors,
 }
@@ -176,7 +176,7 @@ impl std::fmt::Display for SearchMode {
 enum ViewState {
     Grid,
     SelectedPhoto(MediaItem),
-    #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+    #[cfg(feature = "gstreamer")]
     PlayingVideo(GstreamerIcedBase),
 }
 
@@ -516,26 +516,33 @@ impl Application for GooglePiczUI {
             Message::ClosePhoto => {
                 self.state = ViewState::Grid;
             }
-            #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+            #[cfg(feature = "gstreamer")]
             Message::PlayVideo(item) => {
                 let url = format!("{}=dv", item.base_url);
-                if let Ok(mut player) = GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
-                    player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
-                    self.state = ViewState::PlayingVideo(player);
-                } else {
-                    let msg = "Failed to start video".to_string();
-                    self.errors.push(msg.clone());
-                    self.log_error(&msg);
-                    return GooglePiczUI::error_timeout();
+                match GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
+                    Ok(mut player) => {
+                        player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
+                        self.state = ViewState::PlayingVideo(player);
+                    }
+                    Err(e) => {
+                        let msg = format!("Failed to start video: {e}. Missing codecs?");
+                        self.errors.push(msg.clone());
+                        self.log_error(&msg);
+                        return GooglePiczUI::error_timeout();
+                    }
                 }
             }
-            #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+            #[cfg(feature = "gstreamer")]
             Message::VideoEvent(msg) => {
                 if let ViewState::PlayingVideo(player) = &mut self.state {
+                    if let GStreamerMessage::BusGoToEnd = msg {
+                        self.state = ViewState::Grid;
+                        return Command::none();
+                    }
                     return player.update(msg).map(Message::VideoEvent);
                 }
             }
-            #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+            #[cfg(feature = "gstreamer")]
             Message::CloseVideo => {
                 self.state = ViewState::Grid;
             }
@@ -836,7 +843,7 @@ impl Application for GooglePiczUI {
             }));
         }
 
-        #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+        #[cfg(feature = "gstreamer")]
         if let ViewState::PlayingVideo(player) = &self.state {
             subs.push(player.subscription().map(Message::VideoEvent));
         }
@@ -1055,17 +1062,17 @@ impl Application for GooglePiczUI {
                         Message::AlbumPicked
                     )
                 ];
-                #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+                #[cfg(feature = "gstreamer")]
                 if photo.mime_type.starts_with("video/") {
                     col = col.push(button("Play Video").on_press(Message::PlayVideo(photo.clone())));
                 }
-                #[cfg(any(feature = "no-gstreamer", not(feature = "gstreamer_iced")))]
+                #[cfg(not(feature = "gstreamer"))]
                 if photo.mime_type.starts_with("video/") {
                     col = col.push(text("Video playback not available"));
                 }
                 col
             }
-            #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+            #[cfg(feature = "gstreamer")]
             ViewState::PlayingVideo(player) => {
                 let frame = player
                     .frame_handle()

@@ -31,11 +31,11 @@ tools.
 Video playback relies on the GStreamer multimedia framework. On most Linux
 systems you need to install the development packages `glib2.0-dev`,
 `gstreamer1.0-dev` and `libssl-dev` (or their distribution equivalents) before
-building. If GStreamer is not available you can disable video support with the
-`ui/no-gstreamer` feature when compiling the UI:
+building. If GStreamer is not available you can disable video support by
+building the `ui` crate without default features:
 
 ```bash
-cargo build -p ui --features ui/no-gstreamer --no-default-features
+cargo build -p ui --no-default-features
 ```
 
 Without these libraries the application will still run, but videos cannot be
