@@ -7,7 +7,10 @@ use std::fs;
 #[test]
 #[serial]
 fn test_package_all_mock() {
-    std::env::set_var("MOCK_COMMANDS", "1");
+    let use_real = std::env::var("CI_PACKAGING_TOOLS").is_ok();
+    if !use_real {
+        std::env::set_var("MOCK_COMMANDS", "1");
+    }
     let root = get_project_root();
 
     if cfg!(target_os = "linux") {
@@ -53,7 +56,9 @@ fn test_package_all_mock() {
         fs::remove_file(exe).unwrap();
     }
 
-    std::env::remove_var("MOCK_COMMANDS");
+    if !use_real {
+        std::env::remove_var("MOCK_COMMANDS");
+    }
 }
 
 
