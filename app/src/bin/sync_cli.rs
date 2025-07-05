@@ -67,6 +67,24 @@ enum Commands {
     },
     /// Show statistics about cached data
     CacheStats,
+    /// List cached media items
+    ListItems {
+        /// Maximum number of items to display
+        #[arg(long)]
+        limit: Option<usize>,
+    },
+    /// Export all cached media items to a JSON file
+    ExportItems {
+        /// Path to the export file
+        #[arg(long)]
+        file: PathBuf,
+    },
+    /// Import media items from a JSON file
+    ImportItems {
+        /// Path to the JSON file
+        #[arg(long)]
+        file: PathBuf,
+    },
 }
 
 #[cfg_attr(feature = "trace-spans", tracing::instrument)]
@@ -184,6 +202,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let items = cache.get_all_media_items()?.len();
             println!("Albums: {}", albums);
             println!("Media items: {}", items);
+        }
+        Commands::ListItems { limit } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            let items = cache.get_all_media_items()?;
+            let max = limit.unwrap_or(10);
+            for item in items.iter().take(max) {
+                println!("{} - {}", item.id, item.filename);
+            }
+        }
+        Commands::ExportItems { file } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            cache.export_media_items(&file)?;
+            println!("Exported to {:?}", file);
+        }
+        Commands::ImportItems { file } => {
+            if !db_path.exists() {
+                std::fs::create_dir_all(&base_dir)?;
+            }
+            let cache = CacheManager::new(&db_path)?;
+            cache.import_media_items(&file)?;
+            println!("Imported from {:?}", file);
         }
     }
 

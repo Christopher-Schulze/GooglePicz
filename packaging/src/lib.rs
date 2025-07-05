@@ -9,6 +9,7 @@
 use thiserror::Error;
 use std::fs;
 use std::process::Command;
+use std::path::PathBuf;
 use which::which;
 
 pub mod utils;
@@ -123,6 +124,34 @@ pub fn bundle_licenses() -> Result<(), PackagingError> {
 pub fn build_release() -> Result<(), PackagingError> {
     tracing::info!("Building release binary...");
     run_command("cargo", &["build", "--release"])
+}
+
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
+pub fn clean_artifacts() -> Result<(), PackagingError> {
+    use std::ffi::OsStr;
+    let root = get_project_root();
+
+    let remove_if_match = |dir: PathBuf, prefix: &str, ext: &str| {
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
+                if name.starts_with(prefix) && path.extension().and_then(OsStr::to_str) == Some(ext) {
+                    let _ = fs::remove_file(&path);
+                }
+            }
+        }
+    };
+
+    if cfg!(target_os = "linux") {
+        remove_if_match(root.clone(), "GooglePicz-", "deb");
+    } else if cfg!(target_os = "macos") {
+        remove_if_match(root.join("target/release"), "GooglePicz-", "dmg");
+    } else if cfg!(target_os = "windows") {
+        remove_if_match(root.join("target/windows"), "GooglePicz-", "exe");
+    }
+
+    Ok(())
 }
 
 #[cfg_attr(feature = "trace-spans", tracing::instrument)]
@@ -342,6 +371,7 @@ pub fn package_all() -> Result<(), PackagingError> {
     std::env::set_current_dir(&root)
         .map_err(|e| PackagingError::Other(format!("Failed to change directory: {}", e)))?;
 
+    clean_artifacts()?;
     bundle_licenses()?;
     build_release()?;
     create_installer()
