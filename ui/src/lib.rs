@@ -23,6 +23,8 @@ use sync::{SyncProgress, SyncTaskError};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
+use gstreamer_iced::{GstreamerIcedBase, GStreamerMessage, PlayStatus};
+use gstreamer_iced::reexport::url;
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
 
@@ -105,6 +107,9 @@ pub enum Message {
     CancelDeleteAlbum,
     SearchInputChanged(String),
     PerformSearch,
+    PlayVideo(MediaItem),
+    VideoEvent(GStreamerMessage),
+    CloseVideo,
     ClearErrors,
 }
 
@@ -120,10 +125,11 @@ impl std::fmt::Display for AlbumOption {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum ViewState {
     Grid,
     SelectedPhoto(MediaItem),
+    PlayingVideo(GstreamerIcedBase),
 }
 
 pub struct GooglePiczUI {
@@ -433,6 +439,24 @@ impl Application for GooglePiczUI {
             Message::ClosePhoto => {
                 self.state = ViewState::Grid;
             }
+            Message::PlayVideo(item) => {
+                let url = format!("{}=dv", item.base_url);
+                if let Ok(mut player) = GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
+                    player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
+                    self.state = ViewState::PlayingVideo(player);
+                } else {
+                    self.errors.push("Failed to start video".into());
+                    return GooglePiczUI::error_timeout();
+                }
+            }
+            Message::VideoEvent(msg) => {
+                if let ViewState::PlayingVideo(player) = &mut self.state {
+                    return player.update(msg).map(Message::VideoEvent);
+                }
+            }
+            Message::CloseVideo => {
+                self.state = ViewState::Grid;
+            }
             Message::SyncProgress(progress) => match progress {
                 SyncProgress::Started => {
                     self.synced = 0;
@@ -692,6 +716,10 @@ impl Application for GooglePiczUI {
             }));
         }
 
+        if let ViewState::PlayingVideo(player) = &self.state {
+            subs.push(player.subscription().map(Message::VideoEvent));
+        }
+
         Subscription::batch(subs)
     }
 
@@ -884,7 +912,7 @@ impl Application for GooglePiczUI {
                         title: a.title.clone().unwrap_or_else(|| "Untitled".into()),
                     })
                     .collect();
-                column![
+                let mut col = column![
                     header,
                     button("Close").on_press(Message::ClosePhoto),
                     img,
@@ -893,6 +921,20 @@ impl Application for GooglePiczUI {
                         self.assign_selection.clone(),
                         Message::AlbumPicked
                     )
+                ];
+                if photo.mime_type.starts_with("video/") {
+                    col = col.push(button("Play Video").on_press(Message::PlayVideo(photo.clone())));
+                }
+                col
+            }
+            ViewState::PlayingVideo(player) => {
+                let frame = player
+                    .frame_handle()
+                    .unwrap_or_else(|| image::Handle::from_pixels(1, 1, vec![0, 0, 0, 0]));
+                column![
+                    header,
+                    button("Close").on_press(Message::CloseVideo),
+                    image(frame).width(Length::Fill).height(Length::Fill)
                 ]
             }
         };
