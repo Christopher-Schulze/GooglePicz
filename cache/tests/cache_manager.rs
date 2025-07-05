@@ -302,7 +302,36 @@ fn test_query_media_items_combined() {
     let start = Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
     let end = Utc.with_ymd_and_hms(2023, 1, 31, 23, 59, 59).unwrap();
     let results = cm
-        .query_media_items(Some("EOS"), Some(start), Some(end), Some(true))
+        .query_media_items(Some("EOS"), Some(start), Some(end), Some(true), None)
+        .unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].id, item1.id);
+}
+
+#[test]
+fn test_query_media_items_text_date_fav() {
+    let file = NamedTempFile::new().unwrap();
+    let cm = CacheManager::new(file.path()).unwrap();
+    let mut item1 = sample_item("1");
+    item1.description = Some("holiday".into());
+    item1.media_metadata.creation_time = "2023-01-02T00:00:00Z".into();
+    cm.insert_media_item(&item1).unwrap();
+    {
+        let conn = cm.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE media_items SET is_favorite = 1 WHERE id = ?1",
+            rusqlite::params![item1.id],
+        )
+        .unwrap();
+    }
+    let mut item2 = sample_item("2");
+    item2.description = Some("holiday".into());
+    item2.media_metadata.creation_time = "2023-02-01T00:00:00Z".into();
+    cm.insert_media_item(&item2).unwrap();
+    let start = Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
+    let end = Utc.with_ymd_and_hms(2023, 1, 31, 23, 59, 59).unwrap();
+    let results = cm
+        .query_media_items(None, Some(start), Some(end), Some(true), Some("holiday"))
         .unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].id, item1.id);
