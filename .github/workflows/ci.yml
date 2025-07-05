@@ -30,14 +30,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Format check
-        run: cargo fmt --check
-
-      - name: Clippy check
-        run: cargo clippy --all -- -D warnings
-
-      - name: Run tests
-        run: cargo test
+      - uses: ./.github/actions/checks
 
   packaging-tests:
     runs-on: ${{ matrix.os }}

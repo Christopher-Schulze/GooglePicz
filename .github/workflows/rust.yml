@@ -3,10 +3,14 @@ name: Rust CI
 on:
   push:
     branches: ["main"]
+    tags: ['*']
   pull_request:
+  release:
+    types: [published]
 
 jobs:
   package:
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -53,14 +57,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Format check
-        run: cargo fmt -- --check
-
-      - name: Clippy check
-        run: cargo clippy -- -D warnings
-
-      - name: Run tests
-        run: cargo test --all
+      - uses: ./.github/actions/checks
 
       - name: Build release
         run: cargo build --release --package googlepicz
