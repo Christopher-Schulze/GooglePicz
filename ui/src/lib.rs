@@ -1412,7 +1412,14 @@ impl Application for GooglePiczUI {
                         ]
                     } else {
                         row![
-                            text(face.name.clone().unwrap_or_else(|| "?".into())),
+                            text(format!(
+                                "({},{},{},{}) {}",
+                                face.bbox[0],
+                                face.bbox[1],
+                                face.bbox[2],
+                                face.bbox[3],
+                                face.name.clone().unwrap_or_else(|| "?".into())
+                            )),
                             button("Rename").on_press(Message::StartRenameFace(i))
                         ]
                     };
