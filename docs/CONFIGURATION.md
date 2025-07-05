@@ -54,3 +54,21 @@ cargo build -p ui --no-default-features
 
 Without these libraries the application will still run, but videos cannot be
 played back.
+
+### Building Workspace Crates Without Optional Features
+
+Some crates enable additional capabilities through default features.
+The `ui` crate pulls in the GStreamer backend and the `face_recognition` crate
+contains experimental code. To compile the workspace without these extras, use
+`--no-default-features` and exclude the unused crate:
+
+```bash
+cargo build --workspace --no-default-features --exclude face_recognition --exclude e2e
+```
+
+You can also build individual crates without their optional features:
+
+```bash
+cargo build -p ui --no-default-features
+cargo build -p face_recognition --no-default-features
+```
