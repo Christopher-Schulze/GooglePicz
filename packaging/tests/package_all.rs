@@ -16,6 +16,12 @@ fn test_package_all_mock() {
         fs::write(deb_dir.join("dummy.deb"), b"test").unwrap();
     }
 
+    if cfg!(target_os = "macos") {
+        let release_dir = root.join("target/release");
+        fs::create_dir_all(&release_dir).unwrap();
+        fs::write(release_dir.join("GooglePicz.dmg"), b"test").unwrap();
+    }
+
     if cfg!(target_os = "windows") {
         let version = workspace_version().unwrap();
         let win_dir = root.join("target/windows");
@@ -31,6 +37,13 @@ fn test_package_all_mock() {
         let deb_file = root.join(format!("GooglePicz-{}.deb", version));
         assert!(deb_file.exists(), "Expected {:?} to exist", deb_file);
         fs::remove_file(deb_file).unwrap();
+    }
+
+    if cfg!(target_os = "macos") {
+        let version = workspace_version().unwrap();
+        let dmg = root.join(format!("target/release/GooglePicz-{}.dmg", version));
+        assert!(dmg.exists(), "Expected {:?} to exist", dmg);
+        fs::remove_file(dmg).unwrap();
     }
 
     if cfg!(target_os = "windows") {
