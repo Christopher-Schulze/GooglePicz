@@ -37,6 +37,9 @@ struct Cli {
     /// Enable tokio console for debugging
     #[arg(long)]
     debug_console: bool,
+    /// Enable tracing spans instrumentation
+    #[arg(long)]
+    trace_spans: bool,
 }
 
 #[cfg_attr(feature = "trace-spans", tracing::instrument)]
@@ -49,6 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         thumbnails_preload: cli.thumbnails_preload,
         sync_interval_minutes: cli.sync_interval_minutes,
         debug_console: cli.debug_console,
+        trace_spans: cli.trace_spans,
     };
     let cfg = config::AppConfig::load_from(cli.config.clone()).apply_overrides(&overrides);
     let log_dir = cfg.cache_path.clone();

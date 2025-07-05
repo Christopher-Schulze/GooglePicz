@@ -11,10 +11,14 @@ Values can be placed in `~/.googlepicz/config` and are loaded via the [config](h
 | `sync_interval_minutes` | `u64` | `5` | Minutes between automatic synchronization runs. |
 | `cache_path` | `String` | `"~/.googlepicz"` | Directory where cache and logs are stored. |
 | `debug_console` | `bool` | `false` | Enable the tokio console subscriber for debugging asynchronous tasks. |
+| `trace_spans` | `bool` | `false` | Record detailed tracing spans when compiled with the `trace-spans` features. |
 
 Create or edit `~/.googlepicz/config` and provide any of these keys to customize the application. Setting `debug_console = true` turns on Tokio's debugging console.
 
+Setting `trace_spans = true` enables tracing instrumentation across all crates. The application must be built with the corresponding `trace-spans` features, e.g. `cargo run --features sync/trace-spans,ui/trace-spans`.
+
 All settings can also be overridden at runtime using command line options. Run `googlepicz --help` or `sync_cli --help` to see the available flags. The `debug_console` option can be enabled with the `--debug-console` flag.
+Use `--trace-spans` to enable `trace_spans` from the command line.
 
 If the application is built with the optional `file-store` feature, authentication
 tokens may be written to `~/.googlepicz/tokens.json` instead of the system

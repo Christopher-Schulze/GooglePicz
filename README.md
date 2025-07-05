@@ -80,6 +80,7 @@ The configuration file `~/.googlepicz/config` accepts these keys:
 | `sync_interval_minutes` | `5` | Interval for automatic sync tasks |
 | `cache_path` | `~/.googlepicz` | Directory for cache and logs |
 | `debug_console` | `false` | Enable Tokio console diagnostics |
+| `trace_spans` | `false` | Record detailed tracing spans when compiled with the `trace-spans` features |
 
 ### Setting up OAuth Credentials
 
@@ -111,6 +112,7 @@ Having trouble starting the application? Here are a few common issues:
 - **GStreamer not installed** – Build with `--features ui/no-gstreamer` to disable the video backend.
 - **Developing without network access** – Set `MOCK_API_CLIENT=1` and `MOCK_KEYRING=1` (and optionally `MOCK_ACCESS_TOKEN`/`MOCK_REFRESH_TOKEN`) to run all tests without hitting Google APIs.
 - **Need more insight into async tasks?** – Set `debug_console = true` in `~/.googlepicz/config` or pass `--debug-console` to print detailed Tokio diagnostics.
+- **Profiling spans** – Set `trace_spans = true` or pass `--trace-spans` and build with `--features sync/trace-spans,ui/trace-spans` to record timing data.
 - **Missing system libraries on Linux** – Install `glib2.0-dev`, `gstreamer1.0-dev` and `libssl-dev` (or the equivalent packages for your distribution). On Debian/Ubuntu run:
 
   ```bash

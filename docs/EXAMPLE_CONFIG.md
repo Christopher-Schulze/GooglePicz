@@ -9,6 +9,7 @@ thumbnails_preload = 30
 sync_interval_minutes = 15
 cache_path = "/tmp/googlepicz"
 debug_console = false
+trace_spans = false
 ```
 
 Adjust the values as needed.
