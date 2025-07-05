@@ -88,6 +88,10 @@ pub enum Message {
     ClosePhoto,
     SyncProgress(SyncProgress),
     SyncError(SyncTaskError),
+    /// Inform UI about a sync failure message already formatted
+    SyncFailed(String),
+    /// Inform UI that a retry will happen after the given seconds
+    SyncRetry(u64),
     DismissError(usize),
     ShowCreateAlbumDialog,
     AlbumTitleChanged(String),
@@ -224,6 +228,11 @@ impl GooglePiczUI {
 
     pub fn rename_album_title(&self) -> String {
         self.rename_album_title.clone()
+    }
+
+    /// Expose sync status for tests
+    pub fn sync_status(&self) -> String {
+        self.sync_status.clone()
     }
     fn error_timeout() -> Command<Message> {
         Command::perform(
@@ -512,6 +521,16 @@ impl Application for GooglePiczUI {
                     self.sync_status = format!("Sync completed: {} items", total);
                 }
             },
+            Message::SyncRetry(wait) => {
+                self.syncing = false;
+                self.sync_status = format!("Retrying in {}s", wait);
+            }
+            Message::SyncFailed(msg) => {
+                self.errors.push(msg);
+                self.sync_status = "Sync error".into();
+                self.syncing = false;
+                return GooglePiczUI::error_timeout();
+            }
             Message::SyncError(err_msg) => {
                 tracing::error!("Sync error: {}", err_msg);
                 let detail = match &err_msg {
@@ -747,6 +766,7 @@ impl Application for GooglePiczUI {
             subs.push(subscription::unfold("progress", progress_rx, |rx| async move {
                 let mut lock = rx.lock().await;
                 let msg = match lock.recv().await {
+                    Some(SyncProgress::Retrying(w)) => Message::SyncRetry(w),
                     Some(p) => Message::SyncProgress(p),
                     None => Message::SyncProgress(SyncProgress::Finished(0)),
                 };
@@ -760,7 +780,7 @@ impl Application for GooglePiczUI {
             subs.push(subscription::unfold("errors", error_rx, |rx| async move {
                 let mut lock = rx.lock().await;
                 let msg = match lock.recv().await {
-                    Some(e) => Message::SyncError(e),
+                    Some(e) => Message::SyncFailed(e.to_string()),
                     None => Message::SyncProgress(SyncProgress::Finished(0)),
                 };
                 drop(lock);

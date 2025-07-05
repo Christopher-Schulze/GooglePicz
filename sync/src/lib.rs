@@ -219,11 +219,16 @@ impl Syncer {
         let handle = spawn_local(async move {
             let mut syncer = self;
             let mut backoff = 1u64;
-            let mut last_success = syncer
-                .cache_manager
-                .get_last_sync_async()
-                .await
-                .unwrap_or_else(|_| DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH));
+            let mut last_success = match syncer.cache_manager.get_last_sync_async().await {
+                Ok(ts) => ts,
+                Err(e) => {
+                    let msg = format!("Failed to get last sync time: {}", e);
+                    if let Err(send_err) = error_tx.send(SyncTaskError::Other(msg.clone())) {
+                        tracing::error!(error = ?send_err, "Failed to forward last_sync error");
+                    }
+                    DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH)
+                }
+            };
             loop {
                 tokio::select! {
                     _ = &mut shutdown_rx => {
