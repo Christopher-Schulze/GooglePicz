@@ -4,6 +4,7 @@ use std::process::Command;
 
 use toml::Value;
 use serde_json::Value as JsonValue;
+use sha2::{Digest, Sha256};
 
 use crate::PackagingError;
 
@@ -89,4 +90,39 @@ pub fn verify_artifact_names() -> Result<(), PackagingError> {
     }
 
     Ok(())
+}
+
+/// Calculate SHA256 checksums of produced artifacts and write them to `checksums.txt`.
+pub fn write_checksums() -> Result<(), PackagingError> {
+    let root = get_project_root();
+    let version = workspace_version()?;
+
+    let mut artifacts = Vec::new();
+    if cfg!(target_os = "linux") {
+        artifacts.push(root.join(format!("GooglePicz-{}.deb", version)));
+    } else if cfg!(target_os = "macos") {
+        artifacts.push(root.join(format!("target/release/GooglePicz-{}.dmg", version)));
+    } else if cfg!(target_os = "windows") {
+        artifacts.push(root.join(format!("target/windows/GooglePicz-{}-Setup.exe", version)));
+    }
+
+    let mut lines = Vec::new();
+    for artifact in artifacts {
+        if artifact.exists() {
+            let data = fs::read(&artifact).map_err(|e| {
+                PackagingError::Other(format!("Failed to read {:?}: {}", artifact, e))
+            })?;
+            let mut hasher = Sha256::new();
+            hasher.update(&data);
+            let digest = hasher.finalize();
+            let checksum = format!("{:x}", digest);
+            if let Some(name) = artifact.file_name().and_then(|n| n.to_str()) {
+                lines.push(format!("{}  {}", checksum, name));
+            }
+        }
+    }
+
+    fs::write(root.join("checksums.txt"), lines.join("\n") + "\n").map_err(|e| {
+        PackagingError::Other(format!("Failed to write checksums.txt: {}", e))
+    })
 }

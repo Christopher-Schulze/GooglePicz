@@ -374,7 +374,8 @@ pub fn package_all() -> Result<(), PackagingError> {
     clean_artifacts()?;
     bundle_licenses()?;
     build_release()?;
-    create_installer()
+    create_installer()?;
+    utils::write_checksums()
 }
 
 #[cfg(test)]
