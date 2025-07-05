@@ -104,6 +104,7 @@ pub enum Message {
     ConfirmDeleteAlbum,
     CancelDeleteAlbum,
     SearchInputChanged(String),
+    SearchModeChanged(SearchMode),
     PerformSearch,
     ClearErrors,
 }
@@ -117,6 +118,28 @@ pub struct AlbumOption {
 impl std::fmt::Display for AlbumOption {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.title)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SearchMode {
+    Filename,
+    Favoriten,
+    DateRange,
+}
+
+impl SearchMode {
+    const ALL: [SearchMode; 3] = [SearchMode::Filename, SearchMode::Favoriten, SearchMode::DateRange];
+}
+
+impl std::fmt::Display for SearchMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            SearchMode::Filename => "Filename",
+            SearchMode::Favoriten => "Favoriten",
+            SearchMode::DateRange => "Datum von/bis",
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -150,6 +173,7 @@ pub struct GooglePiczUI {
     renaming_album: Option<String>,
     rename_album_title: String,
     deleting_album: Option<String>,
+    search_mode: SearchMode,
     search_query: String,
 }
 
@@ -182,6 +206,10 @@ impl GooglePiczUI {
 
     pub fn search_query(&self) -> String {
         self.search_query.clone()
+    }
+
+    pub fn search_mode(&self) -> SearchMode {
+        self.search_mode
     }
 
     pub fn rename_album_title(&self) -> String {
@@ -263,6 +291,7 @@ impl Application for GooglePiczUI {
             renaming_album: None,
             rename_album_title: String::new(),
             deleting_album: None,
+            search_mode: SearchMode::Filename,
             search_query: String::new(),
         };
 
@@ -586,24 +615,36 @@ impl Application for GooglePiczUI {
             Message::SearchInputChanged(q) => {
                 self.search_query = q;
             }
+            Message::SearchModeChanged(mode) => {
+                self.search_mode = mode;
+            }
             Message::PerformSearch => {
                 if let Some(cm) = &self.cache_manager {
                     let cm = cm.clone();
                     let query = self.search_query.clone();
+                    let mode = self.search_mode;
                     return Command::perform(
                         async move {
                             let cache = {
                                 let guard = cm.lock().await;
                                 guard.clone()
                             };
-                            if let Some((s, e)) = parse_date_query(&query) {
-                                cache
-                                    .get_media_items_by_date_range(s, e)
-                                    .map_err(|e| e.to_string())
-                            } else {
-                                cache
+                            match mode {
+                                SearchMode::DateRange => {
+                                    if let Some((s, e)) = parse_date_query(&query) {
+                                        cache
+                                            .get_media_items_by_date_range(s, e)
+                                            .map_err(|e| e.to_string())
+                                    } else {
+                                        Ok(Vec::new())
+                                    }
+                                }
+                                SearchMode::Favoriten => cache
+                                    .get_media_items_by_favorite(true)
+                                    .map_err(|e| e.to_string()),
+                                SearchMode::Filename => cache
                                     .get_media_items_by_filename(&query)
-                                    .map_err(|e| e.to_string())
+                                    .map_err(|e| e.to_string()),
                             }
                         },
                         Message::PhotosLoaded,
@@ -703,6 +744,11 @@ impl Application for GooglePiczUI {
             button("New Album…").on_press(Message::ShowCreateAlbumDialog),
             text_input("Search", &self.search_query)
                 .on_input(Message::SearchInputChanged),
+            pick_list(
+                &SearchMode::ALL[..],
+                Some(self.search_mode),
+                Message::SearchModeChanged,
+            ),
             button("Search").on_press(Message::PerformSearch)
         ];
 
