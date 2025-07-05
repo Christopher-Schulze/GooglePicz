@@ -33,7 +33,7 @@ fn test_initial_state() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let (ui, _) = GooglePiczUI::new((None, None, 0, 4, dir.path().join(".googlepicz")));
     assert_eq!(ui.photo_count(), 0);
     assert_eq!(ui.album_count(), 0);
     assert_eq!(ui.state_debug(), "Grid");
@@ -46,7 +46,7 @@ fn test_select_and_close_photo() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, 4, dir.path().join(".googlepicz")));
     let item = sample_item();
 
     let _ = ui.update(Message::SelectPhoto(item.clone()));
@@ -63,7 +63,7 @@ fn test_dismiss_error() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, 4, dir.path().join(".googlepicz")));
     let _ = ui.update(Message::SyncError(SyncTaskError::Other {
         code: SyncErrorCode::Other,
         message: "err".into(),
@@ -80,7 +80,7 @@ fn test_sync_error_added() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, 4, dir.path().join(".googlepicz")));
     let _ = ui.update(Message::SyncError(SyncTaskError::Other {
         code: SyncErrorCode::Other,
         message: "boom".into(),
@@ -95,7 +95,7 @@ fn test_rename_dialog_state() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, 4, dir.path().join(".googlepicz")));
     let _ = ui.update(Message::ShowRenameAlbumDialog("a1".into(), "Old".into()));
     assert_eq!(ui.renaming_album(), Some("a1".into()));
     assert_eq!(ui.rename_album_title(), "Old");
@@ -110,7 +110,7 @@ fn test_delete_dialog_state() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, 4, dir.path().join(".googlepicz")));
     let _ = ui.update(Message::ShowDeleteAlbumDialog("a1".into()));
     assert_eq!(ui.deleting_album(), Some("a1".into()));
     let _ = ui.update(Message::CancelDeleteAlbum);
@@ -124,7 +124,7 @@ fn test_search_input() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, 4, dir.path().join(".googlepicz")));
     let _ = ui.update(Message::SearchInputChanged("query".into()));
     assert_eq!(ui.search_query(), "query");
 }
@@ -136,7 +136,7 @@ fn test_search_mode() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, 4, dir.path().join(".googlepicz")));
     assert_eq!(ui.search_mode(), SearchMode::Filename);
     let _ = ui.update(Message::SearchModeChanged(SearchMode::Favoriten));
     assert_eq!(ui.search_mode(), SearchMode::Favoriten);
@@ -157,7 +157,7 @@ fn test_settings_dialog() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, 4, dir.path().join(".googlepicz")));
     assert!(!ui.settings_open());
     let _ = ui.update(Message::ShowSettings);
     assert!(ui.settings_open());
@@ -183,7 +183,7 @@ fn test_save_settings() {
     };
     cfg.save_to(Some(gp_dir.join("config"))).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0, gp_dir.clone()));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, 4, gp_dir.clone()));
     let _ = ui.update(Message::ShowSettings);
     ui.update(Message::SettingsLogLevelChanged("debug".into()));
     let new_cache = gp_dir.join("new_cache");
@@ -204,7 +204,7 @@ fn test_faces_loaded_and_rename() {
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, 4, dir.path().join(".googlepicz")));
     let item = sample_item();
 
     let _ = ui.update(Message::SelectPhoto(item.clone()));

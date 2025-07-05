@@ -163,12 +163,49 @@ fn bench_camera_model_query(c: &mut Criterion) {
     });
 }
 
+fn bench_camera_make_query(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..10_000u32 {
+        let make = if i % 2 == 0 { "Canon" } else { "Nikon" };
+        let mut item = sample_media_item(&i.to_string());
+        item.media_metadata.video = Some(VideoMetadata {
+            camera_make: Some(make.into()),
+            camera_model: None,
+            fps: None,
+            status: None,
+        });
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("camera_make_query", |b| {
+        b.iter(|| {
+            let _ = cache.get_media_items_by_camera_make("Canon").unwrap();
+        })
+    });
+}
+
+fn bench_filename_query(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..10_000u32 {
+        let item = sample_media_item(&format!("file{}", i));
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("filename_query", |b| {
+        b.iter(|| {
+            let _ = cache.get_media_items_by_filename("file1").unwrap();
+        })
+    });
+}
+
 criterion_group!(
     benches,
     bench_load_all,
     bench_load_all_10k,
     bench_load_all_100k,
     bench_camera_model_query,
+    bench_camera_make_query,
+    bench_filename_query,
     bench_mime_type_query,
     bench_album_query
 );

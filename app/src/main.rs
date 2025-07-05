@@ -28,6 +28,9 @@ struct Cli {
     /// Override number of thumbnails to preload
     #[arg(long)]
     thumbnails_preload: Option<usize>,
+    /// Override number of concurrent image preloads
+    #[arg(long)]
+    preload_threads: Option<usize>,
     /// Override sync interval in minutes
     #[arg(long)]
     sync_interval_minutes: Option<u64>,
@@ -50,6 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         log_level: cli.log_level.clone(),
         oauth_redirect_port: cli.oauth_redirect_port,
         thumbnails_preload: cli.thumbnails_preload,
+        preload_threads: cli.preload_threads,
         sync_interval_minutes: cli.sync_interval_minutes,
         debug_console: cli.debug_console,
         trace_spans: cli.trace_spans,
@@ -167,7 +171,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
 
 
             let ui_thread = std::thread::spawn(move || {
-                if let Err(e) = ui::run(Some(rx), Some(err_rx), preload, cache_dir) {
+                if let Err(e) = ui::run(Some(rx), Some(err_rx), preload, cfg.preload_threads, cache_dir) {
                     error!("UI error: {}", e);
                 }
             });
@@ -183,7 +187,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
         Err(e) => {
             error!("❌ Failed to initialize syncer: {}", e);
             error!("💡 The UI will still start, but photos may not be available until sync is working.");
-            ui::run(None, None, cfg.thumbnails_preload, cfg.cache_path.clone())?;
+            ui::run(None, None, cfg.thumbnails_preload, cfg.preload_threads, cfg.cache_path.clone())?;
         }
     }
 
