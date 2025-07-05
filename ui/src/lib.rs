@@ -24,7 +24,9 @@ use sync::{SyncProgress, SyncTaskError};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
+#[cfg(not(feature = "no-gstreamer"))]
 use gstreamer_iced::{GstreamerIcedBase, GStreamerMessage, PlayStatus};
+#[cfg(not(feature = "no-gstreamer"))]
 use gstreamer_iced::reexport::url;
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
@@ -109,8 +111,11 @@ pub enum Message {
     SearchInputChanged(String),
     SearchModeChanged(SearchMode),
     PerformSearch,
+    #[cfg(not(feature = "no-gstreamer"))]
     PlayVideo(MediaItem),
+    #[cfg(not(feature = "no-gstreamer"))]
     VideoEvent(GStreamerMessage),
+    #[cfg(not(feature = "no-gstreamer"))]
     CloseVideo,
     ClearErrors,
 }
@@ -165,6 +170,7 @@ impl std::fmt::Display for SearchMode {
 enum ViewState {
     Grid,
     SelectedPhoto(MediaItem),
+    #[cfg(not(feature = "no-gstreamer"))]
     PlayingVideo(GstreamerIcedBase),
 }
 
@@ -504,6 +510,7 @@ impl Application for GooglePiczUI {
             Message::ClosePhoto => {
                 self.state = ViewState::Grid;
             }
+            #[cfg(not(feature = "no-gstreamer"))]
             Message::PlayVideo(item) => {
                 let url = format!("{}=dv", item.base_url);
                 if let Ok(mut player) = GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
@@ -516,11 +523,13 @@ impl Application for GooglePiczUI {
                     return GooglePiczUI::error_timeout();
                 }
             }
+            #[cfg(not(feature = "no-gstreamer"))]
             Message::VideoEvent(msg) => {
                 if let ViewState::PlayingVideo(player) = &mut self.state {
                     return player.update(msg).map(Message::VideoEvent);
                 }
             }
+            #[cfg(not(feature = "no-gstreamer"))]
             Message::CloseVideo => {
                 self.state = ViewState::Grid;
             }
@@ -562,7 +571,7 @@ impl Application for GooglePiczUI {
                     }
                 }
                 self.errors.push(err_msg.to_string());
-                self.log_error(err_msg);
+                self.log_error(&err_msg.to_string());
                 self.sync_status = "Sync error".into();
                 self.syncing = false;
                 return GooglePiczUI::error_timeout();
@@ -813,6 +822,7 @@ impl Application for GooglePiczUI {
             }));
         }
 
+        #[cfg(not(feature = "no-gstreamer"))]
         if let ViewState::PlayingVideo(player) = &self.state {
             subs.push(player.subscription().map(Message::VideoEvent));
         }
@@ -1024,11 +1034,13 @@ impl Application for GooglePiczUI {
                         Message::AlbumPicked
                     )
                 ];
+                #[cfg(not(feature = "no-gstreamer"))]
                 if photo.mime_type.starts_with("video/") {
                     col = col.push(button("Play Video").on_press(Message::PlayVideo(photo.clone())));
                 }
                 col
             }
+            #[cfg(not(feature = "no-gstreamer"))]
             ViewState::PlayingVideo(player) => {
                 let frame = player
                     .frame_handle()
