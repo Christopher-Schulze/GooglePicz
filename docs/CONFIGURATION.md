@@ -21,3 +21,18 @@ tokens may be written to `~/.googlepicz/tokens.json` instead of the system
 keyring. Enable this behaviour by passing `--use-file-store` on the command line
 or by setting the environment variable `USE_FILE_STORE=1` before running the
 tools.
+
+### Video Playback Dependencies
+
+Video playback relies on the GStreamer multimedia framework. On most Linux
+systems you need to install the development packages `glib2.0-dev`,
+`gstreamer1.0-dev` and `libssl-dev` (or their distribution equivalents) before
+building. If GStreamer is not available you can disable video support with the
+`ui/no-gstreamer` feature when compiling the UI:
+
+```bash
+cargo build -p ui --features ui/no-gstreamer --no-default-features
+```
+
+Without these libraries the application will still run, but videos cannot be
+played back.
