@@ -935,9 +935,6 @@ impl Application for GooglePiczUI {
                                 SearchMode::Description => cache
                                     .get_media_items_by_description(&query)
                                     .map_err(|e| e.to_string()),
-                                SearchMode::Text => cache
-                                    .get_media_items_by_text(&query)
-                                    .map_err(|e| e.to_string()),
                                 SearchMode::Favoriten => cache
                                     .get_media_items_by_favorite(true)
                                     .map_err(|e| e.to_string()),
@@ -953,6 +950,7 @@ impl Application for GooglePiczUI {
                                 SearchMode::CameraMake => cache
                                     .get_media_items_by_camera_make(&query)
                                     .map_err(|e| e.to_string()),
+                                SearchMode::Text => Vec::new(),
                             }?;
 
                             let start_dt = parse_single_date(&start, false);
@@ -963,12 +961,15 @@ impl Application for GooglePiczUI {
                                     start_dt,
                                     end_dt,
                                     if fav { Some(true) } else { None },
+                                    if mode == SearchMode::Text { Some(query) } else { None },
                                 )
                                 .await
                                 .map_err(|e| e.to_string())
                                 .map(|mut extra| {
-                                    // Intersect results with base
-                                    extra.retain(|i| base.iter().any(|b| b.id == i.id));
+                                    if mode != SearchMode::Text {
+                                        // Intersect results with base
+                                        extra.retain(|i| base.iter().any(|b| b.id == i.id));
+                                    }
                                     extra
                                 })
                         },

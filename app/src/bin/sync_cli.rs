@@ -8,6 +8,7 @@ use tokio::sync::mpsc;
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use tracing_subscriber::EnvFilter;
+use chrono::{DateTime, Utc, NaiveDate, TimeZone};
 
 #[path = "../config.rs"]
 mod config;
@@ -46,6 +47,19 @@ struct Cli {
     use_file_store: bool,
     #[command(subcommand)]
     command: Commands,
+}
+
+fn parse_date(val: &str, end: bool) -> Option<DateTime<Utc>> {
+    NaiveDate::parse_from_str(val, "%Y-%m-%d")
+        .ok()
+        .and_then(|d| {
+            if end {
+                d.and_hms_opt(23, 59, 59)
+            } else {
+                d.and_hms_opt(0, 0, 0)
+            }
+            .map(|nd| Utc.from_utc_datetime(&nd))
+        })
 }
 
 #[derive(Subcommand)]
@@ -106,6 +120,15 @@ enum Commands {
         /// Maximum number of items to display
         #[arg(long)]
         limit: Option<usize>,
+        /// Filter by start date (YYYY-MM-DD)
+        #[arg(long)]
+        start: Option<String>,
+        /// Filter by end date (YYYY-MM-DD)
+        #[arg(long)]
+        end: Option<String>,
+        /// Only show favorites
+        #[arg(long)]
+        favorite: bool,
     },
     /// Rename an album
     RenameAlbum {
@@ -307,13 +330,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cache.import_media_items(&file)?;
             println!("Imported from {:?}", file);
         }
-        Commands::Search { query, limit } => {
+        Commands::Search { query, limit, start, end, favorite } => {
             if !db_path.exists() {
                 println!("No cache found at {:?}", db_path);
                 return Ok(());
             }
             let cache = CacheManager::new(&db_path)?;
-            let items = cache.get_media_items_by_text(&query)?;
+            let start_dt = start
+                .as_deref()
+                .and_then(|s| parse_date(s, false));
+            let end_dt = end
+                .as_deref()
+                .and_then(|s| parse_date(s, true));
+            let items = cache.query_media_items(
+                None,
+                start_dt,
+                end_dt,
+                if favorite { Some(true) } else { None },
+                Some(&query),
+            )?;
             let max = limit.unwrap_or(10);
             for item in items.iter().take(max) {
                 println!("{} - {}", item.id, item.filename);

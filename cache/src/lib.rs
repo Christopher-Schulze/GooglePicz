@@ -419,6 +419,7 @@ impl CacheManager {
         start: Option<DateTime<Utc>>,
         end: Option<DateTime<Utc>>,
         favorite: Option<bool>,
+        text: Option<&str>,
     ) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -429,11 +430,13 @@ impl CacheManager {
                 " WHERE (?1 IS NULL OR md.camera_model = ?1)"
                 "  AND (?2 IS NULL OR md.creation_time >= ?2)"
                 "  AND (?3 IS NULL OR md.creation_time <= ?3)"
-                "  AND (?4 IS NULL OR m.is_favorite = ?4)",
+                "  AND (?4 IS NULL OR m.is_favorite = ?4)"
+                "  AND (?5 IS NULL OR m.filename LIKE ?5 OR m.description LIKE ?5)",
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
         let fav_val: Option<i64> = favorite.map(|f| if f { 1 } else { 0 });
+        let like_pattern = text.map(|t| format!("%{}%", t));
 
         let iter = stmt
             .query_map(
@@ -441,7 +444,8 @@ impl CacheManager {
                     camera_model,
                     start.map(|s| s.timestamp()),
                     end.map(|e| e.timestamp()),
-                    fav_val
+                    fav_val,
+                    like_pattern.as_deref()
                 ],
                 |row| {
                     let ts: i64 = row.get(5)?;
@@ -1325,10 +1329,17 @@ impl CacheManager {
         start: Option<DateTime<Utc>>,
         end: Option<DateTime<Utc>>,
         favorite: Option<bool>,
+        text: Option<String>,
     ) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || {
-            this.query_media_items(camera_model.as_deref(), start, end, favorite)
+            this.query_media_items(
+                camera_model.as_deref(),
+                start,
+                end,
+                favorite,
+                text.as_deref(),
+            )
         })
         .await
         .map_err(|e| CacheError::Other(e.to_string()))?
@@ -1536,7 +1547,7 @@ mod tests {
         let start = Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
         let end = Utc.with_ymd_and_hms(2023, 1, 31, 23, 59, 59).unwrap();
         let items = cache
-            .query_media_items(Some("EOS"), Some(start), Some(end), Some(true))
+            .query_media_items(Some("EOS"), Some(start), Some(end), Some(true), None)
             .expect("query");
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, item1.id);

@@ -3,6 +3,7 @@ use predicates::str::contains;
 use std::process::Command;
 use tempfile::tempdir;
 use cache::CacheManager;
+use rusqlite::{Connection, params};
 
 fn build_cmd(home: &std::path::Path) -> Command {
     let mut cmd = Command::cargo_bin("sync_cli").unwrap();
@@ -57,6 +58,46 @@ fn search_items_lists_matches() {
         .assert()
         .success()
         .stdout(contains("1 - 1.jpg"));
+}
+
+#[test]
+fn search_items_with_options() {
+    let dir = tempdir().unwrap();
+    let base = dir.path().join(".googlepicz");
+    std::fs::create_dir_all(&base).unwrap();
+    let db = base.join("cache.sqlite");
+    let cache = CacheManager::new(&db).unwrap();
+    let mut item1 = sample_item("1");
+    item1.description = Some("holiday".into());
+    item1.media_metadata.creation_time = "2023-01-02T00:00:00Z".into();
+    cache.insert_media_item(&item1).unwrap();
+    {
+        let conn = Connection::open(&db).unwrap();
+        conn.execute(
+            "UPDATE media_items SET is_favorite = 1 WHERE id = ?1",
+            params!["1"],
+        )
+        .unwrap();
+    }
+    let mut item2 = sample_item("2");
+    item2.description = Some("holiday".into());
+    item2.media_metadata.creation_time = "2023-02-01T00:00:00Z".into();
+    cache.insert_media_item(&item2).unwrap();
+
+    build_cmd(dir.path())
+        .args(&[
+            "search",
+            "holiday",
+            "--start",
+            "2023-01-01",
+            "--end",
+            "2023-01-31",
+            "--favorite",
+        ])
+        .assert()
+        .success()
+        .stdout(contains("1 - 1.jpg"))
+        .stdout(contains("2 - 2.jpg").not());
 }
 
 #[test]
