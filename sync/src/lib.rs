@@ -72,18 +72,29 @@ impl Syncer {
         }
     }
 
-    fn load_state(&self) -> SyncState {
-        if let Ok(data) = std::fs::read_to_string(&self.state_path) {
-            serde_json::from_str(&data).unwrap_or_default()
-        } else {
-            SyncState::default()
+    fn load_state(&self) -> Result<SyncState, SyncError> {
+        match std::fs::read_to_string(&self.state_path) {
+            Ok(data) => serde_json::from_str(&data).map_err(|e| {
+                tracing::error!(error = ?e, "Failed to parse state file");
+                SyncError::Other(format!("Failed to parse state file: {}", e))
+            }),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(SyncState::default()),
+            Err(e) => {
+                tracing::error!(error = ?e, "Failed to read state file");
+                Err(SyncError::Other(format!("Failed to read state file: {}", e)))
+            }
         }
     }
 
-    fn save_state(&self, state: &SyncState) {
-        if let Ok(data) = serde_json::to_string(state) {
-            let _ = std::fs::write(&self.state_path, data);
-        }
+    fn save_state(&self, state: &SyncState) -> Result<(), SyncError> {
+        let data = serde_json::to_string(state).map_err(|e| {
+            tracing::error!(error = ?e, "Failed to serialize state");
+            SyncError::Other(format!("Failed to serialize state: {}", e))
+        })?;
+        std::fs::write(&self.state_path, data).map_err(|e| {
+            tracing::error!(error = ?e, "Failed to write state file");
+            SyncError::Other(format!("Failed to write state file: {}", e))
+        })
     }
     #[cfg_attr(feature = "trace-spans", tracing::instrument)]
     pub async fn new(db_path: &Path) -> Result<Self, SyncError> {
@@ -130,7 +141,14 @@ impl Syncer {
             }
         }
         Self::forward(&ui_progress, SyncProgress::Started);
-        let mut state = self.load_state();
+        let mut state = self.load_state().map_err(|e| {
+            let msg = format!("Failed to load state: {}", e);
+            if let Some(tx) = &error {
+                let _ = tx.send(SyncTaskError::Other { code: SyncErrorCode::Other, message: msg.clone() });
+            }
+            Self::forward(&ui_error, SyncTaskError::Other { code: SyncErrorCode::Other, message: msg.clone() });
+            SyncError::Other(msg)
+        })?;
         let mut page_token: Option<String> = state.page_token.clone();
         let mut total_synced = state.total_synced;
 
@@ -249,7 +267,13 @@ impl Syncer {
 
             state.page_token = next_page_token.clone();
             state.total_synced = total_synced;
-            self.save_state(&state);
+            if let Err(e) = self.save_state(&state) {
+                tracing::error!(error = ?e, "Failed to save state");
+                if let Some(tx) = &error {
+                    let _ = tx.send(SyncTaskError::Other { code: SyncErrorCode::Other, message: e.to_string() });
+                }
+                Self::forward(&ui_error, SyncTaskError::Other { code: SyncErrorCode::Other, message: e.to_string() });
+            }
 
             if next_page_token.is_none() {
                 break;
@@ -277,7 +301,9 @@ impl Syncer {
             }
         }
         Self::forward(&ui_progress, SyncProgress::Finished(total_synced));
-        let _ = std::fs::remove_file(&self.state_path);
+        if let Err(e) = std::fs::remove_file(&self.state_path) {
+            tracing::warn!(error = ?e, "Failed to remove state file");
+        }
         self.cache_manager
             .update_last_sync_async(Utc::now())
             .await
@@ -316,11 +342,18 @@ impl Syncer {
             let mut backoff = 1u64;
             let mut failures: u32 = 0;
             const MAX_FAILURES: u32 = 5;
-            let mut last_success = syncer
-                .cache_manager
-                .get_last_sync_async()
-                .await
-                .unwrap_or_else(|_| DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH));
+            let mut last_success = match syncer.cache_manager.get_last_sync_async().await {
+                Ok(ts) => ts,
+                Err(e) => {
+                    let msg = format!("Failed to get last sync time: {}", e);
+                    tracing::error!(error = ?e, "{}", msg);
+                    if let Err(send_err) = error_tx.send(SyncTaskError::Other { code: SyncErrorCode::Cache, message: msg.clone() }) {
+                        tracing::error!(error = ?send_err, "Failed to forward error");
+                    }
+                    Self::forward(&ui_error_tx, SyncTaskError::Other { code: SyncErrorCode::Cache, message: msg.clone() });
+                    DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH)
+                }
+            };
             loop {
                 tokio::select! {
                     _ = &mut shutdown_rx => {
