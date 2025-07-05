@@ -23,8 +23,71 @@ use sync::{SyncProgress, SyncTaskError};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
+#[cfg(feature = "gst")]
 use gstreamer_iced::{GstreamerIcedBase, GStreamerMessage, PlayStatus};
+#[cfg(feature = "gst")]
 use gstreamer_iced::reexport::url;
+
+#[cfg(any(feature = "mock-gst", not(feature = "gst")))]
+pub mod gst_mock {
+    use super::*;
+    use iced::{Command, Subscription};
+    use iced::widget::image;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum PlayStatus {
+        Stop,
+        Playing,
+        End,
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    pub enum GStreamerMessage {
+        Update,
+        FrameUpdate,
+        PlayStatusChanged(PlayStatus),
+        BusGoToEnd,
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct GstreamerIcedBase {
+        status: PlayStatus,
+    }
+
+    impl GstreamerIcedBase {
+        pub fn new_url(_url: &url::Url, _islive: bool) -> Result<Self, ()> {
+            Ok(Self { status: PlayStatus::Stop })
+        }
+
+        pub fn update(&mut self, msg: GStreamerMessage) -> Command<GStreamerMessage> {
+            match msg {
+                GStreamerMessage::PlayStatusChanged(s) => self.status = s,
+                GStreamerMessage::BusGoToEnd => self.status = PlayStatus::End,
+                _ => {}
+            }
+            Command::none()
+        }
+
+        pub fn subscription(&self) -> Subscription<GStreamerMessage> {
+            Subscription::none()
+        }
+
+        pub fn frame_handle(&self) -> Option<image::Handle> { None }
+
+        pub fn play_status(&self) -> PlayStatus { self.status }
+    }
+
+    pub mod reexport {
+        pub use url;
+    }
+}
+
+#[cfg(any(feature = "mock-gst", not(feature = "gst")))]
+use gst_mock::GstreamerIcedBase;
+#[cfg(any(feature = "mock-gst", not(feature = "gst")))]
+use gst_mock::reexport::url;
+#[cfg(any(feature = "mock-gst", not(feature = "gst")))]
+pub use gst_mock::{GStreamerMessage, PlayStatus};
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
 
@@ -109,6 +172,9 @@ pub enum Message {
     SearchModeChanged(SearchMode),
     PerformSearch,
     PlayVideo(MediaItem),
+    VideoPlay,
+    VideoPause,
+    VideoStop,
     VideoEvent(GStreamerMessage),
     CloseVideo,
     ClearErrors,
@@ -185,6 +251,7 @@ pub struct GooglePiczUI {
     deleting_album: Option<String>,
     search_mode: SearchMode,
     search_query: String,
+    video_status: String,
 }
 
 impl GooglePiczUI {
@@ -224,6 +291,10 @@ impl GooglePiczUI {
 
     pub fn rename_album_title(&self) -> String {
         self.rename_album_title.clone()
+    }
+
+    pub fn video_status(&self) -> String {
+        self.video_status.clone()
     }
     fn error_timeout() -> Command<Message> {
         Command::perform(
@@ -303,6 +374,7 @@ impl Application for GooglePiczUI {
             deleting_album: None,
             search_mode: SearchMode::Filename,
             search_query: String::new(),
+            video_status: String::new(),
         };
 
         (
@@ -475,19 +547,49 @@ impl Application for GooglePiczUI {
             Message::PlayVideo(item) => {
                 let url = format!("{}=dv", item.base_url);
                 if let Ok(mut player) = GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
-                    player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
+                    let _ = player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
+                    self.video_status = "Playing".into();
                     self.state = ViewState::PlayingVideo(player);
                 } else {
                     self.errors.push("Failed to start video".into());
                     return GooglePiczUI::error_timeout();
                 }
             }
+            Message::VideoPlay => {
+                if let ViewState::PlayingVideo(player) = &mut self.state {
+                    self.video_status = "Playing".into();
+                    return player
+                        .update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing))
+                        .map(Message::VideoEvent);
+                }
+            }
+            Message::VideoPause => {
+                if let ViewState::PlayingVideo(player) = &mut self.state {
+                    self.video_status = "Paused".into();
+                    return player
+                        .update(GStreamerMessage::PlayStatusChanged(PlayStatus::Stop))
+                        .map(Message::VideoEvent);
+                }
+            }
+            Message::VideoStop => {
+                if let ViewState::PlayingVideo(player) = &mut self.state {
+                    self.video_status = "Stopped".into();
+                    let _ = player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Stop));
+                }
+                self.state = ViewState::Grid;
+            }
             Message::VideoEvent(msg) => {
                 if let ViewState::PlayingVideo(player) = &mut self.state {
-                    return player.update(msg).map(Message::VideoEvent);
+                    let cmd = player.update(msg);
+                    if matches!(msg, GStreamerMessage::BusGoToEnd) {
+                        self.video_status = "Finished".into();
+                        self.state = ViewState::Grid;
+                    }
+                    return cmd.map(Message::VideoEvent);
                 }
             }
             Message::CloseVideo => {
+                self.video_status.clear();
                 self.state = ViewState::Grid;
             }
             Message::SyncProgress(progress) => match progress {
@@ -990,7 +1092,14 @@ impl Application for GooglePiczUI {
                     .unwrap_or_else(|| image::Handle::from_pixels(1, 1, vec![0, 0, 0, 0]));
                 column![
                     header,
-                    button("Close").on_press(Message::CloseVideo),
+                    row![
+                        button("Play").on_press(Message::VideoPlay),
+                        button("Pause").on_press(Message::VideoPause),
+                        button("Stop").on_press(Message::VideoStop),
+                        button("Close").on_press(Message::CloseVideo),
+                        text(self.video_status.clone()),
+                    ]
+                    .spacing(10),
                     image(frame).width(Length::Fill).height(Length::Fill)
                 ]
             }
