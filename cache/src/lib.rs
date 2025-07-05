@@ -585,6 +585,14 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn get_media_items_by_camera_make_async(&self, make: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_items_by_camera_make(&make))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
     pub fn get_media_items_by_filename(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let start = std::time::Instant::now();
         let like_pattern = format!("%{}%", pattern);
@@ -1047,6 +1055,14 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn clear_cache_async(&self) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.clear_cache())
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
     pub fn get_last_sync(&self) -> Result<DateTime<Utc>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -1098,7 +1114,7 @@ impl CacheManager {
         Ok(())
     }
 
-    pub fn insert_faces(&self, media_item_id: &str, faces_json: &str) -> Result<(), CacheError> {
+pub fn insert_faces(&self, media_item_id: &str, faces_json: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
         conn.execute(
             "INSERT OR REPLACE INTO faces (media_item_id, faces_json) VALUES (?1, ?2)",
@@ -1108,7 +1124,15 @@ impl CacheManager {
         Ok(())
     }
 
-    pub fn get_faces(&self, media_item_id: &str) -> Result<Option<Vec<FaceData>>, CacheError> {
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn insert_faces_async(&self, media_item_id: String, faces_json: String) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.insert_faces(&media_item_id, &faces_json))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+pub fn get_faces(&self, media_item_id: &str) -> Result<Option<Vec<FaceData>>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare("SELECT faces_json FROM faces WHERE media_item_id = ?1")
@@ -1124,6 +1148,14 @@ impl CacheManager {
         } else {
             Ok(None)
         }
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn get_faces_async(&self, media_item_id: String) -> Result<Option<Vec<FaceData>>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_faces(&media_item_id))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, item)))]

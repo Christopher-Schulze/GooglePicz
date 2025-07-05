@@ -1010,29 +1010,36 @@ impl Application for GooglePiczUI {
                                 SearchMode::DateRange => {
                                     if let Some((s, e)) = parse_date_query(&query) {
                                         cache
-                                            .get_media_items_by_date_range(s, e)
+                                            .get_media_items_by_date_range_async(s, e)
+                                            .await
                                             .map_err(|e| e.to_string())
                                     } else {
                                         Ok(Vec::new())
                                     }
                                 }
                                 SearchMode::Description => cache
-                                    .get_media_items_by_description(&query)
+                                    .get_media_items_by_description_async(query.clone())
+                                    .await
                                     .map_err(|e| e.to_string()),
                                 SearchMode::Favoriten => cache
-                                    .get_media_items_by_favorite(true)
+                                    .get_media_items_by_favorite_async(true)
+                                    .await
                                     .map_err(|e| e.to_string()),
                                 SearchMode::Filename => cache
-                                    .get_media_items_by_filename(&query)
+                                    .get_media_items_by_filename_async(query.clone())
+                                    .await
                                     .map_err(|e| e.to_string()),
                                 SearchMode::MimeType => cache
-                                    .get_media_items_by_mime_type(&query)
+                                    .get_media_items_by_mime_type_async(query.clone())
+                                    .await
                                     .map_err(|e| e.to_string()),
                                 SearchMode::CameraModel => cache
-                                    .get_media_items_by_camera_model(&query)
+                                    .get_media_items_by_camera_model_async(query.clone())
+                                    .await
                                     .map_err(|e| e.to_string()),
                                 SearchMode::CameraMake => cache
-                                    .get_media_items_by_camera_make(&query)
+                                    .get_media_items_by_camera_make_async(query.clone())
+                                    .await
                                     .map_err(|e| e.to_string()),
                                 SearchMode::Text => Vec::new(),
                             }?;
