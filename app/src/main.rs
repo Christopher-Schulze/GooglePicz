@@ -142,6 +142,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
     match Syncer::new(&db_path).await {
         Ok(mut syncer) => {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            let (err_tx, err_rx) = tokio::sync::mpsc::unbounded_channel::<SyncTaskError>();
             let preload = cfg.thumbnails_preload;
 
             let interval = Duration::from_secs(cfg.sync_interval_minutes * 60);
@@ -149,7 +150,12 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
             info!("📥 Starting synchronization...");
             if ensure_access_token_valid().await.is_ok() {
                 if let Err(e) = syncer
-                    .sync_media_items(Some(tx.clone()), None, None, None)
+                    .sync_media_items(
+                        Some(tx.clone()),
+                        Some(err_tx.clone()),
+                        Some(tx.clone()),
+                        Some(err_tx.clone()),
+                    )
                     .await
                 {
                     error!("❌ Synchronization failed: {}", e);
@@ -158,16 +164,33 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                 error!("❌ Cannot synchronize without a valid access token");
             }
 
-            let (err_tx, err_rx) = tokio::sync::mpsc::unbounded_channel::<SyncTaskError>();
             let (sync_handle, sync_shutdown) = if ensure_access_token_valid().await.is_ok() {
-                syncer.start_periodic_sync(interval, tx, err_tx.clone(), None, None, None)
+                syncer.start_periodic_sync(
+                    interval,
+                    tx.clone(),
+                    err_tx.clone(),
+                    None,
+                    Some(tx.clone()),
+                    Some(err_tx.clone()),
+                )
             } else {
                 error!("❌ Cannot start periodic sync without a valid token");
-                syncer.start_periodic_sync(interval, tx, err_tx.clone(), None, None, None)
+                syncer.start_periodic_sync(
+                    interval,
+                    tx.clone(),
+                    err_tx.clone(),
+                    None,
+                    Some(tx.clone()),
+                    Some(err_tx.clone()),
+                )
             };
 
             let (refresh_handle, refresh_shutdown) =
-                Syncer::start_token_refresh_task(Duration::from_secs(60), err_tx.clone(), None);
+                Syncer::start_token_refresh_task(
+                    Duration::from_secs(60),
+                    err_tx.clone(),
+                    Some(err_tx.clone()),
+                );
 
 
             let ui_thread = std::thread::spawn(move || {
