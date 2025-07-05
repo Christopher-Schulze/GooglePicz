@@ -17,3 +17,25 @@ Wenn GStreamer nicht verfügbar ist oder die Video-Unterstützung nicht benötig
 ```bash
 cargo build -p ui --no-default-features
 ```
+
+## Profiling mit tokio-console
+
+Installiere die Konsole einmalig:
+
+```bash
+cargo install tokio-console
+```
+
+Starte sie in einem separaten Terminal:
+
+```bash
+tokio-console
+```
+
+Baue und starte GooglePicz mit aktivierten `trace-spans` Features:
+
+```bash
+cargo run --package googlepicz --features sync/trace-spans,ui/trace-spans -- --debug-console --trace-spans
+```
+
+Die Konsole zeigt laufende Tasks an, detaillierte Span-Daten finden sich in `~/.googlepicz/googlepicz.log`.
