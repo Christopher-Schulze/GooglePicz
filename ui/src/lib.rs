@@ -346,12 +346,20 @@ impl GooglePiczUI {
         self.editing_face
     }
     fn log_error(&self, msg: &str) {
-        if let Ok(mut file) = std::fs::OpenOptions::new()
+        tracing::error!("{}", msg);
+        match std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(&self.error_log_path)
         {
-            let _ = writeln!(file, "{}", msg);
+            Ok(mut file) => {
+                if let Err(e) = writeln!(file, "{}", msg) {
+                    tracing::error!(error = ?e, "Failed to write to error log");
+                }
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "Failed to open error log file");
+            }
         }
     }
     fn error_timeout() -> Command<Message> {
@@ -407,7 +415,25 @@ impl Application for GooglePiczUI {
 
         let last_synced = if let Some(cm) = &cache_manager {
             let cache = cm.blocking_lock();
-            cache.get_last_sync().ok()
+            match cache.get_last_sync() {
+                Ok(ts) => Some(ts),
+                Err(e) => {
+                    let msg = format!("Failed to read last sync: {}", e);
+                    init_errors.push(msg.clone());
+                    if let Ok(mut f) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&error_log_path)
+                    {
+                        if let Err(e) = writeln!(f, "{}", msg) {
+                            tracing::error!(error = ?e, "Failed to write to error log");
+                        }
+                    } else {
+                        tracing::error!("Failed to open error log file");
+                    }
+                    None
+                }
+            }
         } else {
             None
         };
@@ -653,7 +679,15 @@ impl Application for GooglePiczUI {
             Message::FacesLoaded(media_id, result) => {
                 if let ViewState::SelectedPhoto { photo, faces } = &mut self.state {
                     if photo.id == media_id {
-                        *faces = result.unwrap_or_default();
+                        match result {
+                            Ok(v) => *faces = v,
+                            Err(e) => {
+                                let msg = format!("Failed to load faces: {}", e);
+                                self.errors.push(msg.clone());
+                                self.log_error(&msg);
+                                return GooglePiczUI::error_timeout();
+                            }
+                        }
                     }
                 }
             }
@@ -715,21 +749,30 @@ impl Application for GooglePiczUI {
             }
             #[cfg(feature = "gstreamer")]
             Message::VideoDownloaded(temp) => {
-                match GstreamerIcedBase::new_url(&url::Url::from_file_path(&temp).unwrap(), false) {
-                    Ok(mut player) => {
-                        let _ = player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
-                        self.state = ViewState::PlayingVideo { player, file: temp };
-                    }
-                    Err(e) => {
-                        let detail = e.to_string();
-                        let msg = if detail.to_lowercase().contains("initialize") {
-                            "GStreamer not available".to_string()
-                        } else {
-                            format!("Failed to start video: {detail}. Missing codecs?")
-                        };
+                match url::Url::from_file_path(&temp) {
+                    Ok(u) => match GstreamerIcedBase::new_url(&u, false) {
+                        Ok(mut player) => {
+                            let _ = player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
+                            self.state = ViewState::PlayingVideo { player, file: temp };
+                        }
+                        Err(e) => {
+                            let detail = e.to_string();
+                            let msg = if detail.to_lowercase().contains("initialize") {
+                                "GStreamer not available".to_string()
+                            } else {
+                                format!("Failed to start video: {detail}. Missing codecs?")
+                            };
+                            self.errors.push(msg.clone());
+                            self.log_error(&msg);
+                            drop(temp); // ensure temp file cleanup
+                            return GooglePiczUI::error_timeout();
+                        }
+                    },
+                    Err(_) => {
+                        let msg = "Invalid video file path".to_string();
                         self.errors.push(msg.clone());
                         self.log_error(&msg);
-                        drop(temp); // ensure temp file cleanup
+                        drop(temp);
                         return GooglePiczUI::error_timeout();
                     }
                 }
