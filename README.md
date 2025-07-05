@@ -66,10 +66,7 @@ cargo run --package googlepicz
 cargo run --package googlepicz --bin sync_cli -- sync
 ```
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for optional settings via `AppConfig`.
-
-
-For available configuration options see [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+See [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for configuration options and example settings.
 
 ### Setting up OAuth Credentials
 
@@ -102,7 +99,7 @@ Having trouble starting the application? Here are a few common issues:
 - **Developing without network access** – Set `MOCK_API_CLIENT=1` and `MOCK_KEYRING=1` (and optionally `MOCK_ACCESS_TOKEN`/`MOCK_REFRESH_TOKEN`) to run all tests without hitting Google APIs.
 - **Need more insight into async tasks?** – Set `debug_console = true` in `~/.googlepicz/config` or pass `--debug-console` to print detailed Tokio diagnostics.
 - **Profiling spans** – Set `trace_spans = true` or pass `--trace-spans` and build with `--features sync/trace-spans,ui/trace-spans` to record timing data.
-- **Missing system libraries on Linux** – Install `glib2.0-dev`, `gstreamer1.0-dev` and `libssl-dev` (or the equivalent packages for your distribution). See [docs/Todo-fuer-User.md](docs/Todo-fuer-User.md) for details. On Debian/Ubuntu run:
+- **Missing system libraries on Linux** – Install `glib2.0-dev`, `gstreamer1.0-dev` and `libssl-dev` (or the equivalent packages for your distribution). See [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for details. On Debian/Ubuntu run:
 
   ```bash
   sudo apt install glib2.0-dev gstreamer1.0-dev libssl-dev
@@ -138,11 +135,7 @@ GooglePicz/
 
 ## 📝 Documentation
 
-See the following documents for additional details:
-- [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) – detailed technical documentation.
-- [Configuration Guide](docs/CONFIGURATION.md) – lists available `AppConfig` options.
-- Command line flags (e.g. `--log-level debug`) can override config values at runtime.
-- [Example Config](docs/EXAMPLE_CONFIG.md) – sample `AppConfig` file.
+See [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for configuration, optional features and build instructions.
 - [Release Artifacts Guide](docs/RELEASE_ARTIFACTS.md#release-process) – how to create installers and sign them.
 
 ## Sync CLI

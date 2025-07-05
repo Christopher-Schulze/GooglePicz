@@ -1,6 +1,8 @@
 # Example Config
 
-Create `~/.googlepicz/config` with all fields of the `AppConfig` struct:
+Create `~/.googlepicz/config` with all fields of the `AppConfig` struct. Video
+playback and face recognition are compile-time features and are **not**
+configured here:
 
 ```toml
 log_level = "debug"
