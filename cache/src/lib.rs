@@ -432,17 +432,18 @@ impl CacheManager {
         text: Option<&str>,
     ) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
+        let sql = concat!(
+            "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename ",
+            "FROM media_items m ",
+            "JOIN media_metadata md ON m.id = md.media_item_id ",
+            "WHERE (?1 IS NULL OR md.camera_model = ?1) ",
+            "AND (?2 IS NULL OR md.creation_time >= ?2) ",
+            "AND (?3 IS NULL OR md.creation_time <= ?3) ",
+            "AND (?4 IS NULL OR m.is_favorite = ?4) ",
+            "AND (?5 IS NULL OR m.filename LIKE ?5 OR m.description LIKE ?5)"
+        );
         let mut stmt = conn
-            .prepare(
-                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename"
-                " FROM media_items m"
-                " JOIN media_metadata md ON m.id = md.media_item_id"
-                " WHERE (?1 IS NULL OR md.camera_model = ?1)"
-                "  AND (?2 IS NULL OR md.creation_time >= ?2)"
-                "  AND (?3 IS NULL OR md.creation_time <= ?3)"
-                "  AND (?4 IS NULL OR m.is_favorite = ?4)"
-                "  AND (?5 IS NULL OR m.filename LIKE ?5 OR m.description LIKE ?5)",
-            )
+            .prepare(sql)
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
         let fav_val: Option<i64> = favorite.map(|f| if f { 1 } else { 0 });

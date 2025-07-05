@@ -11,7 +11,7 @@ use tracing::{error, info};
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use tracing_subscriber::EnvFilter;
-#[cfg(feature = "console")]
+#[cfg(feature = "tokio-console")]
 use console_subscriber;
 use ui;
 mod config;
@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     if cfg.debug_console {
-        #[cfg(feature = "console")]
+        #[cfg(feature = "tokio-console")]
         {
             let _ = std::env::var("TOKIO_CONSOLE");
             console_subscriber::init();
