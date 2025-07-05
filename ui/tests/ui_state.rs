@@ -80,6 +80,32 @@ fn test_sync_error_added() {
 
 #[test]
 #[serial]
+fn test_sync_failed_message() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let _ = ui.update(Message::SyncFailed("fail".into()));
+    assert_eq!(ui.sync_status(), "Sync error");
+    assert!(ui.error_count() > 0);
+}
+
+#[test]
+#[serial]
+fn test_sync_retry_message() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let _ = ui.update(Message::SyncRetry(5));
+    assert!(ui.sync_status().contains("Retrying"));
+    assert_eq!(ui.error_count(), 0);
+}
+
+#[test]
+#[serial]
 fn test_rename_dialog_state() {
     let dir = tempdir().unwrap();
     std::env::set_var("HOME", dir.path());
