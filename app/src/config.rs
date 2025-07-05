@@ -2,11 +2,8 @@ use std::path::PathBuf;
 
 pub struct AppConfig {
     pub log_level: String,
-    #[allow(dead_code)]
     pub oauth_redirect_port: u16,
-    #[allow(dead_code)]
     pub thumbnails_preload: usize,
-    #[allow(dead_code)]
     pub sync_interval_minutes: u64,
     pub debug_console: bool,
     pub cache_path: PathBuf,

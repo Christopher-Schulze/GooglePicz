@@ -28,9 +28,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "file-store")]
 use serde_json;
 
-/// Environment variable that forces using the file-based token store when the
-/// `file-store` feature is compiled in.
-const USE_FILE_STORE_ENV: &str = "USE_FILE_STORE";
 
 const KEYRING_SERVICE_NAME: &str = "GooglePicz";
 const ACCESS_TOKEN_EXPIRY_KEY: &str = "access_token_expiry";
