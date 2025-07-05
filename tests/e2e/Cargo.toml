@@ -9,6 +9,7 @@ tokio = { version = "1", features = ["full"] }
 tempfile = "3"
 cache = { path = "../../cache" }
 api_client = { path = "../../api_client" }
+gstreamer_iced = "0.1"
 
 [[test]]
 name = "album_e2e"
@@ -24,3 +25,7 @@ harness = false
 name = "search_e2e"
 path = "tests/search_e2e.rs"
 harness = false
+
+[[test]]
+name = "video_playback"
+path = "tests/video_playback.rs"

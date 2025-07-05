@@ -248,6 +248,30 @@ cargo run --package googlepicz --bin sync_cli -- delete-album ALBUM_ID
 Deletes the album from Google Photos and the local cache.
 
 ```bash
+cargo run --package googlepicz --bin sync_cli -- rename-album ALBUM_ID "New Title"
+```
+
+Renames an album on Google Photos and updates the local cache.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- add-to-album ALBUM_ID ITEM_ID
+```
+
+Associates a cached media item with an album.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- list-album-items ALBUM_ID
+```
+
+Lists items stored for the given album.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- search QUERY
+```
+
+Searches cached media items by filename or description.
+
+```bash
 cargo run --package googlepicz --bin sync_cli -- cache-stats
 ```
 

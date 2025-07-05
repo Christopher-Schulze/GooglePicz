@@ -297,6 +297,7 @@ impl Syncer {
                             }
                             sleep(interval).await;
                         }
+                        Ok::<(), SyncTaskError>(())
                     } => {}
                 }
             }
@@ -356,6 +357,7 @@ impl Syncer {
                             last_success = Utc::now();
                             failures = 0;
                         }
+                        Ok::<(), SyncTaskError>(())
                     } => {}
                 }
             }
