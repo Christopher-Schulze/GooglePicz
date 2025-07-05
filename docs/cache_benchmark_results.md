@@ -11,3 +11,7 @@ The `load_all_1000` benchmark represents the time to fetch all items after inser
 
 Benchmark result (1000 items): ~0.99 ms per load.
 
+The `load_all_10k` benchmark loads all items after inserting 10,000 entries.
+
+Benchmark result (10k items): ~15.7 ms per load.
+

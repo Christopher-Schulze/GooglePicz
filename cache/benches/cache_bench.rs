@@ -33,6 +33,20 @@ fn bench_load_all(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_load_all);
+fn bench_load_all_10k(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..10_000u32 {
+        let item = sample_media_item(&i.to_string());
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("load_all_10k", |b| {
+        b.iter(|| {
+            let _ = cache.get_all_media_items().unwrap();
+        })
+    });
+}
+
+criterion_group!(benches, bench_load_all, bench_load_all_10k);
 criterion_main!(benches);
 
