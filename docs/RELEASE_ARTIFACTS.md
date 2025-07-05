@@ -6,6 +6,17 @@ This document describes how to build installers for all supported platforms.
 
 - Rust toolchain installed (`rustup`)
 - Required signing credentials if you want signed binaries
+- Development libraries on Linux such as `glib2.0-dev`, `gstreamer1.0-dev` and `libssl-dev` (or distribution equivalents). For example:
+
+  ```bash
+  sudo apt install glib2.0-dev gstreamer1.0-dev libssl-dev
+  ```
+
+  On Fedora/RHEL run:
+
+  ```bash
+  sudo dnf install glib2-devel gstreamer1-devel openssl-devel
+  ```
 
 ### Required Tools {#required-tools}
 
