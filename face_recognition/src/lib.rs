@@ -83,6 +83,12 @@ impl FaceRecognizer {
             .map(|r| Face {
                 bbox: [r.x, r.y, r.width, r.height],
                 name: None,
+                rect: (
+                    r.x.max(0) as u32,
+                    r.y.max(0) as u32,
+                    r.width as u32,
+                    r.height as u32,
+                ),
             })
             .collect();
         Ok(faces)
