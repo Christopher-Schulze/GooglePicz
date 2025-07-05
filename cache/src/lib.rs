@@ -398,6 +398,73 @@ impl CacheManager {
         Ok(items)
     }
 
+    /// Retrieve media items filtered by optional camera model, date range and favorite flag.
+    pub fn query_media_items(
+        &self,
+        camera_model: Option<&str>,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+        favorite: Option<bool>,
+    ) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename"
+                " FROM media_items m"
+                " JOIN media_metadata md ON m.id = md.media_item_id"
+                " WHERE (?1 IS NULL OR md.camera_model = ?1)"
+                "  AND (?2 IS NULL OR md.creation_time >= ?2)"
+                "  AND (?3 IS NULL OR md.creation_time <= ?3)"
+                "  AND (?4 IS NULL OR m.is_favorite = ?4)",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let fav_val: Option<i64> = favorite.map(|f| if f { 1 } else { 0 });
+
+        let iter = stmt
+            .query_map(
+                params![
+                    camera_model,
+                    start.map(|s| s.timestamp()),
+                    end.map(|e| e.timestamp()),
+                    fav_val
+                ],
+                |row| {
+                    let ts: i64 = row.get(5)?;
+                    let w: i64 = row.get(6)?;
+                    let h: i64 = row.get(7)?;
+                    Ok(api_client::MediaItem {
+                        id: row.get(0)?,
+                        description: row.get(1)?,
+                        product_url: row.get(2)?,
+                        base_url: row.get(3)?,
+                        mime_type: row.get(4)?,
+                        media_metadata: api_client::MediaMetadata {
+                            creation_time: Self::ts_to_rfc3339(ts),
+                            width: w.to_string(),
+                            height: h.to_string(),
+                            video: Some(api_client::VideoMetadata {
+                                camera_make: row.get(8)?,
+                                camera_model: row.get(9)?,
+                                fps: row.get(10)?,
+                                status: row.get(11)?,
+                            }),
+                        },
+                        filename: row.get(12)?,
+                    })
+                },
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
+
+        let mut items = Vec::new();
+        for item in iter {
+            items.push(item.map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
+            })?);
+        }
+        Ok(items)
+    }
+
     pub fn get_media_items_by_camera_model(&self, model: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -1206,6 +1273,22 @@ impl CacheManager {
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn query_media_items_async(
+        &self,
+        camera_model: Option<String>,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+        favorite: Option<bool>,
+    ) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || {
+            this.query_media_items(camera_model.as_deref(), start, end, favorite)
+        })
+        .await
+        .map_err(|e| CacheError::Other(e.to_string()))?
+    }
 }
 
 // Die Unit-Tests sind wie in deinem Input (ausgelassen für Zeichenlimit), aber alles vollständig!
@@ -1360,6 +1443,48 @@ mod tests {
         let not_items = cache.get_media_items_by_favorite(false).expect("query");
         assert_eq!(not_items.len(), 1);
         assert_eq!(not_items[0].id, not_fav.id);
+    }
+
+    #[test]
+    fn test_query_media_items_combined() {
+        let tmp = NamedTempFile::new().expect("create temp file");
+        let cache = CacheManager::new(tmp.path()).expect("create cache manager");
+
+        let mut item1 = sample_media_item("1");
+        item1.media_metadata.creation_time = "2023-01-02T00:00:00Z".into();
+        item1.media_metadata.video = Some(api_client::VideoMetadata {
+            camera_make: Some("Canon".into()),
+            camera_model: Some("EOS".into()),
+            fps: None,
+            status: None,
+        });
+        cache.insert_media_item(&item1).expect("insert1");
+        {
+            let conn = cache.conn.lock().unwrap();
+            conn.execute(
+                "UPDATE media_items SET is_favorite = 1 WHERE id = ?1",
+                params![item1.id],
+            )
+            .unwrap();
+        }
+
+        let mut item2 = sample_media_item("2");
+        item2.media_metadata.creation_time = "2023-02-01T00:00:00Z".into();
+        item2.media_metadata.video = Some(api_client::VideoMetadata {
+            camera_make: Some("Nikon".into()),
+            camera_model: Some("D5".into()),
+            fps: None,
+            status: None,
+        });
+        cache.insert_media_item(&item2).expect("insert2");
+
+        let start = Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2023, 1, 31, 23, 59, 59).unwrap();
+        let items = cache
+            .query_media_items(Some("EOS"), Some(start), Some(end), Some(true))
+            .expect("query");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, item1.id);
     }
 }
 

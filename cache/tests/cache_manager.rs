@@ -268,3 +268,42 @@ fn test_get_media_items_by_text() {
     let ids: HashSet<_> = results.iter().map(|i| i.id.as_str()).collect();
     assert!(ids.contains("1") && ids.contains("2"));
 }
+
+#[test]
+fn test_query_media_items_combined() {
+    let file = NamedTempFile::new().unwrap();
+    let cm = CacheManager::new(file.path()).unwrap();
+    let mut item1 = sample_item("1");
+    item1.media_metadata.creation_time = "2023-01-02T00:00:00Z".into();
+    item1.media_metadata.video = Some(api_client::VideoMetadata {
+        camera_make: Some("Canon".into()),
+        camera_model: Some("EOS".into()),
+        fps: None,
+        status: None,
+    });
+    cm.insert_media_item(&item1).unwrap();
+    {
+        let conn = cm.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE media_items SET is_favorite = 1 WHERE id = ?1",
+            params![item1.id],
+        )
+        .unwrap();
+    }
+    let mut item2 = sample_item("2");
+    item2.media_metadata.creation_time = "2023-02-01T00:00:00Z".into();
+    item2.media_metadata.video = Some(api_client::VideoMetadata {
+        camera_make: Some("Nikon".into()),
+        camera_model: Some("D5".into()),
+        fps: None,
+        status: None,
+    });
+    cm.insert_media_item(&item2).unwrap();
+    let start = Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
+    let end = Utc.with_ymd_and_hms(2023, 1, 31, 23, 59, 59).unwrap();
+    let results = cm
+        .query_media_items(Some("EOS"), Some(start), Some(end), Some(true))
+        .unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].id, item1.id);
+}

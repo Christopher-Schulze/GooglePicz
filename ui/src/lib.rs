@@ -15,7 +15,8 @@ use iced::subscription;
 use iced::widget::container::Appearance;
 use iced::widget::image::Handle;
 use iced::widget::{
-    button, column, container, image, pick_list, row, scrollable, text, text_input, Column,
+    button, checkbox, column, container, image, pick_list, row, scrollable, text,
+    text_input, Column,
 };
 use iced::Border;
 use iced::Color;
@@ -51,6 +52,15 @@ fn parse_date_query(query: &str) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
         let start = Utc.from_utc_datetime(&d.and_hms_opt(0, 0, 0)?);
         let end = Utc.from_utc_datetime(&d.and_hms_opt(23, 59, 59)?);
         return Some((start, end));
+    }
+    None
+}
+
+fn parse_single_date(query: &str, end: bool) -> Option<DateTime<Utc>> {
+    use chrono::{NaiveDate, TimeZone};
+    if let Ok(d) = NaiveDate::parse_from_str(query, "%Y-%m-%d") {
+        let nd = if end { d.and_hms_opt(23, 59, 59)? } else { d.and_hms_opt(0, 0, 0)? };
+        return Some(Utc.from_utc_datetime(&nd));
     }
     None
 }
@@ -113,6 +123,10 @@ pub enum Message {
     CancelDeleteAlbum,
     SearchInputChanged(String),
     SearchModeChanged(SearchMode),
+    SearchCameraChanged(String),
+    SearchStartChanged(String),
+    SearchEndChanged(String),
+    SearchFavoriteToggled(bool),
     PerformSearch,
     #[cfg(feature = "gstreamer")]
     PlayVideo(MediaItem),
@@ -217,6 +231,10 @@ pub struct GooglePiczUI {
     deleting_album: Option<String>,
     search_mode: SearchMode,
     search_query: String,
+    search_camera: String,
+    search_start: String,
+    search_end: String,
+    search_favorite: bool,
     error_log_path: PathBuf,
     settings_open: bool,
     config_path: PathBuf,
@@ -372,6 +390,10 @@ impl Application for GooglePiczUI {
             deleting_album: None,
             search_mode: SearchMode::Filename,
             search_query: String::new(),
+            search_camera: String::new(),
+            search_start: String::new(),
+            search_end: String::new(),
+            search_favorite: false,
             error_log_path,
             settings_open: false,
             config_path,
@@ -781,18 +803,34 @@ impl Application for GooglePiczUI {
             Message::SearchModeChanged(mode) => {
                 self.search_mode = mode;
             }
+            Message::SearchCameraChanged(v) => {
+                self.search_camera = v;
+            }
+            Message::SearchStartChanged(v) => {
+                self.search_start = v;
+            }
+            Message::SearchEndChanged(v) => {
+                self.search_end = v;
+            }
+            Message::SearchFavoriteToggled(v) => {
+                self.search_favorite = v;
+            }
             Message::PerformSearch => {
                 if let Some(cm) = &self.cache_manager {
                     let cm = cm.clone();
                     let query = self.search_query.clone();
                     let mode = self.search_mode;
+                    let camera = self.search_camera.clone();
+                    let start = self.search_start.clone();
+                    let end = self.search_end.clone();
+                    let fav = self.search_favorite;
                     return Command::perform(
                         async move {
                             let cache = {
                                 let guard = cm.lock().await;
                                 guard.clone()
                             };
-                            match mode {
+                            let base = match mode {
                                 SearchMode::DateRange => {
                                     if let Some((s, e)) = parse_date_query(&query) {
                                         cache
@@ -823,7 +861,24 @@ impl Application for GooglePiczUI {
                                 SearchMode::CameraMake => cache
                                     .get_media_items_by_camera_make(&query)
                                     .map_err(|e| e.to_string()),
-                            }
+                            }?;
+
+                            let start_dt = parse_single_date(&start, false);
+                            let end_dt = parse_single_date(&end, true);
+                            cache
+                                .query_media_items_async(
+                                    if camera.is_empty() { None } else { Some(camera) },
+                                    start_dt,
+                                    end_dt,
+                                    if fav { Some(true) } else { None },
+                                )
+                                .await
+                                .map_err(|e| e.to_string())
+                                .map(|mut extra| {
+                                    // Intersect results with base
+                                    extra.retain(|i| base.iter().any(|b| b.id == i.id));
+                                    extra
+                                })
                         },
                         Message::PhotosLoaded,
                     );
@@ -936,6 +991,10 @@ impl Application for GooglePiczUI {
             button("Settings").on_press(Message::ShowSettings),
             text_input(placeholder, &self.search_query)
                 .on_input(Message::SearchInputChanged),
+            text_input("Camera", &self.search_camera).on_input(Message::SearchCameraChanged),
+            text_input("From", &self.search_start).on_input(Message::SearchStartChanged),
+            text_input("To", &self.search_end).on_input(Message::SearchEndChanged),
+            checkbox("Fav", self.search_favorite, Message::SearchFavoriteToggled),
             pick_list(
                 &SearchMode::ALL[..],
                 Some(self.search_mode),
