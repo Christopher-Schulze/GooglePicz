@@ -34,6 +34,17 @@ Environment variables:
 - `WINDOWS_CERT` and `WINDOWS_CERT_PASSWORD` – Code signing certificate for Windows
 - `LINUX_SIGN_KEY` – GPG key ID for signing `.deb` files
 
+Example values:
+
+```bash
+export MAC_SIGN_ID="Developer ID Application: Example Corp (ABCD1234)"
+export APPLE_ID="user@example.com"
+export APPLE_PASSWORD="app-password"
+export WINDOWS_CERT="C:/certs/googlepicz.pfx"
+export WINDOWS_CERT_PASSWORD="secret"
+export LINUX_SIGN_KEY="0xDEADBEEF"
+```
+
 ## Steps
 
 1. Run the packager from the workspace root:
@@ -60,3 +71,22 @@ The workflow in `.github/workflows/rust.yml` runs the packager on
 Linux, macOS and Windows. Each run uploads the generated `.deb`, `.dmg`
 and Windows installer via `upload-artifact`. You can download these
 artifacts from the workflow run page without building them locally.
+
+## Release Process {#release-process}
+
+Follow these steps to create and sign final release artifacts:
+
+1. Bump the workspace version in `Cargo.toml` and update `docs/Changelog.md`.
+2. Run the full test suite with `cargo test`.
+3. Export the signing credentials as shown above.
+4. Run `cargo run --package packaging --bin packager` on each target platform.
+   - **macOS** – The `.app` bundle and resulting `.dmg` are signed with
+     `codesign`. If `APPLE_ID` and `APPLE_PASSWORD` are present the DMG is
+     notarized with `notarytool` and stapled.
+   - **Windows** – Both the installer and `googlepicz.exe` are signed using
+     `signtool`.
+   - **Linux** – The generated `.deb` is signed via `dpkg-sig`.
+5. The packager verifies each signature (`codesign --verify`, `signtool verify`,
+   `dpkg-sig --verify`). Check the console output for any errors.
+6. Upload the versioned artifacts from the `target` directory when creating the
+   GitHub release.

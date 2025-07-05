@@ -26,6 +26,6 @@ serial_test = "2"
 
 [features]
 trace-spans = []
-no-gstreamer = []
-default = ["gstreamer_iced"]
+gstreamer = ["gstreamer_iced"]
+default = ["gstreamer"]
 
