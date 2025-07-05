@@ -560,7 +560,9 @@ impl Application for GooglePiczUI {
                 let detail = match &err_msg {
                     SyncTaskError::TokenRefreshFailed(msg)
                     | SyncTaskError::PeriodicSyncFailed(msg)
-                    | SyncTaskError::Other(msg) => msg.clone(),
+                    | SyncTaskError::Other(msg)
+                    | SyncTaskError::Aborted(msg) => msg.clone(),
+                    SyncTaskError::RestartAttempt(attempt) => format!("Restart attempt {attempt}"),
                 };
                 if let Some(idx) = detail.find("last_success:") {
                     let ts_str = detail[idx + "last_success:".len()..].trim();
