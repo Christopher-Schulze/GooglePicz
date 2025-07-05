@@ -36,18 +36,26 @@ pub enum SyncProgress {
     Finished(u64),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncErrorCode {
+    Auth,
+    Network,
+    Cache,
+    Other,
+}
+
 #[derive(Debug, Clone, Error)]
 pub enum SyncTaskError {
-    #[error("Periodic sync failed: {0}")]
-    PeriodicSyncFailed(String),
-    #[error("Token refresh failed: {0}")]
-    TokenRefreshFailed(String),
+    #[error("Periodic sync failed [{code:?}]: {message}")]
+    PeriodicSyncFailed { code: SyncErrorCode, message: String },
+    #[error("Token refresh failed [{code:?}]: {message}")]
+    TokenRefreshFailed { code: SyncErrorCode, message: String },
     #[error("Task aborted: {0}")]
     Aborted(String),
     #[error("Restart attempt {0}")]
     RestartAttempt(u32),
-    #[error("Other task error: {0}")]
-    Other(String),
+    #[error("{code:?}: {message}")]
+    Other { code: SyncErrorCode, message: String },
 }
 
 impl Syncer {
@@ -85,15 +93,15 @@ impl Syncer {
         if let Some(tx) = &progress {
             if let Err(e) = tx.send(SyncProgress::Started) {
                 if let Some(err_tx) = &error {
-                    let _ = err_tx.send(SyncTaskError::Other(format!(
-                        "Failed to send progress: {}",
-                        e
-                    )));
+                    let _ = err_tx.send(SyncTaskError::Other {
+                        code: SyncErrorCode::Other,
+                        message: format!("Failed to send progress: {}", e),
+                    });
                 }
-                Self::forward(&ui_error, SyncTaskError::Other(format!(
-                    "Failed to send progress: {}",
-                    e
-                )));
+                Self::forward(&ui_error, SyncTaskError::Other {
+                    code: SyncErrorCode::Other,
+                    message: format!("Failed to send progress: {}", e),
+                });
             }
         }
         Self::forward(&ui_progress, SyncProgress::Started);
@@ -105,11 +113,17 @@ impl Syncer {
             Err(e) => {
                 let msg = format!("Failed to get last sync time: {}", e);
                 if let Some(tx) = &error {
-                    if let Err(send_err) = tx.send(SyncTaskError::Other(msg.clone())) {
+                    if let Err(send_err) = tx.send(SyncTaskError::Other {
+                        code: SyncErrorCode::Cache,
+                        message: msg.clone(),
+                    }) {
                         tracing::error!("Failed to forward error: {}", send_err);
                     }
                 }
-                Self::forward(&ui_error, SyncTaskError::Other(msg.clone()));
+                Self::forward(&ui_error, SyncTaskError::Other {
+                    code: SyncErrorCode::Cache,
+                    message: msg.clone(),
+                });
                 DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH)
             }
         };
@@ -129,11 +143,17 @@ impl Syncer {
             let token = ensure_access_token_valid().await.map_err(|e| {
                 let msg = format!("Failed to refresh token: {}", e);
                 if let Some(tx) = &error {
-                    if let Err(send_err) = tx.send(SyncTaskError::Other(msg.clone())) {
+                    if let Err(send_err) = tx.send(SyncTaskError::Other {
+                        code: SyncErrorCode::Auth,
+                        message: msg.clone(),
+                    }) {
                         tracing::error!("Failed to forward error: {}", send_err);
                     }
                 }
-                Self::forward(&ui_error, SyncTaskError::Other(msg.clone()));
+                Self::forward(&ui_error, SyncTaskError::Other {
+                    code: SyncErrorCode::Auth,
+                    message: msg.clone(),
+                });
                 SyncError::AuthenticationError(msg)
             })?;
             self.api_client.set_access_token(token);
@@ -145,11 +165,17 @@ impl Syncer {
                 .map_err(|e| {
                     let msg = format!("Failed to list media items from API: {}", e);
                     if let Some(tx) = &error {
-                        if let Err(send_err) = tx.send(SyncTaskError::Other(msg.clone())) {
+                        if let Err(send_err) = tx.send(SyncTaskError::Other {
+                            code: SyncErrorCode::Network,
+                            message: msg.clone(),
+                        }) {
                             tracing::error!("Failed to forward error: {}", send_err);
                         }
                     }
-                    Self::forward(&ui_error, SyncTaskError::Other(msg.clone()));
+                    Self::forward(&ui_error, SyncTaskError::Other {
+                        code: SyncErrorCode::Network,
+                        message: msg.clone(),
+                    });
                     SyncError::ApiClientError(msg)
                 })?;
 
@@ -164,21 +190,27 @@ impl Syncer {
                     .map_err(|e| {
                         let msg = format!("Failed to insert media item into cache: {}", e);
                         if let Some(tx) = &error {
-                            if let Err(send_err) = tx.send(SyncTaskError::Other(msg.clone())) {
+                            if let Err(send_err) = tx.send(SyncTaskError::Other {
+                                code: SyncErrorCode::Cache,
+                                message: msg.clone(),
+                            }) {
                                 tracing::error!("Failed to forward error: {}", send_err);
                             }
                         }
-                        Self::forward(&ui_error, SyncTaskError::Other(msg.clone()));
+                        Self::forward(&ui_error, SyncTaskError::Other {
+                            code: SyncErrorCode::Cache,
+                            message: msg.clone(),
+                        });
                         SyncError::CacheError(msg)
                     })?;
                 total_synced += 1;
                 if let Some(tx) = &progress {
                     if let Err(e) = tx.send(SyncProgress::ItemSynced(total_synced)) {
                         if let Some(err) = &error {
-                            if let Err(send_err) = err.send(SyncTaskError::Other(format!(
-                                "Failed to send progress update: {}",
-                                e
-                            ))) {
+                            if let Err(send_err) = err.send(SyncTaskError::Other {
+                                code: SyncErrorCode::Other,
+                                message: format!("Failed to send progress update: {}", e),
+                            }) {
                                 tracing::error!("Failed to forward error: {}", send_err);
                             }
                         }
@@ -205,10 +237,10 @@ impl Syncer {
         if let Some(tx) = &progress {
             if let Err(e) = tx.send(SyncProgress::Finished(total_synced)) {
                 if let Some(err) = &error {
-                    if let Err(send_err) = err.send(SyncTaskError::Other(format!(
-                        "Failed to send progress update: {}",
-                        e
-                    ))) {
+                    if let Err(send_err) = err.send(SyncTaskError::Other {
+                        code: SyncErrorCode::Other,
+                        message: format!("Failed to send progress update: {}", e),
+                    }) {
                         tracing::error!("Failed to forward error: {}", send_err);
                     }
                 }
@@ -221,11 +253,17 @@ impl Syncer {
             .map_err(|e| {
                 let msg = format!("Failed to update last sync: {}", e);
                 if let Some(tx) = &error {
-                    if let Err(send_err) = tx.send(SyncTaskError::Other(msg.clone())) {
+                    if let Err(send_err) = tx.send(SyncTaskError::Other {
+                        code: SyncErrorCode::Cache,
+                        message: msg.clone(),
+                    }) {
                         tracing::error!("Failed to forward error: {}", send_err);
                     }
                 }
-                Self::forward(&ui_error, SyncTaskError::Other(msg.clone()));
+                Self::forward(&ui_error, SyncTaskError::Other {
+                    code: SyncErrorCode::Cache,
+                    message: msg.clone(),
+                });
                 SyncError::CacheError(msg)
             })?;
         Ok(())
@@ -270,23 +308,26 @@ impl Syncer {
                                 .await
                         {
                             let code = match e {
-                                SyncError::AuthenticationError(_) => "auth",
-                                SyncError::ApiClientError(_) => "api",
-                                SyncError::CacheError(_) => "cache",
-                                SyncError::Other(_) => "other",
+                                SyncError::AuthenticationError(_) => SyncErrorCode::Auth,
+                                SyncError::ApiClientError(_) => SyncErrorCode::Network,
+                                SyncError::CacheError(_) => SyncErrorCode::Cache,
+                                SyncError::Other(_) => SyncErrorCode::Other,
                             };
                             let msg = format!(
-                                "{} | code: {} | last_success: {}",
+                                "{} | last_success: {}",
                                 e,
-                                code,
                                 last_success.to_rfc3339()
                             );
-                            if let Err(send_err) =
-                                error_tx.send(SyncTaskError::PeriodicSyncFailed(msg.clone()))
-                            {
+                            if let Err(send_err) = error_tx.send(SyncTaskError::PeriodicSyncFailed {
+                                code,
+                                message: msg.clone(),
+                            }) {
                                 tracing::error!(error = ?send_err, "Failed to forward periodic sync error");
                             }
-                            Self::forward(&ui_error_tx, SyncTaskError::PeriodicSyncFailed(msg.clone()));
+                            Self::forward(&ui_error_tx, SyncTaskError::PeriodicSyncFailed {
+                                code,
+                                message: msg.clone(),
+                            });
                             failures += 1;
                             if let Some(tx) = &status_tx {
                                 let _ = tx.send(failures);
@@ -304,10 +345,10 @@ impl Syncer {
                             backoff = (backoff * 2).min(300);
                             if let Err(send_err) = progress_tx.send(SyncProgress::Retrying(wait)) {
                                 tracing::error!(error = ?send_err, "Failed to send retry progress");
-                                let _ = error_tx.send(SyncTaskError::Other(format!(
-                                    "Failed to send progress update: {}",
-                                    send_err
-                                )));
+                                let _ = error_tx.send(SyncTaskError::Other {
+                                    code: SyncErrorCode::Other,
+                                    message: format!("Failed to send progress update: {}", send_err),
+                                });
                             }
                             Self::forward(&ui_progress_tx, SyncProgress::Retrying(wait));
                             if failures >= MAX_FAILURES {
@@ -332,7 +373,6 @@ impl Syncer {
                         Ok(()) => {},
                         Err(e) => return Err(e),
                     }
-                    } => {}
                 }
             }
             #[allow(unreachable_code)]
@@ -367,18 +407,22 @@ pub fn start_token_refresh_task(
                                 auth::AuthError::Other(_) => "other",
                             };
                             let msg = format!(
-                                "{} | code: {} | last_success: {}",
+                                "{} | last_success: {}",
                                 e,
-                                code,
                                 last_success.to_rfc3339()
                             );
                             tracing::error!(error = ?e, "Token refresh failed");
-                            if let Err(send_err) =
-                                error_tx.send(SyncTaskError::TokenRefreshFailed(msg.clone()))
+                            let err_variant = SyncTaskError::TokenRefreshFailed {
+                                code: match &e {
+                                    auth::AuthError::Keyring(_) | auth::AuthError::OAuth(_) | auth::AuthError::Other(_) => SyncErrorCode::Auth,
+                                },
+                                message: msg.clone(),
+                            };
+                            if let Err(send_err) = error_tx.send(err_variant.clone())
                             {
                                 tracing::error!(error = ?send_err, "Failed to forward token refresh error");
                             }
-                            Self::forward(&ui_error_tx, SyncTaskError::TokenRefreshFailed(msg.clone()));
+                            Self::forward(&ui_error_tx, err_variant.clone());
                             failures += 1;
                             if let Err(send_err) = error_tx.send(SyncTaskError::RestartAttempt(failures)) {
                                 tracing::error!(error = ?send_err, "Failed to forward restart attempt");
@@ -400,9 +444,7 @@ pub fn start_token_refresh_task(
                         Ok(()) => {},
                         Err(e) => return Err(e),
                     }
-                    } => {}
-
-          }
+                }
             }
             #[allow(unreachable_code)]
             Ok::<(), SyncTaskError>(())

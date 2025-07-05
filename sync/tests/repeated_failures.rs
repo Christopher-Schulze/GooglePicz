@@ -20,7 +20,7 @@ async fn test_periodic_sync_repeated_failures_reported() {
             // drop mock so periodic sync fails
             std::env::remove_var("MOCK_API_CLIENT");
             let (prog_tx, _prog_rx) = mpsc::unbounded_channel();
-            let (err_tx, _err_rx) = mpsc::unbounded_channel::<SyncTaskError>();
+            let (err_tx, mut err_rx) = mpsc::unbounded_channel::<SyncTaskError>();
             let (status_tx, mut status_rx) = mpsc::unbounded_channel::<u32>();
             let (handle, shutdown) = syncer.start_periodic_sync(
                 Duration::from_millis(10),
@@ -33,6 +33,12 @@ async fn test_periodic_sync_repeated_failures_reported() {
             let first = timeout(Duration::from_secs(5), status_rx.recv()).await.unwrap().unwrap();
             let second = timeout(Duration::from_secs(5), status_rx.recv()).await.unwrap().unwrap();
             assert!(first == 1 && second >= 2);
+            // ensure restart attempts are reported
+            let err1 = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap().unwrap();
+            let err2 = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap().unwrap();
+            let pair = [err1, err2];
+            assert!(pair.iter().any(|e| matches!(e, SyncTaskError::PeriodicSyncFailed { .. }))); 
+            assert!(pair.iter().any(|e| matches!(e, SyncTaskError::RestartAttempt(_))));
             let _ = shutdown.send(());
             let _ = handle.await;
         })
