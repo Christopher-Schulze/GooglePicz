@@ -4,6 +4,7 @@ mod image_loader;
 mod video_downloader;
 #[path = "../app/src/config.rs"]
 mod app_config;
+mod style;
 
 pub use image_loader::{ImageLoader, ImageLoaderError};
 pub use video_downloader::{VideoDownloader, VideoDownloadError};
@@ -12,6 +13,7 @@ use api_client::{Album, ApiClient, MediaItem};
 use app_config::AppConfig;
 use auth;
 use cache::CacheManager;
+use crate::style::{self, Palette};
 use face_recognition;
 use chrono::{DateTime, Utc};
 use iced::subscription;
@@ -76,10 +78,10 @@ fn parse_single_date(query: &str, end: bool) -> Option<DateTime<Utc>> {
 
 fn error_container_style() -> iced::theme::Container {
     iced::theme::Container::Custom(Box::new(|_theme: &Theme| Appearance {
-        text_color: Some(Color::from_rgb(0.5, 0.0, 0.0)),
-        background: Some(Color::from_rgb(1.0, 0.9, 0.9).into()),
+        text_color: Some(Palette::ERROR),
+        background: Some(Color { a: 1.0, ..Palette::ERROR }.into()),
         border: Border {
-            color: Color::from_rgb(0.8, 0.0, 0.0),
+            color: Palette::ERROR,
             width: 1.0,
             radius: 2.0.into(),
         },
@@ -1176,27 +1178,38 @@ impl Application for GooglePiczUI {
 
         let mut header = row![
             text("GooglePicz").size(24),
-            button("Refresh").on_press(Message::RefreshPhotos),
-            button("New Album…").on_press(Message::ShowCreateAlbumDialog),
-            button("Settings").on_press(Message::ShowSettings),
+            button("Refresh").style(style::button_primary()).on_press(Message::RefreshPhotos),
+            button("New Album…").style(style::button_primary()).on_press(Message::ShowCreateAlbumDialog),
+            button("Settings").style(style::button_primary()).on_press(Message::ShowSettings),
             text_input(placeholder, &self.search_query)
+                .style(style::text_input_basic())
                 .on_input(Message::SearchInputChanged),
-            text_input("Camera", &self.search_camera).on_input(Message::SearchCameraChanged),
-            text_input("From", &self.search_start).on_input(Message::SearchStartChanged),
-            text_input("To", &self.search_end).on_input(Message::SearchEndChanged),
+            text_input("Camera", &self.search_camera)
+                .style(style::text_input_basic())
+                .on_input(Message::SearchCameraChanged),
+            text_input("From", &self.search_start)
+                .style(style::text_input_basic())
+                .on_input(Message::SearchStartChanged),
+            text_input("To", &self.search_end)
+                .style(style::text_input_basic())
+                .on_input(Message::SearchEndChanged),
             checkbox("Fav", self.search_favorite, Message::SearchFavoriteToggled),
             pick_list(
                 &SearchMode::ALL[..],
                 Some(self.search_mode),
                 Message::SearchModeChanged,
             ),
-            button("Search").on_press(Message::PerformSearch)
+            button("Search")
+                .style(style::button_primary())
+                .on_press(Message::PerformSearch)
         ];
 
         if let Some(album_id) = &self.selected_album {
             header = header
                 .push(
-                    button("Rename").on_press(Message::ShowRenameAlbumDialog(
+                    button("Rename")
+                        .style(style::button_primary())
+                        .on_press(Message::ShowRenameAlbumDialog(
                         album_id.clone(),
                         self.albums
                             .iter()
@@ -1205,7 +1218,11 @@ impl Application for GooglePiczUI {
                             .unwrap_or_default(),
                     )),
                 )
-                .push(button("Delete").on_press(Message::ShowDeleteAlbumDialog(album_id.clone())));
+                .push(
+                    button("Delete")
+                        .style(style::button_primary())
+                        .on_press(Message::ShowDeleteAlbumDialog(album_id.clone()))
+                );
         }
 
         header = header
@@ -1221,7 +1238,7 @@ impl Application for GooglePiczUI {
                 None => "Never synced".to_string(),
             }))
             .push(text(format!("Errors: {}", self.errors.len())))
-            .spacing(20)
+            .spacing(Palette::SPACING)
             .align_items(iced::Alignment::Center);
 
         let error_banner = if self.errors.is_empty() {
@@ -1231,7 +1248,9 @@ impl Application for GooglePiczUI {
             for (i, msg) in self.errors.iter().enumerate() {
                 let row = row![
                     text(msg.clone()).size(16),
-                    button("Dismiss").on_press(Message::DismissError(i))
+                    button("Dismiss")
+                        .style(style::button_primary())
+                        .on_press(Message::DismissError(i))
                 ]
                 .spacing(10)
                 .align_items(iced::Alignment::Center);
@@ -1240,7 +1259,9 @@ impl Application for GooglePiczUI {
             let banner = column![
                 row![
                     text("Operation failed").size(16),
-                    button("Dismiss All").on_press(Message::ClearErrors)
+                    button("Dismiss All")
+                        .style(style::button_primary())
+                        .on_press(Message::ClearErrors)
                 ]
                 .spacing(10)
                 .align_items(iced::Alignment::Center),
@@ -1254,10 +1275,15 @@ impl Application for GooglePiczUI {
             Some(
                 column![
                     text_input("Album title", &self.new_album_title)
+                        .style(style::text_input_basic())
                         .on_input(Message::AlbumTitleChanged),
                     row![
-                        button("Create").on_press(Message::CreateAlbum),
-                        button("Cancel").on_press(Message::CancelCreateAlbum)
+                        button("Create")
+                            .style(style::button_primary())
+                            .on_press(Message::CreateAlbum),
+                        button("Cancel")
+                            .style(style::button_primary())
+                            .on_press(Message::CancelCreateAlbum)
                     ]
                     .spacing(10)
                 ]
@@ -1271,10 +1297,15 @@ impl Application for GooglePiczUI {
             Some(
                 column![
                     text_input("New title", &self.rename_album_title)
+                        .style(style::text_input_basic())
                         .on_input(Message::RenameAlbumTitleChanged),
                     row![
-                        button("Rename").on_press(Message::ConfirmRenameAlbum),
-                        button("Cancel").on_press(Message::CancelRenameAlbum)
+                        button("Rename")
+                            .style(style::button_primary())
+                            .on_press(Message::ConfirmRenameAlbum),
+                        button("Cancel")
+                            .style(style::button_primary())
+                            .on_press(Message::CancelRenameAlbum)
                     ]
                     .spacing(10)
                 ]
@@ -1289,8 +1320,12 @@ impl Application for GooglePiczUI {
                 column![
                     text("Delete album?").size(16),
                     row![
-                        button("Delete").on_press(Message::ConfirmDeleteAlbum),
-                        button("Cancel").on_press(Message::CancelDeleteAlbum)
+                        button("Delete")
+                            .style(style::button_primary())
+                            .on_press(Message::ConfirmDeleteAlbum),
+                        button("Cancel")
+                            .style(style::button_primary())
+                            .on_press(Message::CancelDeleteAlbum)
                     ]
                     .spacing(10)
                 ]
@@ -1305,12 +1340,18 @@ impl Application for GooglePiczUI {
                 column![
                     text("Settings").size(16),
                     text_input("Log level", &self.settings_log_level)
+                        .style(style::text_input_basic())
                         .on_input(Message::SettingsLogLevelChanged),
                     text_input("Cache path", &self.settings_cache_path)
+                        .style(style::text_input_basic())
                         .on_input(Message::SettingsCachePathChanged),
                     row![
-                        button("Save").on_press(Message::SaveSettings),
-                        button("Cancel").on_press(Message::CloseSettings)
+                        button("Save")
+                            .style(style::button_primary())
+                            .on_press(Message::SaveSettings),
+                        button("Cancel")
+                            .style(style::button_primary())
+                            .on_press(Message::CloseSettings)
                     ]
                     .spacing(10)
                 ]
@@ -1331,13 +1372,24 @@ impl Application for GooglePiczUI {
                     ]
                 } else {
                     let mut album_row =
-                        row![button(text("All")).on_press(Message::SelectAlbum(None))].spacing(10);
+                        row![
+                            button(text("All"))
+                                .style(style::button_primary())
+                                .on_press(Message::SelectAlbum(None))
+                        ]
+                        .spacing(10);
                     for album in &self.albums {
                         let title = album.title.clone().unwrap_or_else(|| "Untitled".to_string());
                         let controls = row![
-                            button(text(title.clone())).on_press(Message::SelectAlbum(Some(album.id.clone()))),
-                            button("Rename").on_press(Message::ShowRenameAlbumDialog(album.id.clone(), title.clone())),
-                            button("Delete").on_press(Message::ShowDeleteAlbumDialog(album.id.clone()))
+                            button(text(title.clone()))
+                                .style(style::button_primary())
+                                .on_press(Message::SelectAlbum(Some(album.id.clone()))),
+                            button("Rename")
+                                .style(style::button_primary())
+                                .on_press(Message::ShowRenameAlbumDialog(album.id.clone(), title.clone())),
+                            button("Delete")
+                                .style(style::button_primary())
+                                .on_press(Message::ShowDeleteAlbumDialog(album.id.clone()))
                         ]
                         .spacing(5);
                         album_row = album_row.push(controls);
@@ -1359,7 +1411,9 @@ impl Application for GooglePiczUI {
                                     .height(Length::Fixed(150.0))
                                     .into()
                             };
-                        let btn = button(thumb).on_press(Message::SelectPhoto(photo.clone()));
+                        let btn = button(thumb)
+                            .style(style::button_primary())
+                            .on_press(Message::SelectPhoto(photo.clone()));
                         current = current.push(btn);
                         count += 1;
                         if count == 4 {
@@ -1373,7 +1427,11 @@ impl Application for GooglePiczUI {
                     }
                     let mut grid = column![].spacing(10);
                     if self.display_limit < self.photos.len() {
-                        grid = grid.push(button("Load more").on_press(Message::LoadMorePhotos));
+                        grid = grid.push(
+                            button("Load more")
+                                .style(style::button_primary())
+                                .on_press(Message::LoadMorePhotos),
+                        );
                     }
                     column![
                         header,
@@ -1408,9 +1466,15 @@ impl Application for GooglePiczUI {
                 for (i, face) in faces.iter().enumerate() {
                     let row_elem = if self.editing_face == Some(i) {
                         row![
-                            text_input("Name", &self.face_name_input).on_input(Message::FaceNameChanged),
-                            button("Save").on_press(Message::SaveFaceName),
-                            button("Cancel").on_press(Message::CancelFaceName)
+                            text_input("Name", &self.face_name_input)
+                                .style(style::text_input_basic())
+                                .on_input(Message::FaceNameChanged),
+                            button("Save")
+                                .style(style::button_primary())
+                                .on_press(Message::SaveFaceName),
+                            button("Cancel")
+                                .style(style::button_primary())
+                                .on_press(Message::CancelFaceName)
                         ]
                     } else {
                         row![
@@ -1422,14 +1486,18 @@ impl Application for GooglePiczUI {
                                 face.bbox[3],
                                 face.name.clone().unwrap_or_else(|| "?".into())
                             )),
-                            button("Rename").on_press(Message::StartRenameFace(i))
+                            button("Rename")
+                                .style(style::button_primary())
+                                .on_press(Message::StartRenameFace(i))
                         ]
                     };
                     faces_col = faces_col.push(row_elem);
                 }
                 let mut col = column![
                     header,
-                    button("Close").on_press(Message::ClosePhoto),
+                    button("Close")
+                        .style(style::button_primary())
+                        .on_press(Message::ClosePhoto),
                     img,
                     faces_col,
                     pick_list(
@@ -1440,7 +1508,11 @@ impl Application for GooglePiczUI {
                 ];
                 #[cfg(feature = "gstreamer")]
                 if photo.mime_type.starts_with("video/") {
-                    col = col.push(button("Play Video").on_press(Message::PlayVideo(photo.clone())));
+                    col = col.push(
+                        button("Play Video")
+                            .style(style::button_primary())
+                            .on_press(Message::PlayVideo(photo.clone())),
+                    );
                 }
                 #[cfg(not(feature = "gstreamer"))]
                 if photo.mime_type.starts_with("video/") {
@@ -1455,13 +1527,15 @@ impl Application for GooglePiczUI {
                     .unwrap_or_else(|| image::Handle::from_pixels(1, 1, vec![0, 0, 0, 0]));
                 column![
                     header,
-                    button("Close").on_press(Message::CloseVideo),
+                    button("Close")
+                        .style(style::button_primary())
+                        .on_press(Message::CloseVideo),
                     image(frame).width(Length::Fill).height(Length::Fill)
                 ]
             }
         };
 
-        let mut base = column![].spacing(20);
+        let mut base = column![].spacing(Palette::SPACING);
         if let Some(b) = error_banner {
             base = base.push(b);
         }
