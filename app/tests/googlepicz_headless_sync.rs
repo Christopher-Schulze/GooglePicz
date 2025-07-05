@@ -9,7 +9,9 @@ async fn googlepicz_headless_sync() {
     let dir = TempDir::new().expect("temp dir");
 
     let bin = cargo_bin("googlepicz");
-
+    if which::which("xvfb-run").is_err() {
+        return; // skip if xvfb-run not available
+    }
     let mut child = Command::new("xvfb-run");
     child.arg("-a")
         .arg(bin)
