@@ -632,4 +632,83 @@ mod tests {
         std::env::remove_var("WINDOWS_CERT");
         std::env::remove_var("WINDOWS_CERT_PASSWORD");
     }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[serial]
+    fn test_create_macos_installer_function() {
+        use crate::utils::{get_project_root, workspace_version};
+        std::env::set_var("MOCK_COMMANDS", "1");
+        std::env::set_var("MAC_SIGN_ID", "test");
+        let root = get_project_root();
+        let release = root.join("target/release");
+        let bundle_dir = release.join("bundle/osx/GooglePicz.app");
+        fs::create_dir_all(&bundle_dir).unwrap();
+        fs::write(release.join("GooglePicz.dmg"), b"test").unwrap();
+
+        let result = create_macos_installer();
+        assert!(result.is_ok());
+
+        let version = workspace_version().unwrap();
+        let dmg = release.join(format!("GooglePicz-{}.dmg", version));
+        assert!(dmg.exists());
+        fs::remove_file(dmg).unwrap();
+
+        std::env::remove_var("MOCK_COMMANDS");
+        std::env::remove_var("MAC_SIGN_ID");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[serial]
+    fn test_create_linux_package_function() {
+        use crate::utils::{get_project_root, workspace_version};
+        std::env::set_var("MOCK_COMMANDS", "1");
+        std::env::set_var("LINUX_PACKAGE_FORMAT", "deb");
+        std::env::set_var("LINUX_SIGN_KEY", "DEADBEEF");
+        let root = get_project_root();
+        let deb_dir = root.join("target/debian");
+        fs::create_dir_all(&deb_dir).unwrap();
+        fs::write(deb_dir.join("dummy.deb"), b"test").unwrap();
+
+        let result = create_linux_package();
+        assert!(result.is_ok());
+
+        let version = workspace_version().unwrap();
+        let deb = root.join(format!("GooglePicz-{}.deb", version));
+        assert!(deb.exists());
+        fs::remove_file(deb).unwrap();
+
+        std::env::remove_var("MOCK_COMMANDS");
+        std::env::remove_var("LINUX_PACKAGE_FORMAT");
+        std::env::remove_var("LINUX_SIGN_KEY");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    #[serial]
+    fn test_create_windows_installer_function() {
+        use crate::utils::{get_project_root, workspace_version};
+        std::env::set_var("MOCK_COMMANDS", "1");
+        std::env::set_var("WINDOWS_CERT", "C:/dummy.pfx");
+        let root = get_project_root();
+        let win_dir = root.join("target/windows");
+        fs::create_dir_all(&win_dir).unwrap();
+        let version = workspace_version().unwrap();
+        fs::write(win_dir.join(format!("GooglePicz-{}-Setup.exe", version)), b"test").unwrap();
+        let rel_dir = root.join("target/release");
+        fs::create_dir_all(&rel_dir).unwrap();
+        fs::write(rel_dir.join("googlepicz.exe"), b"test").unwrap();
+
+        let result = create_windows_installer();
+        assert!(result.is_ok());
+
+        let exe = win_dir.join(format!("GooglePicz-{}-Setup.exe", version));
+        assert!(exe.exists());
+        fs::remove_file(exe).unwrap();
+        fs::remove_file(rel_dir.join("googlepicz.exe")).unwrap();
+
+        std::env::remove_var("MOCK_COMMANDS");
+        std::env::remove_var("WINDOWS_CERT");
+    }
 }
