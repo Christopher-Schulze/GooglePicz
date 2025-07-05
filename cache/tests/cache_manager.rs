@@ -3,6 +3,7 @@ use tempfile::NamedTempFile;
 use api_client::{MediaItem, MediaMetadata};
 use chrono::Utc;
 use rusqlite::Connection;
+use std::collections::HashSet;
 
 fn sample_item(id: &str) -> MediaItem {
     MediaItem {
@@ -214,4 +215,39 @@ async fn test_poisoned_mutex_returns_error_async() {
     });
     let result = cache.get_all_media_items_async().await;
     assert!(matches!(result, Err(CacheError::Other(_))));
+}
+
+#[test]
+fn test_get_media_items_by_description() {
+    let file = NamedTempFile::new().unwrap();
+    let cm = CacheManager::new(file.path()).unwrap();
+    let mut item1 = sample_item("1");
+    item1.description = Some("cat picture".into());
+    cm.insert_media_item(&item1).unwrap();
+    let mut item2 = sample_item("2");
+    item2.description = Some("dog photo".into());
+    cm.insert_media_item(&item2).unwrap();
+
+    let results = cm.get_media_items_by_description("cat").unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].id, item1.id);
+}
+
+#[test]
+fn test_get_media_items_by_text() {
+    let file = NamedTempFile::new().unwrap();
+    let cm = CacheManager::new(file.path()).unwrap();
+    let mut item1 = sample_item("1");
+    item1.description = Some("foo".into());
+    item1.filename = "bar.jpg".into();
+    cm.insert_media_item(&item1).unwrap();
+    let mut item2 = sample_item("2");
+    item2.description = Some("bar".into());
+    item2.filename = "foo.png".into();
+    cm.insert_media_item(&item2).unwrap();
+
+    let results = cm.get_media_items_by_text("foo").unwrap();
+    assert_eq!(results.len(), 2);
+    let ids: HashSet<_> = results.iter().map(|i| i.id.as_str()).collect();
+    assert!(ids.contains("1") && ids.contains("2"));
 }
