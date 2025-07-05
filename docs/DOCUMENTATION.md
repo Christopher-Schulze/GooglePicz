@@ -143,6 +143,20 @@ The application and packaging scripts rely on several environment variables:
 - `MOCK_REFRESH_TOKEN` – Used only for automated tests to bypass live authentication.
 - `MOCK_COMMANDS` – Skips running external tools during packaging tests.
 - `USE_FILE_STORE` – When set to `1` and the optional `file-store` feature is enabled, tokens are written to `~/.googlepicz/tokens.json` instead of the system keyring. The same behaviour can be triggered with the `--use-file-store` flag.
+- `MOCK_API_CLIENT` and `MOCK_KEYRING` – together with `MOCK_ACCESS_TOKEN` and `MOCK_REFRESH_TOKEN` allow running the test suite without network access.
+
+### AppConfig Options
+
+The `~/.googlepicz/config` file supports these keys:
+
+| Option | Default | Description |
+| ------ | ------- | ----------- |
+| `log_level` | `info` | Verbosity of log output |
+| `oauth_redirect_port` | `8080` | Port for the OAuth callback |
+| `thumbnails_preload` | `20` | Preloaded thumbnails per album |
+| `sync_interval_minutes` | `5` | Interval between automatic sync runs |
+| `cache_path` | `~/.googlepicz` | Directory for cache and logs |
+| `debug_console` | `false` | Enable Tokio console diagnostics |
 
 ### Setting up OAuth Credentials
 
@@ -160,19 +174,22 @@ export GOOGLE_CLIENT_SECRET="your_client_secret"
 These variables must be set whenever you run the application or tests.
 
 ### Packaging installers
-Run the packager binary to create platform specific artifacts. The version is
-read from `Cargo.toml`, so each file is versioned automatically. Linux packages
-are built using `cargo deb` with the `--deb-version` flag, requiring the
-`cargo-deb` crate in `dev-dependencies`. The `.deb` output is renamed to include
-the version just like the Windows installer.
+Follow these steps to produce release artifacts:
 
-```bash
-cargo run --package packaging --bin packager
-```
+1. Install the tools listed in the [required tools table](RELEASE_ARTIFACTS.md#required-tools).
+2. Export any signing variables you need (`MAC_SIGN_ID`, `APPLE_ID`, etc.).
+3. Run the packager from the workspace root:
 
-Generated files include `GooglePicz-<version>-Setup.exe` for Windows and
-`GooglePicz-<version>.deb` for Debian-based Linux. The `.deb` file is renamed
-after creation to embed the version, mirroring the Windows installer name.
+   ```bash
+   cargo run --package packaging --bin packager
+   ```
+
+4. Grab the generated files from `target/`:
+   - `GooglePicz-<version>-Setup.exe` on Windows
+   - `GooglePicz.dmg` on macOS
+   - `GooglePicz-<version>.deb` on Linux
+
+The version is read from `Cargo.toml` so artifact names are consistent across platforms.
 
 ## Sync CLI
 
