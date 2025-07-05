@@ -37,7 +37,10 @@ impl ImageLoader {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()
-            .expect("failed to build client");
+            .unwrap_or_else(|e| {
+                tracing::error!("failed to build client: {}", e);
+                reqwest::Client::new()
+            });
         Self::with_client(cache_dir, client)
     }
 

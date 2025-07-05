@@ -22,6 +22,13 @@ fn sample_item() -> MediaItem {
     }
 }
 
+fn invalid_video_item() -> MediaItem {
+    MediaItem {
+        base_url: "::invalid".into(),
+        ..sample_item()
+    }
+}
+
 #[test]
 #[serial]
 fn test_initial_state() {
@@ -136,4 +143,19 @@ fn test_search_mode() {
     assert_eq!(ui.search_mode(), SearchMode::MimeType);
     let _ = ui.update(Message::SearchModeChanged(SearchMode::CameraModel));
     assert_eq!(ui.search_mode(), SearchMode::CameraModel);
+}
+
+#[test]
+#[serial]
+fn test_play_video_invalid_url() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let item = invalid_video_item();
+
+    let _ = ui.update(Message::PlayVideo(item));
+    // Should gracefully handle error and push to errors list
+    assert!(ui.error_count() > 0);
 }

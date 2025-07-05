@@ -341,8 +341,15 @@ fn get_access_token_expiry() -> Result<Option<u64>, AuthError> {
 }
 
 fn cancel_scheduled_refresh() {
-    if let Some(handle) = SCHEDULED_REFRESH.lock().unwrap().take() {
-        handle.abort();
+    match SCHEDULED_REFRESH.lock() {
+        Ok(mut guard) => {
+            if let Some(handle) = guard.take() {
+                handle.abort();
+            }
+        }
+        Err(_) => {
+            tracing::error!("Failed to lock SCHEDULED_REFRESH for cancel");
+        }
     }
 }
 
@@ -362,7 +369,10 @@ fn schedule_token_refresh(expiry: u64) {
             tracing::error!("Scheduled token refresh failed: {}", e);
         }
     });
-    *SCHEDULED_REFRESH.lock().unwrap() = Some(handle);
+    match SCHEDULED_REFRESH.lock() {
+        Ok(mut guard) => *guard = Some(handle),
+        Err(_) => tracing::error!("Failed to lock SCHEDULED_REFRESH to schedule"),
+    }
 }
 
 #[cfg_attr(feature = "trace-spans", tracing::instrument)]
@@ -613,5 +623,23 @@ mod tests {
         let path = dir.path().join(".googlepicz").join("tokens.json");
         assert!(path.exists());
         std::env::remove_var(USE_FILE_STORE_ENV);
+    }
+
+    #[test]
+    #[serial]
+    fn test_cancel_scheduled_refresh_safe() {
+        cancel_scheduled_refresh();
+        cancel_scheduled_refresh();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_schedule_token_refresh_safe() {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        schedule_token_refresh(now + 1);
+        cancel_scheduled_refresh();
     }
 }
