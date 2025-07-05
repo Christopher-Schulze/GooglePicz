@@ -10,6 +10,8 @@ tempfile = "3"
 cache = { path = "../../cache" }
 api_client = { path = "../../api_client" }
 gstreamer_iced = "0.1"
+base64 = "0.21"
+face_recognition = { path = "../../face_recognition", features = ["cache"] }
 
 [[test]]
 name = "album_e2e"
@@ -34,3 +36,8 @@ harness = false
 [[test]]
 name = "video_playback"
 path = "video_playback.rs"
+
+[[test]]
+name = "face_tagging_e2e"
+path = "tests/face_tagging_e2e.rs"
+harness = false
