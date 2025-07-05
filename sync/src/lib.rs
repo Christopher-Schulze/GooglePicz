@@ -214,11 +214,13 @@ impl Syncer {
         interval: Duration,
         progress_tx: mpsc::UnboundedSender<SyncProgress>,
         error_tx: mpsc::UnboundedSender<SyncTaskError>,
+        status_tx: Option<mpsc::UnboundedSender<u32>>,
     ) -> (JoinHandle<()>, oneshot::Sender<()>) {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
         let handle = spawn_local(async move {
             let mut syncer = self;
             let mut backoff = 1u64;
+            let mut failures: u32 = 0;
             let mut last_success = syncer
                 .cache_manager
                 .get_last_sync_async()
@@ -252,8 +254,16 @@ impl Syncer {
                             {
                                 tracing::error!(error = ?send_err, "Failed to forward periodic sync error");
                             }
+                            failures += 1;
+                            if let Some(tx) = &status_tx {
+                                let _ = tx.send(failures);
+                            }
                             let wait = backoff.min(300);
-                            tracing::error!(?e, backoff = wait, "Periodic sync failed");
+                            if failures > 3 {
+                                tracing::error!(?e, attempts = failures, backoff = wait, "Periodic sync failed");
+                            } else {
+                                tracing::warn!(?e, attempts = failures, backoff = wait, "Periodic sync failed");
+                            }
                             backoff = (backoff * 2).min(300);
                             if let Err(send_err) = progress_tx.send(SyncProgress::Retrying(wait)) {
                                 tracing::error!(error = ?send_err, "Failed to send retry progress");
@@ -266,6 +276,10 @@ impl Syncer {
                         } else {
                             last_success = Utc::now();
                             backoff = 1;
+                            failures = 0;
+                            if let Some(tx) = &status_tx {
+                                let _ = tx.send(0);
+                            }
                             sleep(interval).await;
                         }
                     } => {}
