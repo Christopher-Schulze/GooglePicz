@@ -8,6 +8,7 @@ members = [
     "cache",
     "sync",
     "packaging",
+    "tests/e2e",
 ]
 
 [workspace.package]
