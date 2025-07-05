@@ -219,3 +219,46 @@ fn test_faces_loaded_and_rename() {
     assert_eq!(ui.face_name(0), Some("Alice".into()));
 }
 
+#[test]
+#[serial]
+fn test_load_more_photos() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    ui.update(Message::PhotosLoaded(Ok(vec![sample_item(); 50])));
+    assert!(ui.photo_count() == 50);
+    let before = ui.photo_count();
+    let _ = ui.update(Message::LoadMorePhotos);
+    assert!(ui.photo_count() == before);
+}
+
+#[test]
+#[serial]
+fn test_cache_path_chosen() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let path = dir.path().join("other");
+    let _ = ui.update(Message::CachePathChosen(Some(path.to_path_buf().to_str().unwrap().into())));
+    assert_eq!(ui.settings_cache_path(), path.to_string_lossy());
+}
+
+#[test]
+#[serial]
+fn test_escape_closes_photo() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let item = sample_item();
+    ui.update(Message::SelectPhoto(item));
+    assert!(ui.state_debug().starts_with("SelectedPhoto"));
+    ui.update(Message::EscapePressed);
+    assert_eq!(ui.state_debug(), "Grid");
+}
+
