@@ -110,6 +110,12 @@ dirs = "5.0"
 - [ ] Photo synchronization
 - [ ] UI interactions
 
+### E2E Tests
+End-to-end tests live under `tests/e2e` and exercise higher level workflows.
+Mocks for the API client and keyring (`MOCK_API_CLIENT`, `MOCK_KEYRING`) avoid
+network access. The scenarios cover starting a sync, creating albums and
+querying the cache via search helpers.
+
 ## 📦 Build & Development
 
 ### Prerequisites
