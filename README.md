@@ -68,6 +68,19 @@ cargo run --package googlepicz --bin sync_cli -- sync
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for optional settings via `AppConfig`.
 
+### AppConfig Options
+
+The configuration file `~/.googlepicz/config` accepts these keys:
+
+| Option | Default | Description |
+| ------ | ------- | ----------- |
+| `log_level` | `info` | Verbosity of log output |
+| `oauth_redirect_port` | `8080` | Port used by the OAuth callback |
+| `thumbnails_preload` | `20` | How many thumbnails to preload |
+| `sync_interval_minutes` | `5` | Interval for automatic sync tasks |
+| `cache_path` | `~/.googlepicz` | Directory for cache and logs |
+| `debug_console` | `false` | Enable Tokio console diagnostics |
+
 ### Setting up OAuth Credentials
 
 1. Sign in to the [Google Cloud Console](https://console.developers.google.com/) and create a new project.
@@ -95,7 +108,7 @@ Having trouble starting the application? Here are a few common issues:
 - **Missing environment variables** – Ensure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set before launching. See the configuration guide linked above.
 - **OAuth redirect fails** – Check that the redirect port in your config is open and not blocked by a firewall.
 - **Packaging errors** – The packager relies on external tools like `cargo deb` and `makensis`. Use the `MOCK_COMMANDS` environment variable to run packaging tests without these tools.
-- **Developing without network access** – Set `MOCK_API_CLIENT=1` and `MOCK_KEYRING=1` to enable offline mode while testing.
+- **Developing without network access** – Set `MOCK_API_CLIENT=1` and `MOCK_KEYRING=1` (and optionally `MOCK_ACCESS_TOKEN`/`MOCK_REFRESH_TOKEN`) to run all tests without hitting Google APIs.
 - **Need more insight into async tasks?** – Set `debug_console = true` in `~/.googlepicz/config` or pass `--debug-console` to print detailed Tokio diagnostics.
 
 ## 🏗️ Project Structure
@@ -197,6 +210,13 @@ installation commands.
 - `makensis` – part of the NSIS suite used for Windows installers
 
 Set these variables in your shell or CI environment before running `cargo run --package packaging --bin packager`.
+
+### Creating Release Artifacts
+
+1. Ensure all tools listed above are installed.
+2. Export the signing variables needed for your platform.
+3. Run `cargo run --package packaging --bin packager` from the workspace root.
+4. Retrieve the generated files from `target/` (e.g. `GooglePicz-<version>-Setup.exe` or `GooglePicz-<version>.deb`).
 
 ## Running Tests
 
