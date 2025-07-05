@@ -161,6 +161,12 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
              ALTER TABLE media_metadata ADD COLUMN status TEXT;\
              UPDATE schema_version SET version = 12;"
         ),
+        M::up(
+            "CREATE INDEX IF NOT EXISTS idx_media_metadata_camera_model ON media_metadata (camera_model);\
+             CREATE INDEX IF NOT EXISTS idx_media_items_filename ON media_items (filename);\
+             CREATE INDEX IF NOT EXISTS idx_media_items_description ON media_items (description);\
+             UPDATE schema_version SET version = 13;"
+        ),
     ]);
     migrations
         .to_latest(conn)
@@ -405,6 +411,53 @@ impl CacheManager {
 
         let iter = stmt
             .query_map(params![model], |row| {
+                let ts: i64 = row.get(5)?;
+                let w: i64 = row.get(6)?;
+                let h: i64 = row.get(7)?;
+                Ok(api_client::MediaItem {
+                    id: row.get(0)?,
+                    description: row.get(1)?,
+                    product_url: row.get(2)?,
+                    base_url: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    media_metadata: api_client::MediaMetadata {
+                        creation_time: Self::ts_to_rfc3339(ts),
+                        width: w.to_string(),
+                        height: h.to_string(),
+                        video: Some(api_client::VideoMetadata {
+                            camera_make: row.get(8)?,
+                            camera_model: row.get(9)?,
+                            fps: row.get(10)?,
+                            status: row.get(11)?,
+                        }),
+                    },
+                    filename: row.get(12)?,
+                })
+            })
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
+
+        let mut items = Vec::new();
+        for item in iter {
+            items.push(item.map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
+            })?);
+        }
+        Ok(items)
+    }
+
+    pub fn get_media_items_by_camera_make(&self, make: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
+                 FROM media_items m
+                 JOIN media_metadata md ON m.id = md.media_item_id
+                 WHERE md.camera_make = ?1",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let iter = stmt
+            .query_map(params![make], |row| {
                 let ts: i64 = row.get(5)?;
                 let w: i64 = row.get(6)?;
                 let h: i64 = row.get(7)?;
@@ -760,6 +813,19 @@ impl CacheManager {
         Ok(())
     }
 
+    pub fn remove_media_item_from_album(&self, media_item_id: &str, album_id: &str) -> Result<(), CacheError> {
+        let conn = self.lock_conn()?;
+        conn
+            .execute(
+                "DELETE FROM album_media_items WHERE album_id = ?1 AND media_item_id = ?2",
+                params![album_id, media_item_id],
+            )
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to remove media item from album: {}", e))
+            })?;
+        Ok(())
+    }
+
     pub fn get_media_items_by_album(&self, album_id: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -1020,6 +1086,18 @@ impl CacheManager {
     }
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn remove_media_item_from_album_async(
+        &self,
+        media_item_id: String,
+        album_id: String,
+    ) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.remove_media_item_from_album(&media_item_id, &album_id))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn rename_album_async(&self, album_id: String, new_title: String) -> Result<(), CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.rename_album(&album_id, &new_title))
@@ -1093,6 +1171,38 @@ impl CacheManager {
     pub async fn get_media_items_by_text_async(&self, pattern: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_media_items_by_text(&pattern))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn get_media_item_async(&self, id: String) -> Result<Option<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_item(&id))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn get_media_items_by_mime_type_async(&self, mime: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_items_by_mime_type(&mime))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn get_media_items_by_camera_model_async(&self, model: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_items_by_camera_model(&model))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn get_media_items_by_filename_async(&self, pattern: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_items_by_filename(&pattern))
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }

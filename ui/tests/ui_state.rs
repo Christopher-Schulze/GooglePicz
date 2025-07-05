@@ -136,4 +136,21 @@ fn test_search_mode() {
     assert_eq!(ui.search_mode(), SearchMode::MimeType);
     let _ = ui.update(Message::SearchModeChanged(SearchMode::CameraModel));
     assert_eq!(ui.search_mode(), SearchMode::CameraModel);
+    let _ = ui.update(Message::SearchModeChanged(SearchMode::CameraMake));
+    assert_eq!(ui.search_mode(), SearchMode::CameraMake);
+}
+
+#[test]
+#[serial]
+fn test_settings_dialog() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    assert!(!ui.settings_open());
+    let _ = ui.update(Message::ShowSettings);
+    assert!(ui.settings_open());
+    let _ = ui.update(Message::CloseSettings);
+    assert!(!ui.settings_open());
 }

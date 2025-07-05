@@ -48,3 +48,8 @@
 - Corrected a duplicate `eprintln!` call in `Message::PhotosLoaded` handler in `ui/src/lib.rs`.
 - Removed a redundant closing brace (`}}`) in the `update` method in `ui/src/lib.rs` to fix a syntax error.
 - Created `targetpicture.md` in `docs/` detailing the final vision and architecture of the project.
+
+## 2025-07-05
+- Fixed compilation errors in `sync` crate by returning `Ok(())` from async blocks.
+- Handled unused `Command` warning in `ui` crate.
+- Workspace builds successfully with `cargo check --all` and `cargo build`.

@@ -24,9 +24,9 @@ use sync::{SyncProgress, SyncTaskError};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
-#[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+#[cfg(feature = "gstreamer")]
 use gstreamer_iced::{GstreamerIcedBase, GStreamerMessage, PlayStatus};
-#[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+#[cfg(feature = "gstreamer")]
 use gstreamer_iced::reexport::url;
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
@@ -111,13 +111,15 @@ pub enum Message {
     SearchInputChanged(String),
     SearchModeChanged(SearchMode),
     PerformSearch,
-    #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+    #[cfg(feature = "gstreamer")]
     PlayVideo(MediaItem),
-    #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+    #[cfg(feature = "gstreamer")]
     VideoEvent(GStreamerMessage),
-    #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+    #[cfg(feature = "gstreamer")]
     CloseVideo,
     ClearErrors,
+    ShowSettings,
+    CloseSettings,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -143,10 +145,11 @@ pub enum SearchMode {
     DateRange,
     MimeType,
     CameraModel,
+    CameraMake,
 }
 
 impl SearchMode {
-    const ALL: [SearchMode; 7] = [
+    const ALL: [SearchMode; 8] = [
         SearchMode::Filename,
         SearchMode::Description,
         SearchMode::Text,
@@ -154,6 +157,7 @@ impl SearchMode {
         SearchMode::DateRange,
         SearchMode::MimeType,
         SearchMode::CameraModel,
+        SearchMode::CameraMake,
     ];
 }
 
@@ -167,6 +171,7 @@ impl std::fmt::Display for SearchMode {
             SearchMode::DateRange => "Datum von/bis",
             SearchMode::MimeType => "Dateityp",
             SearchMode::CameraModel => "Kamera-Modell",
+            SearchMode::CameraMake => "Kamera-Hersteller",
         };
         write!(f, "{}", s)
     }
@@ -176,7 +181,7 @@ impl std::fmt::Display for SearchMode {
 enum ViewState {
     Grid,
     SelectedPhoto(MediaItem),
-    #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+    #[cfg(feature = "gstreamer")]
     PlayingVideo(GstreamerIcedBase),
 }
 
@@ -207,6 +212,7 @@ pub struct GooglePiczUI {
     search_mode: SearchMode,
     search_query: String,
     error_log_path: PathBuf,
+    settings_open: bool,
 }
 
 impl GooglePiczUI {
@@ -246,6 +252,10 @@ impl GooglePiczUI {
 
     pub fn rename_album_title(&self) -> String {
         self.rename_album_title.clone()
+    }
+
+    pub fn settings_open(&self) -> bool {
+        self.settings_open
     }
     fn log_error(&self, msg: &str) {
         if let Ok(mut file) = std::fs::OpenOptions::new()
@@ -344,6 +354,7 @@ impl Application for GooglePiczUI {
             search_mode: SearchMode::Filename,
             search_query: String::new(),
             error_log_path,
+            settings_open: false,
         };
 
         (
@@ -516,26 +527,41 @@ impl Application for GooglePiczUI {
             Message::ClosePhoto => {
                 self.state = ViewState::Grid;
             }
-            #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+            #[cfg(feature = "gstreamer")]
             Message::PlayVideo(item) => {
                 let url = format!("{}=dv", item.base_url);
                 if let Ok(mut player) = GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
-                    player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
+                    let _ = player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
                     self.state = ViewState::PlayingVideo(player);
                 } else {
                     let msg = "Failed to start video".to_string();
                     self.errors.push(msg.clone());
                     self.log_error(&msg);
                     return GooglePiczUI::error_timeout();
+                match GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
+                    Ok(mut player) => {
+                        player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
+                        self.state = ViewState::PlayingVideo(player);
+                    }
+                    Err(e) => {
+                        let msg = format!("Failed to start video: {e}. Missing codecs?");
+                        self.errors.push(msg.clone());
+                        self.log_error(&msg);
+                        return GooglePiczUI::error_timeout();
+                    }
                 }
             }
-            #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+            #[cfg(feature = "gstreamer")]
             Message::VideoEvent(msg) => {
                 if let ViewState::PlayingVideo(player) = &mut self.state {
+                    if let GStreamerMessage::BusGoToEnd = msg {
+                        self.state = ViewState::Grid;
+                        return Command::none();
+                    }
                     return player.update(msg).map(Message::VideoEvent);
                 }
             }
-            #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+            #[cfg(feature = "gstreamer")]
             Message::CloseVideo => {
                 self.state = ViewState::Grid;
             }
@@ -591,6 +617,12 @@ impl Application for GooglePiczUI {
             }
             Message::ClearErrors => {
                 self.errors.clear();
+            }
+            Message::ShowSettings => {
+                self.settings_open = true;
+            }
+            Message::CloseSettings => {
+                self.settings_open = false;
             }
             Message::ShowCreateAlbumDialog => {
                 self.creating_album = true;
@@ -748,6 +780,9 @@ impl Application for GooglePiczUI {
                                 SearchMode::CameraModel => cache
                                     .get_media_items_by_camera_model(&query)
                                     .map_err(|e| e.to_string()),
+                                SearchMode::CameraMake => cache
+                                    .get_media_items_by_camera_make(&query)
+                                    .map_err(|e| e.to_string()),
                             }
                         },
                         Message::PhotosLoaded,
@@ -836,7 +871,7 @@ impl Application for GooglePiczUI {
             }));
         }
 
-        #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+        #[cfg(feature = "gstreamer")]
         if let ViewState::PlayingVideo(player) = &self.state {
             subs.push(player.subscription().map(Message::VideoEvent));
         }
@@ -849,6 +884,7 @@ impl Application for GooglePiczUI {
         let placeholder = match self.search_mode {
             SearchMode::MimeType => "Mime type",
             SearchMode::CameraModel => "Camera model",
+            SearchMode::CameraMake => "Camera make",
             SearchMode::DateRange => "YYYY-MM-DD..YYYY-MM-DD",
             _ => "Search",
         };
@@ -857,6 +893,7 @@ impl Application for GooglePiczUI {
             text("GooglePicz").size(24),
             button("Refresh").on_press(Message::RefreshPhotos),
             button("New Album…").on_press(Message::ShowCreateAlbumDialog),
+            button("Settings").on_press(Message::ShowSettings),
             text_input(placeholder, &self.search_query)
                 .on_input(Message::SearchInputChanged),
             pick_list(
@@ -966,6 +1003,18 @@ impl Application for GooglePiczUI {
             None
         };
 
+        let settings_dialog = if self.settings_open {
+            Some(
+                column![
+                    text("Settings").size(16),
+                    button("Close").on_press(Message::CloseSettings)
+                ]
+                .spacing(10),
+            )
+        } else {
+            None
+        };
+
         let content = match &self.state {
             ViewState::Grid => {
                 if self.loading {
@@ -1055,17 +1104,17 @@ impl Application for GooglePiczUI {
                         Message::AlbumPicked
                     )
                 ];
-                #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+                #[cfg(feature = "gstreamer")]
                 if photo.mime_type.starts_with("video/") {
                     col = col.push(button("Play Video").on_press(Message::PlayVideo(photo.clone())));
                 }
-                #[cfg(any(feature = "no-gstreamer", not(feature = "gstreamer_iced")))]
+                #[cfg(not(feature = "gstreamer"))]
                 if photo.mime_type.starts_with("video/") {
                     col = col.push(text("Video playback not available"));
                 }
                 col
             }
-            #[cfg(all(not(feature = "no-gstreamer"), feature = "gstreamer_iced"))]
+            #[cfg(feature = "gstreamer")]
             ViewState::PlayingVideo(player) => {
                 let frame = player
                     .frame_handle()
@@ -1090,6 +1139,9 @@ impl Application for GooglePiczUI {
             base = base.push(d);
         }
         if let Some(d) = delete_dialog {
+            base = base.push(d);
+        }
+        if let Some(d) = settings_dialog {
             base = base.push(d);
         }
 

@@ -332,8 +332,11 @@ impl Syncer {
                         Ok(()) => {},
                         Err(e) => return Err(e),
                     }
+                    } => {}
                 }
             }
+            #[allow(unreachable_code)]
+            Ok::<(), SyncTaskError>(())
         });
         (handle, shutdown_tx)
     }
@@ -397,8 +400,12 @@ pub fn start_token_refresh_task(
                         Ok(()) => {},
                         Err(e) => return Err(e),
                     }
-                }
+                    } => {}
+
+          }
             }
+            #[allow(unreachable_code)]
+            Ok::<(), SyncTaskError>(())
         });
         (handle, shutdown_tx)
     }

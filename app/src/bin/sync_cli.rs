@@ -99,6 +99,36 @@ enum Commands {
         #[arg(long)]
         file: PathBuf,
     },
+    /// Search cached media items
+    Search {
+        /// Query string to match filename or description
+        query: String,
+        /// Maximum number of items to display
+        #[arg(long)]
+        limit: Option<usize>,
+    },
+    /// Rename an album
+    RenameAlbum {
+        /// ID of the album
+        id: String,
+        /// New title
+        title: String,
+    },
+    /// Add a media item to an album
+    AddToAlbum {
+        /// Album ID
+        album_id: String,
+        /// Media item ID
+        item_id: String,
+    },
+    /// List items of an album
+    ListAlbumItems {
+        /// Album ID
+        album_id: String,
+        /// Maximum number of items to display
+        #[arg(long)]
+        limit: Option<usize>,
+    },
 }
 
 #[cfg_attr(feature = "trace-spans", tracing::instrument)]
@@ -269,6 +299,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cache = CacheManager::new(&db_path)?;
             cache.import_media_items(&file)?;
             println!("Imported from {:?}", file);
+        }
+        Commands::Search { query, limit } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            let items = cache.get_media_items_by_text(&query)?;
+            let max = limit.unwrap_or(10);
+            for item in items.iter().take(max) {
+                println!("{} - {}", item.id, item.filename);
+            }
+        }
+        Commands::RenameAlbum { id, title } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let token = ensure_access_token_valid().await?;
+            let client = ApiClient::new(token);
+            let album = client.rename_album(&id, &title).await?;
+            let cache = CacheManager::new(&db_path)?;
+            cache.rename_album(&id, &title)?;
+            let shown = album.title.unwrap_or(title);
+            println!("Album renamed: {} (id: {})", shown, id);
+        }
+        Commands::AddToAlbum { album_id, item_id } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            cache.associate_media_item_with_album(&item_id, &album_id)?;
+            println!("Added {} to album {}", item_id, album_id);
+        }
+        Commands::ListAlbumItems { album_id, limit } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            let items = cache.get_media_items_by_album(&album_id)?;
+            let max = limit.unwrap_or(10);
+            for item in items.iter().take(max) {
+                println!("{} - {}", item.id, item.filename);
+            }
         }
     }
 

@@ -28,6 +28,35 @@ fn command_available(cmd: &str) -> bool {
     which(cmd).is_ok()
 }
 
+fn verify_tools() -> Result<(), PackagingError> {
+    if std::env::var("MOCK_COMMANDS").is_ok() {
+        return Ok(());
+    }
+
+    let mut tools: Vec<(&str, &str)> = Vec::new();
+
+    tools.push(("cargo", "cargo"));
+    if cfg!(target_os = "linux") {
+        tools.push(("cargo-deb", "cargo-deb (install with `cargo install cargo-deb`)"));
+    } else if cfg!(target_os = "macos") {
+        tools.push(("cargo-bundle", "cargo-bundle (install with `cargo install cargo-bundle`)"));
+        tools.push(("codesign", "codesign"));
+        tools.push(("hdiutil", "hdiutil"));
+        tools.push(("xcrun", "xcrun"));
+    } else if cfg!(target_os = "windows") {
+        tools.push(("makensis", "makensis (install NSIS)"));
+        tools.push(("signtool", "signtool"));
+    }
+
+    for (cmd, msg) in tools {
+        if !command_available(cmd) {
+            return Err(PackagingError::MissingCommand(msg.into()));
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(args)))]
 fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
     tracing::info!("Running command: {} {:?}", cmd, args);
@@ -367,6 +396,7 @@ pub fn create_installer() -> Result<(), PackagingError> {
 
 #[cfg_attr(feature = "trace-spans", tracing::instrument)]
 pub fn package_all() -> Result<(), PackagingError> {
+    verify_tools()?;
     let root = get_project_root();
     std::env::set_current_dir(&root)
         .map_err(|e| PackagingError::Other(format!("Failed to change directory: {}", e)))?;

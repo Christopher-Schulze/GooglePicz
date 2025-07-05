@@ -109,7 +109,7 @@ Having trouble starting the application? Here are a few common issues:
 - **Missing environment variables** – Ensure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set before launching. See the configuration guide linked above.
 - **OAuth redirect fails** – Check that the redirect port in your config is open and not blocked by a firewall.
 - **Packaging errors** – The packager relies on external tools like `cargo deb` and `makensis`. Use the `MOCK_COMMANDS` environment variable to run packaging tests without these tools.
-- **GStreamer not installed** – Build with `--features ui/no-gstreamer` to disable the video backend.
+- **GStreamer not installed** – Build the `ui` crate with `--no-default-features` to disable the video backend.
 - **Developing without network access** – Set `MOCK_API_CLIENT=1` and `MOCK_KEYRING=1` (and optionally `MOCK_ACCESS_TOKEN`/`MOCK_REFRESH_TOKEN`) to run all tests without hitting Google APIs.
 - **Need more insight into async tasks?** – Set `debug_console = true` in `~/.googlepicz/config` or pass `--debug-console` to print detailed Tokio diagnostics.
 - **Profiling spans** – Set `trace_spans = true` or pass `--trace-spans` and build with `--features sync/trace-spans,ui/trace-spans` to record timing data.
@@ -154,7 +154,7 @@ See the following documents for additional details:
 - [Configuration Guide](docs/CONFIGURATION.md) – lists available `AppConfig` options.
 - Command line flags (e.g. `--log-level debug`) can override config values at runtime.
 - [Example Config](docs/EXAMPLE_CONFIG.md) – sample `AppConfig` file.
-- [Release Artifacts Guide](docs/RELEASE_ARTIFACTS.md) – how to create installers.
+- [Release Artifacts Guide](docs/RELEASE_ARTIFACTS.md#release-process) – how to create installers and sign them.
 
 ## Sync CLI
 
@@ -164,7 +164,8 @@ the same command line overrides (e.g. `--log-level debug`). Available options in
 `--oauth-redirect-port`, `--thumbnails-preload`, `--sync-interval-minutes`, `--config`,
 `--debug-console` and `--use-file-store`.
 The tool exposes subcommands for `sync`, `status`, `clear-cache`, `list-albums`,
-`create-album`, `delete-album`, `cache-stats`, `list-items`, `show-item`,
+`create-album`, `delete-album`, `rename-album`, `add-to-album`, `list-album-items`,
+`cache-stats`, `list-items`, `search`, `show-item`,
 `export-items`, `import-items` and `export-albums` and prints progress updates
 to stdout while downloading items. The source code lives in `app/src/bin/sync_cli.rs`.
 
@@ -211,6 +212,24 @@ cargo run --package googlepicz --bin sync_cli -- delete-album ALBUM_ID
 Deletes the album from Google Photos and the local cache.
 
 ```bash
+cargo run --package googlepicz --bin sync_cli -- rename-album ALBUM_ID "New Title"
+```
+
+Renames an existing album on Google Photos and updates the cache.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- add-to-album ALBUM_ID ITEM_ID
+```
+
+Associates a cached media item with an album in the local database.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- list-album-items ALBUM_ID
+```
+
+Lists cached items that belong to the given album.
+
+```bash
 cargo run --package googlepicz --bin sync_cli -- cache-stats
 ```
 
@@ -221,6 +240,12 @@ cargo run --package googlepicz --bin sync_cli -- list-items --limit 5
 ```
 
 Lists cached media items, optionally limiting the output.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- search QUERY
+```
+
+Searches cached media items by filename or description.
 
 ```bash
 cargo run --package googlepicz --bin sync_cli -- show-item ITEM_ID
@@ -273,6 +298,7 @@ Set these variables in your shell or CI environment before running `cargo run --
 2. Export the signing variables needed for your platform.
 3. Run `cargo run --package packaging --bin packager` from the workspace root.
 4. Retrieve the generated files from `target/` (e.g. `GooglePicz-<version>-Setup.exe` or `GooglePicz-<version>.deb`).
+5. See the [release process](docs/RELEASE_ARTIFACTS.md#release-process) for signing and notarization details.
 
 ## Running Tests
 
