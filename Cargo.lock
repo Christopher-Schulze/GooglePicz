@@ -1830,8 +1830,10 @@ dependencies = [
 name = "e2e"
 version = "0.1.0"
 dependencies = [
+ "api_client",
  "assert_cmd",
  "cache",
+ "gstreamer_iced",
  "tempfile",
  "tokio",
 ]
@@ -2566,10 +2568,12 @@ dependencies = [
  "console-subscriber",
  "dirs",
  "predicates 2.1.5",
+ "serde",
  "serde_json",
  "sync",
  "tempfile",
  "tokio",
+ "toml 0.5.11",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -6851,11 +6855,13 @@ dependencies = [
  "httpmock",
  "iced",
  "reqwest",
+ "serde",
  "serial_test",
  "sync",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
+ "toml 0.5.11",
  "tracing",
  "wgpu",
 ]

@@ -1,5 +1,7 @@
 use std::path::PathBuf;
+use serde::{Serialize, Deserialize};
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct AppConfig {
     pub log_level: String,
     pub oauth_redirect_port: u16,
@@ -80,5 +82,21 @@ impl AppConfig {
             self.trace_spans = true;
         }
         self
+    }
+
+    pub fn save_to(&self, path: Option<PathBuf>) -> std::io::Result<()> {
+        let path = match path {
+            Some(p) => p,
+            None => dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".googlepicz")
+                .join("config"),
+        };
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let data = toml::to_string(self)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        std::fs::write(path, data)
     }
 }

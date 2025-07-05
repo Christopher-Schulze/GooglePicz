@@ -1,10 +1,13 @@
 //! User Interface module for GooglePicz.
 
 mod image_loader;
+#[path = "../app/src/config.rs"]
+mod app_config;
 
 pub use image_loader::{ImageLoader, ImageLoaderError};
 
 use api_client::{Album, ApiClient, MediaItem};
+use app_config::AppConfig;
 use auth;
 use cache::CacheManager;
 use chrono::{DateTime, Utc};
@@ -120,6 +123,9 @@ pub enum Message {
     ClearErrors,
     ShowSettings,
     CloseSettings,
+    SettingsLogLevelChanged(String),
+    SettingsCachePathChanged(String),
+    SaveSettings,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -213,6 +219,9 @@ pub struct GooglePiczUI {
     search_query: String,
     error_log_path: PathBuf,
     settings_open: bool,
+    config_path: PathBuf,
+    settings_log_level: String,
+    settings_cache_path: String,
 }
 
 impl GooglePiczUI {
@@ -257,6 +266,14 @@ impl GooglePiczUI {
     pub fn settings_open(&self) -> bool {
         self.settings_open
     }
+
+    pub fn settings_log_level(&self) -> String {
+        self.settings_log_level.clone()
+    }
+
+    pub fn settings_cache_path(&self) -> String {
+        self.settings_cache_path.clone()
+    }
     fn log_error(&self, msg: &str) {
         if let Ok(mut file) = std::fs::OpenOptions::new()
             .create(true)
@@ -293,6 +310,7 @@ impl Application for GooglePiczUI {
         let mut init_errors = Vec::new();
         let error_log_path = cache_dir.join("ui_errors.log");
         let cache_path = cache_dir.join("cache.sqlite");
+        let config_path = cache_dir.join("config");
 
         let cache_manager = match CacheManager::new(&cache_path) {
             Ok(cm) => Some(Arc::new(Mutex::new(cm))),
@@ -327,6 +345,7 @@ impl Application for GooglePiczUI {
             None => "Never synced".to_string(),
         };
 
+        let cfg = AppConfig::load_from(Some(config_path.clone()));
         let app = Self {
             photos: Vec::new(),
             albums: Vec::new(),
@@ -355,6 +374,9 @@ impl Application for GooglePiczUI {
             search_query: String::new(),
             error_log_path,
             settings_open: false,
+            config_path,
+            settings_log_level: cfg.log_level.clone(),
+            settings_cache_path: cfg.cache_path.to_string_lossy().to_string(),
         };
 
         (
@@ -612,8 +634,29 @@ impl Application for GooglePiczUI {
             }
             Message::ShowSettings => {
                 self.settings_open = true;
+                let cfg = AppConfig::load_from(Some(self.config_path.clone()));
+                self.settings_log_level = cfg.log_level;
+                self.settings_cache_path = cfg.cache_path.to_string_lossy().to_string();
             }
             Message::CloseSettings => {
+                self.settings_open = false;
+            }
+            Message::SettingsLogLevelChanged(val) => {
+                self.settings_log_level = val;
+            }
+            Message::SettingsCachePathChanged(val) => {
+                self.settings_cache_path = val;
+            }
+            Message::SaveSettings => {
+                let mut cfg = AppConfig::load_from(Some(self.config_path.clone()));
+                cfg.log_level = self.settings_log_level.clone();
+                cfg.cache_path = PathBuf::from(self.settings_cache_path.clone());
+                if let Err(e) = cfg.save_to(Some(self.config_path.clone())) {
+                    let msg = format!("Failed to save settings: {}", e);
+                    self.errors.push(msg.clone());
+                    self.log_error(&msg);
+                    return GooglePiczUI::error_timeout();
+                }
                 self.settings_open = false;
             }
             Message::ShowCreateAlbumDialog => {
@@ -999,7 +1042,15 @@ impl Application for GooglePiczUI {
             Some(
                 column![
                     text("Settings").size(16),
-                    button("Close").on_press(Message::CloseSettings)
+                    text_input("Log level", &self.settings_log_level)
+                        .on_input(Message::SettingsLogLevelChanged),
+                    text_input("Cache path", &self.settings_cache_path)
+                        .on_input(Message::SettingsCachePathChanged),
+                    row![
+                        button("Save").on_press(Message::SaveSettings),
+                        button("Cancel").on_press(Message::CloseSettings)
+                    ]
+                    .spacing(10)
                 ]
                 .spacing(10),
             )
