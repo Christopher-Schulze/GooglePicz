@@ -1,0 +1,13 @@
+name: Rust checks
+runs:
+  using: "composite"
+  steps:
+    - name: Format check
+      run: cargo fmt -- --check
+      shell: bash
+    - name: Clippy check
+      run: cargo clippy --all -- -D warnings
+      shell: bash
+    - name: Run tests
+      run: cargo test --all
+      shell: bash
