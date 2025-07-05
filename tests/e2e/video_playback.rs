@@ -3,6 +3,7 @@ use std::path::Path;
 
 #[tokio::test]
 async fn test_sample_video_plays() {
+    std::env::set_var("MOCK_API_CLIENT", "1");
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("videos")
         .join("sample.mp4");
@@ -14,6 +15,7 @@ async fn test_sample_video_plays() {
 
 #[tokio::test]
 async fn test_invalid_video_errors() {
+    std::env::set_var("MOCK_API_CLIENT", "1");
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("videos")
         .join("invalid.mp4");
