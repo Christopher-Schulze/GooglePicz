@@ -109,7 +109,7 @@ Having trouble starting the application? Here are a few common issues:
 - **Missing environment variables** – Ensure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set before launching. See the configuration guide linked above.
 - **OAuth redirect fails** – Check that the redirect port in your config is open and not blocked by a firewall.
 - **Packaging errors** – The packager relies on external tools like `cargo deb` and `makensis`. Use the `MOCK_COMMANDS` environment variable to run packaging tests without these tools.
-- **GStreamer not installed** – Build with `--features ui/no-gstreamer` to disable the video backend.
+- **GStreamer not installed** – Build the `ui` crate with `--no-default-features` to disable the video backend.
 - **Developing without network access** – Set `MOCK_API_CLIENT=1` and `MOCK_KEYRING=1` (and optionally `MOCK_ACCESS_TOKEN`/`MOCK_REFRESH_TOKEN`) to run all tests without hitting Google APIs.
 - **Need more insight into async tasks?** – Set `debug_console = true` in `~/.googlepicz/config` or pass `--debug-console` to print detailed Tokio diagnostics.
 - **Profiling spans** – Set `trace_spans = true` or pass `--trace-spans` and build with `--features sync/trace-spans,ui/trace-spans` to record timing data.
