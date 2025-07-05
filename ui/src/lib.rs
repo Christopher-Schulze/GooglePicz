@@ -403,7 +403,15 @@ impl Application for GooglePiczUI {
             },
             Message::SyncError(err_msg) => {
                 tracing::error!("Sync error: {}", err_msg);
-                self.errors.push(err_msg.to_string());
+                match err_msg {
+                    SyncTaskError::TokenRefreshFailed(msg) => {
+                        self.errors
+                            .push(format!("Failed to refresh token: {}", msg));
+                    }
+                    other => {
+                        self.errors.push(other.to_string());
+                    }
+                }
                 return GooglePiczUI::error_timeout();
             }
             Message::DismissError(index) => {

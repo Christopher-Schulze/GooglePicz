@@ -3,6 +3,7 @@ use predicates::prelude::*;
 use std::process::Command;
 use tempfile::TempDir;
 
+#[cfg(feature = "file-store")]
 #[test]
 fn sync_cli_creates_token_file() {
     let dir = TempDir::new().unwrap();
@@ -13,6 +14,7 @@ fn sync_cli_creates_token_file() {
         .env("MOCK_API_CLIENT", "1")
         .env("MOCK_ACCESS_TOKEN", "tok")
         .env("MOCK_REFRESH_TOKEN", "ref")
+        .env("MOCK_KEYRING", "1")
         .env("HOME", dir.path());
     cmd.assert().success().stdout(predicate::str::contains("Finished sync"));
     assert!(token_path.exists());
