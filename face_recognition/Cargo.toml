@@ -1,0 +1,16 @@
+[package]
+name = "face_recognition"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+api_client = { path = "../api_client" }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+cache = { path = "../cache", optional = true }
+ui = { path = "../ui", optional = true }
+
+[features]
+cache = ["dep:cache"]
+ui = ["dep:ui"]
+default = []

@@ -8,6 +8,7 @@ members = [
     "cache",
     "sync",
     "packaging",
+    "face_recognition",
 ]
 
 [workspace.package]
@@ -35,3 +36,4 @@ ui = { path = "ui" }
 cache = { path = "cache" }
 api_client = { path = "api_client" }
 packaging = { path = "packaging" }
+face_recognition = { path = "face_recognition" }
