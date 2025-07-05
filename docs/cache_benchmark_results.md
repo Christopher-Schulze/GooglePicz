@@ -20,3 +20,15 @@ The `camera_model_query` benchmark measures filtering by camera model on a table
 
 Benchmark result (`camera_model_query`): ~8.5 ms per query.
 
+The `load_all_100k` benchmark loads all items after inserting 100,000 entries.
+
+Benchmark result (100k items): ~140 ms per load.
+
+The `mime_type_query` benchmark filters 10,000 mixed mime type entries by `image/jpeg`.
+
+Benchmark result (`mime_type_query`): ~4 ms per query.
+
+The `album_query` benchmark retrieves items belonging to a single album from a dataset of 10,000 associations.
+
+Benchmark result (`album_query`): ~7 ms per query.
+
