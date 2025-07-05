@@ -15,6 +15,12 @@ This document describes how to build installers for all supported platforms.
 | `cargo-bundle` | Bundle macOS apps | `cargo install cargo-bundle` |
 | `cargo-bundle-licenses` | Collect license metadata | `cargo install cargo-bundle-licenses` |
 | `makensis` | Create Windows installers | Install the [NSIS](https://nsis.sourceforge.io/) package |
+| `codesign`, `xcrun`, `hdiutil` | macOS signing & notarization | Part of the Xcode command line tools |
+| `signtool` | Windows binary signing | Provided by the Windows SDK |
+| `dpkg-sig` | Sign Debian packages | `apt install dpkg-sig` or similar |
+
+The packaging commands verify that these tools are available before executing
+them and emit a clear error if something is missing.
 
 Environment variables:
 

@@ -1,8 +1,8 @@
 use packaging::package_all;
 use packaging::utils::{get_project_root, workspace_version};
+use packaging::PackagingError;
 use serial_test::serial;
 use std::fs;
-
 
 #[test]
 #[serial]
@@ -29,7 +29,11 @@ fn test_package_all_mock() {
         let version = workspace_version().unwrap();
         let win_dir = root.join("target/windows");
         fs::create_dir_all(&win_dir).unwrap();
-        fs::write(win_dir.join(format!("GooglePicz-{}-Setup.exe", version)), b"test").unwrap();
+        fs::write(
+            win_dir.join(format!("GooglePicz-{}-Setup.exe", version)),
+            b"test",
+        )
+        .unwrap();
     }
 
     let result = package_all();
@@ -61,4 +65,14 @@ fn test_package_all_mock() {
     }
 }
 
+#[test]
+#[serial]
+fn test_package_all_missing_tools() {
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    std::env::set_var("PATH", "/nonexistent");
 
+    let result = package_all();
+    assert!(matches!(result, Err(PackagingError::MissingCommand(_))));
+
+    std::env::set_var("PATH", original_path);
+}

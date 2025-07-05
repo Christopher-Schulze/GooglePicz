@@ -27,6 +27,23 @@ fn command_available(cmd: &str) -> bool {
     which(cmd).is_ok()
 }
 
+fn ensure_tool(tool: &str) -> Result<(), PackagingError> {
+    if command_available(tool) {
+        return Ok(());
+    }
+    let msg = match tool {
+        "cargo-deb" => "cargo-deb (install with `cargo install cargo-deb`)",
+        "cargo-bundle" => "cargo-bundle (install with `cargo install cargo-bundle`)",
+        "cargo-bundle-licenses" => "cargo-bundle-licenses (install with `cargo install cargo-bundle-licenses`)",
+        "makensis" => "makensis (install NSIS)",
+        "dpkg-sig" => "dpkg-sig (install via your package manager)",
+        "signtool" => "signtool (part of the Windows SDK)",
+        "codesign" | "xcrun" | "hdiutil" => "Xcode command line tools (install Xcode CLI tools)",
+        _ => tool,
+    };
+    Err(PackagingError::MissingCommand(msg.to_string()))
+}
+
 fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
     tracing::info!("Running command: {} {:?}", cmd, args);
     if std::env::var("MOCK_COMMANDS").is_ok() {
@@ -36,39 +53,15 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
     if cmd == "cargo" {
         if let Some(sub) = args.first() {
             match *sub {
-                "deb" => {
-                    if !command_available("cargo-deb") {
-                        return Err(PackagingError::MissingCommand(
-                            "cargo-deb (install with `cargo install cargo-deb`)".into(),
-                        ));
-                    }
-                }
-                "bundle" => {
-                    if !command_available("cargo-bundle") {
-                        return Err(PackagingError::MissingCommand(
-                            "cargo-bundle (install with `cargo install cargo-bundle`)".into(),
-                        ));
-                    }
-                }
-                "bundle-licenses" => {
-                    if !command_available("cargo-bundle-licenses") {
-                        return Err(PackagingError::MissingCommand(
-                            "cargo-bundle-licenses (install with `cargo install cargo-bundle-licenses`)".into(),
-                        ));
-                    }
-                }
+                "deb" => ensure_tool("cargo-deb")?,
+                "bundle" => ensure_tool("cargo-bundle")?,
+                "bundle-licenses" => ensure_tool("cargo-bundle-licenses")?,
                 _ => {}
             }
         }
     }
 
-    if !command_available(cmd) {
-        let msg = match cmd {
-            "makensis" => "makensis (install NSIS)".to_string(),
-            _ => cmd.to_string(),
-        };
-        return Err(PackagingError::MissingCommand(msg));
-    }
+    ensure_tool(cmd)?;
 
     let output = Command::new(cmd)
         .args(args)
