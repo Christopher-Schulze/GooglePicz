@@ -48,6 +48,17 @@ export WINDOWS_CERT_PASSWORD="secret"
 export LINUX_SIGN_KEY="0xDEADBEEF"
 ```
 
+### Signing and notarization
+
+The variables above enable code signing on all platforms and macOS notarization.
+
+- `MAC_SIGN_ID` is the identity passed to `codesign`.
+- `APPLE_ID` and `APPLE_PASSWORD` are used by `notarytool` when submitting the DMG.
+- `WINDOWS_CERT` points to the `.pfx`/`.p12` certificate for `signtool` and `WINDOWS_CERT_PASSWORD` is its password.
+- `LINUX_SIGN_KEY` is the GPG key ID used by `dpkg-sig`.
+
+If any of them are unset the packager skips the respective signing or notarization steps.
+
 ### Step-by-Step Setup
 
 1. **Install Rust** using `rustup` if it's not already installed:
