@@ -64,3 +64,21 @@ fn sync_cli_cache_stats_no_cache() {
         .success()
         .stdout(contains("No cache found"));
 }
+
+#[test]
+fn sync_cli_rename_album_no_cache() {
+    build_cmd()
+        .args(&["rename-album", "1", "NewTitle"])
+        .assert()
+        .success()
+        .stdout(contains("No cache found"));
+}
+
+#[test]
+fn sync_cli_add_to_album_no_cache() {
+    build_cmd()
+        .args(&["add-to-album", "1", "2"])
+        .assert()
+        .success()
+        .stdout(contains("No cache found"));
+}
