@@ -38,6 +38,8 @@ use gstreamer_iced::{GstreamerIcedBase, GStreamerMessage, PlayStatus};
 use gstreamer_iced::reexport::url;
 #[cfg(feature = "gstreamer")]
 use gstreamer as gst;
+#[cfg(feature = "gstreamer")]
+use tempfile::TempPath;
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
 const PAGE_SIZE: usize = 40;
@@ -149,7 +151,7 @@ pub enum Message {
     #[cfg(feature = "gstreamer")]
     CloseVideo,
     #[cfg(feature = "gstreamer")]
-    VideoDownloaded(std::path::PathBuf),
+    VideoDownloaded(tempfile::TempPath),
     #[cfg(feature = "gstreamer")]
     VideoDownloadFailed(String),
     ClearErrors,
@@ -227,7 +229,10 @@ enum ViewState {
         faces: Vec<face_recognition::Face>,
     },
     #[cfg(feature = "gstreamer")]
-    PlayingVideo(GstreamerIcedBase),
+    PlayingVideo {
+        player: GstreamerIcedBase,
+        file: TempPath,
+    },
 }
 
 pub struct GooglePiczUI {
@@ -693,21 +698,12 @@ impl Application for GooglePiczUI {
             #[cfg(feature = "gstreamer")]
             Message::PlayVideo(item) => {
                 let url = format!("{}=dv", item.base_url);
-                let loader = self.image_loader.clone();
                 return Command::perform(
                     async move {
-                        let cache_dir = { loader.lock().await.cache_dir() };
-                        let path = cache_dir
-                            .join("videos")
-                            .join(format!("{}.mp4", item.id));
-                        if let Err(e) = VideoDownloader::new()
-                            .download_progressive(&url, &path)
+                        VideoDownloader::new()
+                            .download_to_tempfile(&url, ".mp4")
                             .await
-                        {
-                            Err(e.to_string())
-                        } else {
-                            Ok(path)
-                        }
+                            .map_err(|e| e.to_string())
                     },
                     |res| match res {
                         Ok(p) => Message::VideoDownloaded(p),
@@ -716,11 +712,11 @@ impl Application for GooglePiczUI {
                 );
             }
             #[cfg(feature = "gstreamer")]
-            Message::VideoDownloaded(path) => {
-                match GstreamerIcedBase::new_url(&url::Url::from_file_path(&path).unwrap(), false) {
+            Message::VideoDownloaded(temp) => {
+                match GstreamerIcedBase::new_url(&url::Url::from_file_path(&temp).unwrap(), false) {
                     Ok(mut player) => {
                         let _ = player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
-                        self.state = ViewState::PlayingVideo(player);
+                        self.state = ViewState::PlayingVideo { player, file: temp };
                     }
                     Err(e) => {
                         let detail = e.to_string();
@@ -731,6 +727,7 @@ impl Application for GooglePiczUI {
                         };
                         self.errors.push(msg.clone());
                         self.log_error(&msg);
+                        drop(temp); // ensure temp file cleanup
                         return GooglePiczUI::error_timeout();
                     }
                 }
@@ -743,7 +740,7 @@ impl Application for GooglePiczUI {
             }
             #[cfg(feature = "gstreamer")]
             Message::VideoEvent(msg) => {
-                if let ViewState::PlayingVideo(player) = &mut self.state {
+                if let ViewState::PlayingVideo { player, .. } = &mut self.state {
                     if let GStreamerMessage::BusGoToEnd = msg {
                         self.state = ViewState::Grid;
                         return Command::none();
@@ -1155,7 +1152,7 @@ impl Application for GooglePiczUI {
         }));
 
         #[cfg(feature = "gstreamer")]
-        if let ViewState::PlayingVideo(player) = &self.state {
+        if let ViewState::PlayingVideo { player, .. } = &self.state {
             subs.push(player.subscription().map(Message::VideoEvent));
         }
 
@@ -1440,7 +1437,7 @@ impl Application for GooglePiczUI {
                 col
             }
             #[cfg(feature = "gstreamer")]
-            ViewState::PlayingVideo(player) => {
+            ViewState::PlayingVideo { player, .. } => {
                 let frame = player
                     .frame_handle()
                     .unwrap_or_else(|| image::Handle::from_pixels(1, 1, vec![0, 0, 0, 0]));
