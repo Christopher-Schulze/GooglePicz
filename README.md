@@ -68,19 +68,8 @@ cargo run --package googlepicz --bin sync_cli -- sync
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for optional settings via `AppConfig`.
 
-### AppConfig Options
 
-The configuration file `~/.googlepicz/config` accepts these keys:
-
-| Option | Default | Description |
-| ------ | ------- | ----------- |
-| `log_level` | `info` | Verbosity of log output |
-| `oauth_redirect_port` | `8080` | Port used by the OAuth callback |
-| `thumbnails_preload` | `20` | How many thumbnails to preload |
-| `sync_interval_minutes` | `5` | Interval for automatic sync tasks |
-| `cache_path` | `~/.googlepicz` | Directory for cache and logs |
-| `debug_console` | `false` | Enable Tokio console diagnostics |
-| `trace_spans` | `false` | Record detailed tracing spans when compiled with the `trace-spans` features |
+For available configuration options see [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 ### Setting up OAuth Credentials
 

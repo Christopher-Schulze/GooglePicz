@@ -53,3 +53,8 @@
 - Fixed compilation errors in `sync` crate by returning `Ok(())` from async blocks.
 - Handled unused `Command` warning in `ui` crate.
 - Workspace builds successfully with `cargo check --all` and `cargo build`.
+
+## 2025-07-06
+- Consolidated configuration documentation. `docs/CONFIGURATION.md` now lists all environment variables and `AppConfig` options.
+- Removed duplicated setup instructions from `README.md` and `docs/DOCUMENTATION.md`.
+- Simplified goals section in `DOCUMENTATION.md` and referenced the README.
