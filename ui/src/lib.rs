@@ -141,15 +141,19 @@ pub enum SearchMode {
     Text,
     Favoriten,
     DateRange,
+    MimeType,
+    CameraModel,
 }
 
 impl SearchMode {
-    const ALL: [SearchMode; 5] = [
+    const ALL: [SearchMode; 7] = [
         SearchMode::Filename,
         SearchMode::Description,
         SearchMode::Text,
         SearchMode::Favoriten,
         SearchMode::DateRange,
+        SearchMode::MimeType,
+        SearchMode::CameraModel,
     ];
 }
 
@@ -161,6 +165,8 @@ impl std::fmt::Display for SearchMode {
             SearchMode::Text => "Dateiname/Beschr.",
             SearchMode::Favoriten => "Favoriten",
             SearchMode::DateRange => "Datum von/bis",
+            SearchMode::MimeType => "Dateityp",
+            SearchMode::CameraModel => "Kamera-Modell",
         };
         write!(f, "{}", s)
     }
@@ -734,6 +740,12 @@ impl Application for GooglePiczUI {
                                 SearchMode::Filename => cache
                                     .get_media_items_by_filename(&query)
                                     .map_err(|e| e.to_string()),
+                                SearchMode::MimeType => cache
+                                    .get_media_items_by_mime_type(&query)
+                                    .map_err(|e| e.to_string()),
+                                SearchMode::CameraModel => cache
+                                    .get_media_items_by_camera_model(&query)
+                                    .map_err(|e| e.to_string()),
                             }
                         },
                         Message::PhotosLoaded,
@@ -832,11 +844,18 @@ impl Application for GooglePiczUI {
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     fn view(&self) -> Element<Message> {
+        let placeholder = match self.search_mode {
+            SearchMode::MimeType => "Mime type",
+            SearchMode::CameraModel => "Camera model",
+            SearchMode::DateRange => "YYYY-MM-DD..YYYY-MM-DD",
+            _ => "Search",
+        };
+
         let mut header = row![
             text("GooglePicz").size(24),
             button("Refresh").on_press(Message::RefreshPhotos),
             button("New Album…").on_press(Message::ShowCreateAlbumDialog),
-            text_input("Search", &self.search_query)
+            text_input(placeholder, &self.search_query)
                 .on_input(Message::SearchInputChanged),
             pick_list(
                 &SearchMode::ALL[..],
