@@ -14,6 +14,9 @@ GooglePicz aims to be a native Google Photos application built with Rust, design
 - **Caching**: Robust SQLite-based schema for albums and media items, supporting incremental updates to ensure data consistency and offline access.
 - **Synchronization**: Background synchronization tasks (e.g., every 5 minutes) to keep local data up-to-date with Google Photos, along with pull-to-refresh feature.
 - **Packaging**: Automated signing and notarization for macOS (.app) and Windows (.msi/.exe) installers to ensure easy distribution and installation.
+- **Advanced Search**: Filters for filename, description, favorites, date range, MIME type and camera metadata.
+- **Video Playback** *(optional)*: Uses the GStreamer backend when built with the `gstreamer` feature.
+- **Face Recognition** *(optional)*: Detects faces and overlays bounding boxes. Results can be cached when the `face_recognition/cache` feature is enabled.
 
 ## Technical Architecture
 The project is structured as a Rust workspace with the following modules (crates):
@@ -45,3 +48,10 @@ The project is structured as a Rust workspace with the following modules (crates
 - Sample screenshots generated in CI.
 - End-to-end smoke tests: Authentication → Album list → Thumbnail display.
 - Generation of ready-to-distribute installer artifacts for both platforms.
+
+## Configuration Highlights
+The application reads `AppConfig` from `~/.googlepicz/config`. Important options
+include `cache_path` for the data directory, `debug_console` to enable Tokio's
+console subscriber and `trace_spans` for detailed profiling. OAuth tokens can be
+stored in the file system by compiling with the `auth/file-store` feature and
+starting the tools with `--use-file-store` or `USE_FILE_STORE=1`.
