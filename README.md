@@ -164,7 +164,8 @@ the same command line overrides (e.g. `--log-level debug`). Available options in
 `--oauth-redirect-port`, `--thumbnails-preload`, `--sync-interval-minutes`, `--config`,
 `--debug-console` and `--use-file-store`.
 The tool exposes subcommands for `sync`, `status`, `clear-cache`, `list-albums`,
-`create-album`, `delete-album`, `cache-stats`, `list-items`, `show-item`,
+`create-album`, `delete-album`, `rename-album`, `add-to-album`, `list-album-items`,
+`cache-stats`, `list-items`, `search`, `show-item`,
 `export-items`, `import-items` and `export-albums` and prints progress updates
 to stdout while downloading items. The source code lives in `app/src/bin/sync_cli.rs`.
 
@@ -211,6 +212,24 @@ cargo run --package googlepicz --bin sync_cli -- delete-album ALBUM_ID
 Deletes the album from Google Photos and the local cache.
 
 ```bash
+cargo run --package googlepicz --bin sync_cli -- rename-album ALBUM_ID "New Title"
+```
+
+Renames an existing album on Google Photos and updates the cache.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- add-to-album ALBUM_ID ITEM_ID
+```
+
+Associates a cached media item with an album in the local database.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- list-album-items ALBUM_ID
+```
+
+Lists cached items that belong to the given album.
+
+```bash
 cargo run --package googlepicz --bin sync_cli -- cache-stats
 ```
 
@@ -221,6 +240,12 @@ cargo run --package googlepicz --bin sync_cli -- list-items --limit 5
 ```
 
 Lists cached media items, optionally limiting the output.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- search QUERY
+```
+
+Searches cached media items by filename or description.
 
 ```bash
 cargo run --package googlepicz --bin sync_cli -- show-item ITEM_ID

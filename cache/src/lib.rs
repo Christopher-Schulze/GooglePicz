@@ -766,6 +766,19 @@ impl CacheManager {
         Ok(())
     }
 
+    pub fn remove_media_item_from_album(&self, media_item_id: &str, album_id: &str) -> Result<(), CacheError> {
+        let conn = self.lock_conn()?;
+        conn
+            .execute(
+                "DELETE FROM album_media_items WHERE album_id = ?1 AND media_item_id = ?2",
+                params![album_id, media_item_id],
+            )
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to remove media item from album: {}", e))
+            })?;
+        Ok(())
+    }
+
     pub fn get_media_items_by_album(&self, album_id: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -1021,6 +1034,18 @@ impl CacheManager {
     ) -> Result<(), CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.associate_media_item_with_album(&media_item_id, &album_id))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn remove_media_item_from_album_async(
+        &self,
+        media_item_id: String,
+        album_id: String,
+    ) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.remove_media_item_from_album(&media_item_id, &album_id))
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
