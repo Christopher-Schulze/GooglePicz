@@ -4548,6 +4548,7 @@ dependencies = [
  "assert_cmd",
  "cargo-bundle-licenses",
  "cargo-deb",
+ "clap 4.5.40",
  "predicates 2.1.5",
  "serde_json",
  "serial_test",

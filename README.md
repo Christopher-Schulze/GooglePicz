@@ -262,7 +262,7 @@ Exports all cached albums to a file.
 
 ## Packaging & Signing
 
-The `packager` binary produces installers for macOS, Windows and Debian-based Linux systems.
+The `packager` binary produces installers for macOS, Windows and Debian-based Linux systems. On Linux you can choose the output format with `--format` (`deb`, `rpm` or `appimage`).
 Signing requires a few environment variables:
 
 - `MAC_SIGN_ID` – identity passed to `codesign` on macOS.
@@ -280,6 +280,19 @@ installation commands.
 - `makensis` – part of the NSIS suite used for Windows installers
 
 Set these variables in your shell or CI environment before running `cargo run --package packaging --bin packager`.
+
+Examples:
+
+```bash
+# Create a Debian package
+cargo run --package packaging --bin packager -- --format deb
+
+# Build an RPM on Fedora
+cargo run --package packaging --bin packager -- --format rpm
+
+# Create an AppImage
+cargo run --package packaging --bin packager -- --format appimage
+```
 
 ### Creating Release Artifacts
 
