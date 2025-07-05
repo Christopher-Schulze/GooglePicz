@@ -26,6 +26,20 @@ keyring. Enable this behaviour by passing `--use-file-store` on the command line
 or by setting the environment variable `USE_FILE_STORE=1` before running the
 tools.
 
+## Environment Variables
+
+Several environment variables influence how GooglePicz and the packaging scripts run:
+
+- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` – OAuth credentials required for authentication.
+- `MAC_SIGN_ID` – Signing identity used on macOS (optional).
+- `APPLE_ID` and `APPLE_PASSWORD` – Credentials for notarizing macOS builds (optional).
+- `WINDOWS_CERT` and `WINDOWS_CERT_PASSWORD` – Windows code signing certificate (optional).
+- `LINUX_SIGN_KEY` – GPG key ID used to sign the generated `.deb` package (optional).
+- `MOCK_REFRESH_TOKEN` – Used only for automated tests to bypass live authentication.
+- `MOCK_COMMANDS` – Skips running external tools during packaging tests.
+- `USE_FILE_STORE` – Write tokens to `~/.googlepicz/tokens.json` when set to `1` and the optional `file-store` feature is enabled.
+- `MOCK_API_CLIENT` and `MOCK_KEYRING` – together with `MOCK_ACCESS_TOKEN` and `MOCK_REFRESH_TOKEN` allow running the test suite without network access.
+
 ### Video Playback Dependencies
 
 Video playback relies on the GStreamer multimedia framework. On most Linux

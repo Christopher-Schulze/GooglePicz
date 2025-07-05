@@ -146,48 +146,9 @@ cargo test
 Run `cargo fmt` and `cargo clippy --all -- -D warnings` locally before committing
 your changes to ensure consistent formatting and catch linter warnings.
 
-## 🌎 Environment Variables
+## 🌎 Configuration
 
-The application and packaging scripts rely on several environment variables:
-
-- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` – OAuth 2.0 credentials required for authentication.
-- `MAC_SIGN_ID` – Signing identity used on macOS (optional).
-- `APPLE_ID` and `APPLE_PASSWORD` – Credentials for notarizing macOS builds (optional).
-- `WINDOWS_CERT` and `WINDOWS_CERT_PASSWORD` – Path and password for a Windows code signing certificate (optional).
-- `LINUX_SIGN_KEY` – GPG key ID used to sign the generated `.deb` package (optional).
-- `MOCK_REFRESH_TOKEN` – Used only for automated tests to bypass live authentication.
-- `MOCK_COMMANDS` – Skips running external tools during packaging tests.
-- `USE_FILE_STORE` – When set to `1` and the optional `file-store` feature is enabled, tokens are written to `~/.googlepicz/tokens.json` instead of the system keyring. The same behaviour can be triggered with the `--use-file-store` flag.
-- `MOCK_API_CLIENT` and `MOCK_KEYRING` – together with `MOCK_ACCESS_TOKEN` and `MOCK_REFRESH_TOKEN` allow running the test suite without network access.
-
-### AppConfig Options
-
-The `~/.googlepicz/config` file supports these keys:
-
-| Option | Default | Description |
-| ------ | ------- | ----------- |
-| `log_level` | `info` | Verbosity of log output |
-| `oauth_redirect_port` | `8080` | Port for the OAuth callback |
-| `thumbnails_preload` | `20` | Preloaded thumbnails per album |
-| `sync_interval_minutes` | `5` | Interval between automatic sync runs |
-| `cache_path` | `~/.googlepicz` | Directory for cache and logs |
-| `debug_console` | `false` | Enable Tokio console diagnostics |
-| `trace_spans` | `false` | Record detailed tracing spans when compiled with the `trace-spans` features |
-
-### Setting up OAuth Credentials
-
-1. Open the [Google Cloud Console](https://console.developers.google.com/) and create a new project.
-2. Enable the **Google Photos Library API** for this project.
-3. Configure an **OAuth consent screen** and add your Google account as a test user.
-4. Create new **OAuth client credentials** of type **Desktop application**.
-5. Note the generated **client ID** and **client secret** and export them:
-
-```bash
-export GOOGLE_CLIENT_ID="your_client_id"
-export GOOGLE_CLIENT_SECRET="your_client_secret"
-```
-
-These variables must be set whenever you run the application or tests.
+Details about required environment variables and optional `AppConfig` settings have been consolidated in [docs/CONFIGURATION.md](CONFIGURATION.md). Refer to that document for a full list of keys and examples for setting up OAuth credentials.
 
 ### Packaging installers
 Follow these steps to produce release artifacts:
@@ -333,18 +294,6 @@ docker push ghcr.io/christopher-schulze/googlepicz-ci:latest
 
 The GitHub Actions workflow references this image to ensure consistent dependencies across CI runs.
 
-## 📝 Next Steps
-### Short-term Goals
-1. Complete basic photo viewing functionality
-2. Implement album management
-3. Add settings and preferences
-
-### Long-term Goals
-1. Video playback support
-2. Advanced search features
-3. Face recognition and tagging
-4. Cross-platform packaging
-
 ## ⚠️ Note
 This project is under active development. Features and APIs are subject to change. Documentation will be updated as the project evolves.
-- **Documentation**: `Changelog.md` and `DOCUMENTATION.md` files are maintained and updated with project progress.
+The `Changelog.md` file tracks changes over time.
