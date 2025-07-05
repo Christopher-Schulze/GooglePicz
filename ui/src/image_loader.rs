@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use futures::StreamExt;
+use tracing::Instrument;
 use std::time::Instant;
 use thiserror::Error;
 use tokio::fs;
@@ -211,10 +212,14 @@ impl ImageLoader {
         let start = Instant::now();
         let stream = futures::stream::iter(media_items.iter().take(count));
         stream
-            .for_each_concurrent(None, |item| async move {
-                if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {
-                    tracing::error!("Failed to preload thumbnail for {}: {}", &item.id, e);
+            .for_each_concurrent(None, |item| {
+                let span = tracing::info_span!("preload_thumbnail", id = %item.id);
+                async move {
+                    if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {
+                        tracing::error!("Failed to preload thumbnail for {}: {}", &item.id, e);
+                    }
                 }
+                .instrument(span)
             })
             .await;
         tracing::info!("preload_time_ms" = %start.elapsed().as_millis(), "count" = count);

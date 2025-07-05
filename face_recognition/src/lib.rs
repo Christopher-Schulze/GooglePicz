@@ -41,6 +41,7 @@ impl FaceRecognizer {
 
     /// Detect faces in the given media item.
     #[allow(clippy::too_many_lines)]
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, item)))]
     pub fn detect_faces(&self, item: &MediaItem) -> Result<Vec<Face>, FaceRecognitionError> {
         let bytes = if item.base_url.starts_with("file://") {
             let path = item.base_url.trim_start_matches("file://");
@@ -89,6 +90,7 @@ impl FaceRecognizer {
 
     /// Associate detected faces with a `MediaItem` in the cache.
     #[cfg(feature = "cache")]
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, cache, item, faces)))]
     pub fn assign_to_cache(
         &self,
         cache: &CacheManager,
@@ -104,6 +106,7 @@ impl FaceRecognizer {
 
     /// Prepare face data for display in the UI.
     #[cfg(feature = "ui")]
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, faces)))]
     pub fn prepare_ui(&self, faces: &[Face]) -> Vec<UiFace> {
         faces
             .iter()
