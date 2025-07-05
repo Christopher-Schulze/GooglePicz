@@ -18,12 +18,12 @@ use iced::subscription;
 use iced::widget::container::Appearance;
 use iced::widget::image::Handle;
 use iced::widget::{
-    button, checkbox, column, container, image, pick_list, row, scrollable, text,
-    text_input, Column,
+    button, checkbox, column, container, image, pick_list, progress_bar, row,
+    scrollable, text, text_input, Column,
 };
 use iced::Border;
 use iced::Color;
-use iced::{executor, Application, Command, Element, Length, Settings, Subscription, Theme};
+use iced::{event, keyboard, executor, Application, Command, Element, Length, Settings, Subscription, Theme};
 use std::path::PathBuf;
 use std::io::Write;
 use std::sync::Arc;
@@ -31,6 +31,7 @@ use sync::{SyncProgress, SyncTaskError};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
+use rfd::AsyncFileDialog;
 #[cfg(feature = "gstreamer")]
 use gstreamer_iced::{GstreamerIcedBase, GStreamerMessage, PlayStatus};
 #[cfg(feature = "gstreamer")]
@@ -39,6 +40,7 @@ use gstreamer_iced::reexport::url;
 use gstreamer as gst;
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
+const PAGE_SIZE: usize = 40;
 
 fn parse_date_query(query: &str) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
     use chrono::{NaiveDate, TimeZone};
@@ -156,6 +158,10 @@ pub enum Message {
     SettingsLogLevelChanged(String),
     SettingsCachePathChanged(String),
     SaveSettings,
+    ChooseCachePath,
+    CachePathChosen(Option<String>),
+    LoadMorePhotos,
+    EscapePressed,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -242,6 +248,7 @@ pub struct GooglePiczUI {
     selected_album: Option<String>,
     errors: Vec<String>,
     preload_count: usize,
+    display_limit: usize,
     creating_album: bool,
     new_album_title: String,
     assign_selection: Option<AlbumOption>,
@@ -427,6 +434,7 @@ impl Application for GooglePiczUI {
             selected_album: None,
             errors: init_errors,
             preload_count,
+            display_limit: 0,
             creating_album: false,
             new_album_title: String::new(),
             assign_selection: None,
@@ -504,6 +512,7 @@ impl Application for GooglePiczUI {
                 match result {
                     Ok(photos) => {
                         self.photos = photos;
+                        self.display_limit = PAGE_SIZE.min(self.photos.len());
                         // Start loading thumbnails for configured number of photos
                         let mut commands = Vec::new();
                         for photo in self.photos.iter().take(self.preload_count) {
@@ -554,6 +563,9 @@ impl Application for GooglePiczUI {
                     Command::perform(async {}, |_| Message::LoadPhotos),
                     Command::perform(async {}, |_| Message::LoadAlbums),
                 ]);
+            }
+            Message::LoadMorePhotos => {
+                self.display_limit = (self.display_limit + PAGE_SIZE).min(self.photos.len());
             }
             Message::LoadThumbnail(media_id, base_url) => {
                 let image_loader = self.image_loader.clone();
@@ -811,6 +823,19 @@ impl Application for GooglePiczUI {
             Message::SettingsCachePathChanged(val) => {
                 self.settings_cache_path = val;
             }
+            Message::ChooseCachePath => {
+                return Command::perform(async {
+                    AsyncFileDialog::new()
+                        .pick_folder()
+                        .await
+                        .map(|f| f.path().to_path_buf())
+                }, Message::CachePathChosen);
+            }
+            Message::CachePathChosen(opt) => {
+                if let Some(p) = opt {
+                    self.settings_cache_path = p.to_string_lossy().to_string();
+                }
+            }
             Message::SaveSettings => {
                 let mut cfg = AppConfig::load_from(Some(self.config_path.clone()));
                 cfg.log_level = self.settings_log_level.clone();
@@ -933,6 +958,20 @@ impl Application for GooglePiczUI {
             }
             Message::CancelDeleteAlbum => {
                 self.deleting_album = None;
+            }
+            Message::EscapePressed => {
+                if self.settings_open {
+                    return self.update(Message::CloseSettings);
+                }
+                if self.renaming_album.is_some() {
+                    return self.update(Message::CancelRenameAlbum);
+                }
+                if self.deleting_album.is_some() {
+                    return self.update(Message::CancelDeleteAlbum);
+                }
+                if let ViewState::SelectedPhoto { .. } = &self.state {
+                    self.state = ViewState::Grid;
+                }
             }
             Message::SearchInputChanged(q) => {
                 self.search_query = q;
@@ -1104,6 +1143,17 @@ impl Application for GooglePiczUI {
             }));
         }
 
+        subs.push(iced::subscription::events().filter_map(|event| match event {
+            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key_code, .. }) => {
+                if key_code == iced::keyboard::KeyCode::Escape {
+                    Some(Message::EscapePressed)
+                } else {
+                    None
+                }
+            }
+            _ => None
+        }));
+
         #[cfg(feature = "gstreamer")]
         if let ViewState::PlayingVideo(player) = &self.state {
             subs.push(player.subscription().map(Message::VideoEvent));
@@ -1158,6 +1208,12 @@ impl Application for GooglePiczUI {
 
         header = header
             .push(text(self.sync_status.clone()))
+            .push(if self.syncing {
+                progress_bar(0.0..=1.0, ((self.synced % PAGE_SIZE as u64) as f32) / PAGE_SIZE as f32)
+                    .width(Length::Fixed(120.0))
+            } else {
+                progress_bar(0.0..=1.0, 0.0).width(Length::Fixed(0.0))
+            })
             .push(text(match self.last_synced {
                 Some(ts) => format!("Last synced {}", ts.to_rfc3339()),
                 None => "Never synced".to_string(),
@@ -1169,15 +1225,7 @@ impl Application for GooglePiczUI {
         let error_banner = if self.errors.is_empty() {
             None
         } else {
-            let mut banner = Column::new().spacing(5);
-            banner = banner.push(
-                row![
-                    text("Operation failed").size(16),
-                    button("Dismiss All").on_press(Message::ClearErrors)
-                ]
-                .spacing(10)
-                .align_items(iced::Alignment::Center),
-            );
+            let mut list = Column::new().spacing(5);
             for (i, msg) in self.errors.iter().enumerate() {
                 let row = row![
                     text(msg.clone()).size(16),
@@ -1185,8 +1233,18 @@ impl Application for GooglePiczUI {
                 ]
                 .spacing(10)
                 .align_items(iced::Alignment::Center);
-                banner = banner.push(row);
+                list = list.push(row);
             }
+            let banner = column![
+                row![
+                    text("Operation failed").size(16),
+                    button("Dismiss All").on_press(Message::ClearErrors)
+                ]
+                .spacing(10)
+                .align_items(iced::Alignment::Center),
+                scrollable(list).height(Length::Fixed(100.0))
+            ]
+            .spacing(5);
             Some(container(banner).style(error_container_style()).padding(10).width(Length::Fill))
         };
 
@@ -1286,7 +1344,7 @@ impl Application for GooglePiczUI {
                     let mut rows = column![].spacing(10);
                     let mut current = row![].spacing(10);
                     let mut count = 0;
-                    for photo in &self.photos {
+                    for photo in self.photos.iter().take(self.display_limit) {
                         let thumb: Element<Message> =
                             if let Some(handle) = self.thumbnails.get(&photo.id) {
                                 image(handle.clone())
@@ -1311,11 +1369,16 @@ impl Application for GooglePiczUI {
                     if count > 0 {
                         rows = rows.push(current);
                     }
+                    let mut grid = column![].spacing(10);
+                    if self.display_limit < self.photos.len() {
+                        grid = grid.push(button("Load more").on_press(Message::LoadMorePhotos));
+                    }
                     column![
                         header,
                         scrollable(album_row).height(Length::Shrink),
                         text(format!("Found {} photos", self.photos.len())).size(16),
                         scrollable(rows).height(Length::Fill),
+                        grid,
                     ]
                 }
             }

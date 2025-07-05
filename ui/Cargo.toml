@@ -21,6 +21,7 @@ futures = "0.3"
 gstreamer_iced = { version = "0.1.8", optional = true }
 serde = { version = "1", features = ["derive"] }
 toml = "0.5"
+rfd = "0.14"
 
 [dev-dependencies]
 httpmock = "0.6"
