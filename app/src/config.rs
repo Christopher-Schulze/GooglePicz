@@ -6,6 +6,7 @@ pub struct AppConfig {
     pub thumbnails_preload: usize,
     pub sync_interval_minutes: u64,
     pub debug_console: bool,
+    pub trace_spans: bool,
     pub cache_path: PathBuf,
 }
 
@@ -15,6 +16,7 @@ pub struct AppConfigOverrides {
     pub thumbnails_preload: Option<usize>,
     pub sync_interval_minutes: Option<u64>,
     pub debug_console: bool,
+    pub trace_spans: bool,
 }
 
 impl AppConfig {
@@ -37,6 +39,7 @@ impl AppConfig {
         let thumbnails_preload = cfg.get_int("thumbnails_preload").unwrap_or(20) as usize;
         let sync_interval_minutes = cfg.get_int("sync_interval_minutes").unwrap_or(5) as u64;
         let debug_console = cfg.get_bool("debug_console").unwrap_or(false);
+        let trace_spans = cfg.get_bool("trace_spans").unwrap_or(false);
         let cache_path = cfg
             .get_string("cache_path")
             .map(PathBuf::from)
@@ -52,6 +55,7 @@ impl AppConfig {
             thumbnails_preload,
             sync_interval_minutes,
             debug_console,
+            trace_spans,
             cache_path,
         }
     }
@@ -71,6 +75,9 @@ impl AppConfig {
         }
         if ov.debug_console {
             self.debug_console = true;
+        }
+        if ov.trace_spans {
+            self.trace_spans = true;
         }
         self
     }

@@ -157,6 +157,7 @@ The `~/.googlepicz/config` file supports these keys:
 | `sync_interval_minutes` | `5` | Interval between automatic sync runs |
 | `cache_path` | `~/.googlepicz` | Directory for cache and logs |
 | `debug_console` | `false` | Enable Tokio console diagnostics |
+| `trace_spans` | `false` | Record detailed tracing spans when compiled with the `trace-spans` features |
 
 ### Setting up OAuth Credentials
 
@@ -271,7 +272,7 @@ tokio-console
 Launch the application with the profiling features enabled:
 
 ```bash
-cargo run --package googlepicz --features sync/trace-spans,ui/trace-spans -- --debug-console
+cargo run --package googlepicz --features sync/trace-spans,ui/trace-spans -- --debug-console --trace-spans
 ```
 
 The console will display asynchronous task metrics while span timings are
