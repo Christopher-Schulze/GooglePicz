@@ -14,7 +14,10 @@ async fn test_sync_flow_mock() {
     let file = NamedTempFile::new().unwrap();
     let (tx, mut rx) = mpsc::unbounded_channel();
     let mut syncer = Syncer::new(file.path()).await.unwrap();
-    syncer.sync_media_items(Some(tx), None).await.unwrap();
+    syncer
+        .sync_media_items(Some(tx), None, None, None)
+        .await
+        .unwrap();
     match rx.recv().await {
         Some(sync::SyncProgress::Started) => {}
         other => panic!("expected Started progress, got {:?}", other),
