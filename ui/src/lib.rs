@@ -131,18 +131,28 @@ impl std::fmt::Display for AlbumOption {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SearchMode {
     Filename,
+    Description,
+    Text,
     Favoriten,
     DateRange,
 }
 
 impl SearchMode {
-    const ALL: [SearchMode; 3] = [SearchMode::Filename, SearchMode::Favoriten, SearchMode::DateRange];
+    const ALL: [SearchMode; 5] = [
+        SearchMode::Filename,
+        SearchMode::Description,
+        SearchMode::Text,
+        SearchMode::Favoriten,
+        SearchMode::DateRange,
+    ];
 }
 
 impl std::fmt::Display for SearchMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             SearchMode::Filename => "Filename",
+            SearchMode::Description => "Beschreibung",
+            SearchMode::Text => "Dateiname/Beschr.",
             SearchMode::Favoriten => "Favoriten",
             SearchMode::DateRange => "Datum von/bis",
         };
@@ -150,9 +160,7 @@ impl std::fmt::Display for SearchMode {
     }
 }
 
-#[derive(Debug, Clone)]
-
-
+#[derive(Debug)]
 enum ViewState {
     Grid,
     SelectedPhoto(MediaItem),
@@ -674,6 +682,12 @@ impl Application for GooglePiczUI {
                                         Ok(Vec::new())
                                     }
                                 }
+                                SearchMode::Description => cache
+                                    .get_media_items_by_description(&query)
+                                    .map_err(|e| e.to_string()),
+                                SearchMode::Text => cache
+                                    .get_media_items_by_text(&query)
+                                    .map_err(|e| e.to_string()),
                                 SearchMode::Favoriten => cache
                                     .get_media_items_by_favorite(true)
                                     .map_err(|e| e.to_string()),

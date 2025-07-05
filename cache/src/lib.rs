@@ -440,6 +440,102 @@ impl CacheManager {
         Ok(items)
     }
 
+    pub fn get_media_items_by_description(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let like_pattern = format!("%{}%", pattern);
+        let conn = self.lock_conn()?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
+                 FROM media_items m
+                 JOIN media_metadata md ON m.id = md.media_item_id
+                 WHERE m.description LIKE ?1",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let iter = stmt
+            .query_map(params![like_pattern], |row| {
+                let ts: i64 = row.get(5)?;
+                let w: i64 = row.get(6)?;
+                let h: i64 = row.get(7)?;
+                Ok(api_client::MediaItem {
+                    id: row.get(0)?,
+                    description: row.get(1)?,
+                    product_url: row.get(2)?,
+                    base_url: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    media_metadata: api_client::MediaMetadata {
+                        creation_time: Self::ts_to_rfc3339(ts),
+                        width: w.to_string(),
+                        height: h.to_string(),
+                        video: Some(api_client::VideoMetadata {
+                            camera_make: row.get(8)?,
+                            camera_model: row.get(9)?,
+                            fps: row.get(10)?,
+                            status: row.get(11)?,
+                        }),
+                    },
+                    filename: row.get(12)?,
+                })
+            })
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
+
+        let mut items = Vec::new();
+        for item in iter {
+            items.push(item.map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
+            })?);
+        }
+        Ok(items)
+    }
+
+    pub fn get_media_items_by_text(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let like_pattern = format!("%{}%", pattern);
+        let conn = self.lock_conn()?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
+                 FROM media_items m
+                 JOIN media_metadata md ON m.id = md.media_item_id
+                 WHERE m.filename LIKE ?1 OR m.description LIKE ?1",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let iter = stmt
+            .query_map(params![like_pattern], |row| {
+                let ts: i64 = row.get(5)?;
+                let w: i64 = row.get(6)?;
+                let h: i64 = row.get(7)?;
+                Ok(api_client::MediaItem {
+                    id: row.get(0)?,
+                    description: row.get(1)?,
+                    product_url: row.get(2)?,
+                    base_url: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    media_metadata: api_client::MediaMetadata {
+                        creation_time: Self::ts_to_rfc3339(ts),
+                        width: w.to_string(),
+                        height: h.to_string(),
+                        video: Some(api_client::VideoMetadata {
+                            camera_make: row.get(8)?,
+                            camera_model: row.get(9)?,
+                            fps: row.get(10)?,
+                            status: row.get(11)?,
+                        }),
+                    },
+                    filename: row.get(12)?,
+                })
+            })
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
+
+        let mut items = Vec::new();
+        for item in iter {
+            items.push(item.map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
+            })?);
+        }
+        Ok(items)
+    }
+
     pub fn get_favorite_media_items(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -491,7 +587,7 @@ impl CacheManager {
         let mut conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
-                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
+                "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
                  WHERE m.is_favorite = ?1",
@@ -513,8 +609,14 @@ impl CacheManager {
                         creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
+                        video: Some(api_client::VideoMetadata {
+                            camera_make: row.get(8)?,
+                            camera_model: row.get(9)?,
+                            fps: row.get(10)?,
+                            status: row.get(11)?,
+                        }),
                     },
-                    filename: row.get(8)?,
+                    filename: row.get(12)?,
                 })
             })
             .map_err(|e| CacheError::DatabaseError(format!("Failed to query media items: {}", e)))?;
@@ -859,6 +961,20 @@ impl CacheManager {
     pub async fn get_media_items_by_date_range_async(&self, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_media_items_by_date_range(start, end))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn get_media_items_by_description_async(&self, pattern: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_items_by_description(&pattern))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn get_media_items_by_text_async(&self, pattern: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_items_by_text(&pattern))
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
