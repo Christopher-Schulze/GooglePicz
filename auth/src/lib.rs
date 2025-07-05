@@ -33,6 +33,8 @@ const KEYRING_SERVICE_NAME: &str = "GooglePicz";
 const ACCESS_TOKEN_EXPIRY_KEY: &str = "access_token_expiry";
 /// Seconds before expiry when we proactively refresh the token.
 pub const REFRESH_MARGIN_SECS: u64 = 300;
+/// Environment variable to opt into storing tokens in a file instead of the keyring.
+pub const USE_FILE_STORE_ENV: &str = "USE_FILE_STORE";
 
 static SCHEDULED_REFRESH: Lazy<Mutex<Option<JoinHandle<()>>>> =
     Lazy::new(|| Mutex::new(None));
