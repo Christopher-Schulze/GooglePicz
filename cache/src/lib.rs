@@ -761,6 +761,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, item)))]
     pub async fn insert_media_item_async(&self, item: api_client::MediaItem) -> Result<(), CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.insert_media_item(&item))
@@ -768,6 +769,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn get_all_media_items_async(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_all_media_items())
@@ -775,6 +777,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn get_last_sync_async(&self) -> Result<DateTime<Utc>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_last_sync())
@@ -782,6 +785,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn update_last_sync_async(&self, ts: DateTime<Utc>) -> Result<(), CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.update_last_sync(ts))
@@ -789,6 +793,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, album)))]
     pub async fn insert_album_async(&self, album: api_client::Album) -> Result<(), CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.insert_album(&album))
@@ -796,6 +801,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn associate_media_item_with_album_async(
         &self,
         media_item_id: String,
@@ -807,6 +813,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn rename_album_async(&self, album_id: String, new_title: String) -> Result<(), CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.rename_album(&album_id, &new_title))
@@ -814,6 +821,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn delete_album_async(&self, album_id: String) -> Result<(), CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.delete_album(&album_id))
@@ -821,6 +829,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn delete_media_item_async(&self, id: String) -> Result<(), CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.delete_media_item(&id))
@@ -828,6 +837,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn get_all_albums_async(&self) -> Result<Vec<api_client::Album>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_all_albums())
@@ -835,6 +845,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn get_media_items_by_album_async(&self, album_id: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_media_items_by_album(&album_id))
@@ -842,6 +853,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn get_favorite_media_items_async(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_favorite_media_items())
@@ -849,6 +861,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn get_media_items_by_favorite_async(&self, fav: bool) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_media_items_by_favorite(fav))
@@ -856,6 +869,7 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn get_media_items_by_date_range_async(&self, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_media_items_by_date_range(start, end))

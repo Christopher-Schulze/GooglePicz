@@ -39,6 +39,7 @@ struct Cli {
     debug_console: bool,
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
@@ -72,6 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     local.run_until(main_inner(cfg)).await
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument(skip(cfg)))]
 async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Error>> {
     info!("🚀 Starting GooglePicz - Google Photos Manager");
 

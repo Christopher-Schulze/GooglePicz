@@ -166,6 +166,7 @@ fn get_value(key: &str) -> Result<Option<String>, AuthError> {
     }
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 pub async fn authenticate(redirect_port: u16) -> Result<(), AuthError> {
     if let Ok(mock_token) = std::env::var("MOCK_ACCESS_TOKEN") {
         store_value("access_token", &mock_token)?;
@@ -306,6 +307,7 @@ fn schedule_token_refresh(expiry: u64) {
     *SCHEDULED_REFRESH.lock().unwrap() = Some(handle);
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 pub async fn refresh_access_token() -> Result<String, AuthError> {
     if let Ok(mock_token) = std::env::var("MOCK_REFRESH_TOKEN") {
         let new_token = mock_token;
@@ -354,6 +356,7 @@ pub async fn refresh_access_token() -> Result<String, AuthError> {
 }
 
 /// Ensure the stored access token is valid, refreshing it if expired.
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 pub async fn ensure_access_token_valid() -> Result<String, AuthError> {
     let mut expiry = get_access_token_expiry()?.unwrap_or(0);
     let now = SystemTime::now()

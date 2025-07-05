@@ -275,6 +275,7 @@ impl Syncer {
         (handle, shutdown_tx)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument)]
     pub fn start_token_refresh_task(
         interval: Duration,
         error_tx: mpsc::UnboundedSender<SyncTaskError>,

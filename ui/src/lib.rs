@@ -18,6 +18,7 @@ use iced::Border;
 use iced::Color;
 use iced::{executor, Application, Command, Element, Length, Settings, Subscription, Theme};
 use std::path::PathBuf;
+use std::io::Write;
 use std::sync::Arc;
 use sync::{SyncProgress, SyncTaskError};
 use tokio::sync::mpsc;
@@ -185,6 +186,7 @@ pub struct GooglePiczUI {
     deleting_album: Option<String>,
     search_mode: SearchMode,
     search_query: String,
+    error_log_path: PathBuf,
 }
 
 impl GooglePiczUI {
@@ -225,6 +227,15 @@ impl GooglePiczUI {
     pub fn rename_album_title(&self) -> String {
         self.rename_album_title.clone()
     }
+    fn log_error(&self, msg: &str) {
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.error_log_path)
+        {
+            let _ = writeln!(file, "{}", msg);
+        }
+    }
     fn error_timeout() -> Command<Message> {
         Command::perform(
             async {
@@ -250,12 +261,21 @@ impl Application for GooglePiczUI {
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
         let (progress_flag, error_flag, preload_count, cache_dir) = flags;
         let mut init_errors = Vec::new();
+        let error_log_path = cache_dir.join("ui_errors.log");
         let cache_path = cache_dir.join("cache.sqlite");
 
         let cache_manager = match CacheManager::new(&cache_path) {
             Ok(cm) => Some(Arc::new(Mutex::new(cm))),
             Err(e) => {
-                init_errors.push(format!("Failed to initialize cache: {}", e));
+                let msg = format!("Failed to initialize cache: {}", e);
+                init_errors.push(msg.clone());
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&error_log_path)
+                {
+                    let _ = writeln!(f, "{}", msg);
+                }
                 None
             }
         };
@@ -303,6 +323,7 @@ impl Application for GooglePiczUI {
             deleting_album: None,
             search_mode: SearchMode::Filename,
             search_query: String::new(),
+            error_log_path,
         };
 
         (
@@ -400,7 +421,9 @@ impl Application for GooglePiczUI {
                     self.albums = albums;
                 }
                 Err(err) => {
-                    self.errors.push(format!("Failed to load albums: {}", err));
+                    let msg = format!("Failed to load albums: {}", err);
+                    self.errors.push(msg.clone());
+                    self.log_error(&msg);
                     return GooglePiczUI::error_timeout();
                 }
             },
@@ -429,10 +452,9 @@ impl Application for GooglePiczUI {
                     self.thumbnails.insert(media_id, handle);
                 }
                 Err(error) => {
-                    self.errors.push(format!(
-                        "Failed to load thumbnail for {}: {}",
-                        media_id, error
-                    ));
+                    let msg = format!("Failed to load thumbnail for {}: {}", media_id, error);
+                    self.errors.push(msg.clone());
+                    self.log_error(&msg);
                     return GooglePiczUI::error_timeout();
                 }
             },
@@ -465,7 +487,9 @@ impl Application for GooglePiczUI {
                     self.full_images.insert(media_id, handle);
                 }
                 Err(error) => {
-                    self.errors.push(format!("Failed to load image: {}", error));
+                    let msg = format!("Failed to load image: {}", error);
+                    self.errors.push(msg.clone());
+                    self.log_error(&msg);
                     return GooglePiczUI::error_timeout();
                 }
             },
@@ -478,7 +502,9 @@ impl Application for GooglePiczUI {
                     player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
                     self.state = ViewState::PlayingVideo(player);
                 } else {
-                    self.errors.push("Failed to start video".into());
+                    let msg = "Failed to start video".to_string();
+                    self.errors.push(msg.clone());
+                    self.log_error(&msg);
                     return GooglePiczUI::error_timeout();
                 }
             }
@@ -528,6 +554,7 @@ impl Application for GooglePiczUI {
                     }
                 }
                 self.errors.push(err_msg.to_string());
+                self.log_error(err_msg);
                 self.sync_status = "Sync error".into();
                 self.syncing = false;
                 return GooglePiczUI::error_timeout();
@@ -580,7 +607,9 @@ impl Application for GooglePiczUI {
                     self.albums.push(album);
                 }
                 Err(err) => {
-                    self.errors.push(format!("Failed to create album: {}", err));
+                    let msg = format!("Failed to create album: {}", err);
+                    self.errors.push(msg.clone());
+                    self.log_error(&msg);
                     return GooglePiczUI::error_timeout();
                 }
             },
@@ -614,7 +643,9 @@ impl Application for GooglePiczUI {
             Message::AlbumAssigned(res) => {
                 self.assign_selection = None;
                 if let Err(e) = res {
-                    self.errors.push(format!("Failed to assign photo: {}", e));
+                    let msg = format!("Failed to assign photo: {}", e);
+                    self.errors.push(msg.clone());
+                    self.log_error(&msg);
                     return GooglePiczUI::error_timeout();
                 }
             }
