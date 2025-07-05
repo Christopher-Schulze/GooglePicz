@@ -80,6 +80,7 @@ The configuration file `~/.googlepicz/config` accepts these keys:
 | `sync_interval_minutes` | `5` | Interval for automatic sync tasks |
 | `cache_path` | `~/.googlepicz` | Directory for cache and logs |
 | `debug_console` | `false` | Enable Tokio console diagnostics |
+| `trace_spans` | `false` | Record detailed tracing spans when compiled with the `trace-spans` features |
 
 ### Setting up OAuth Credentials
 
@@ -111,6 +112,7 @@ Having trouble starting the application? Here are a few common issues:
 - **GStreamer not installed** – Build with `--features ui/no-gstreamer` to disable the video backend.
 - **Developing without network access** – Set `MOCK_API_CLIENT=1` and `MOCK_KEYRING=1` (and optionally `MOCK_ACCESS_TOKEN`/`MOCK_REFRESH_TOKEN`) to run all tests without hitting Google APIs.
 - **Need more insight into async tasks?** – Set `debug_console = true` in `~/.googlepicz/config` or pass `--debug-console` to print detailed Tokio diagnostics.
+- **Profiling spans** – Set `trace_spans = true` or pass `--trace-spans` and build with `--features sync/trace-spans,ui/trace-spans` to record timing data.
 - **Missing system libraries on Linux** – Install `glib2.0-dev`, `gstreamer1.0-dev` and `libssl-dev` (or the equivalent packages for your distribution). On Debian/Ubuntu run:
 
   ```bash
@@ -158,11 +160,13 @@ See the following documents for additional details:
 
 Run the `sync_cli` binary for manual synchronization or to inspect the local cache.
 Like the GUI, it reads settings from `~/.googlepicz/config` via `AppConfig` and supports
-the same command line overrides (e.g. `--log-level debug`).
+the same command line overrides (e.g. `--log-level debug`). Available options include
+`--oauth-redirect-port`, `--thumbnails-preload`, `--sync-interval-minutes`, `--config`,
+`--debug-console` and `--use-file-store`.
 The tool exposes subcommands for `sync`, `status`, `clear-cache`, `list-albums`,
-`create-album`, `delete-album` and `cache-stats` and prints progress updates
-to stdout while downloading items. The source code lives in
-`app/src/bin/sync_cli.rs`.
+`create-album`, `delete-album`, `cache-stats`, `list-items`, `show-item`,
+`export-items`, `import-items` and `export-albums` and prints progress updates
+to stdout while downloading items. The source code lives in `app/src/bin/sync_cli.rs`.
 
 ```bash
 cargo run --package googlepicz --bin sync_cli -- sync
@@ -211,6 +215,36 @@ cargo run --package googlepicz --bin sync_cli -- cache-stats
 ```
 
 Shows how many albums and media items are cached locally.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- list-items --limit 5
+```
+
+Lists cached media items, optionally limiting the output.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- show-item ITEM_ID
+```
+
+Displays the JSON metadata for a single cached media item.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- export-items --file items.json
+```
+
+Exports all cached media items to a file.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- import-items --file items.json
+```
+
+Imports media items from a file.
+
+```bash
+cargo run --package googlepicz --bin sync_cli -- export-albums --file albums.json
+```
+
+Exports all cached albums to a file.
 
 ## Packaging & Signing
 

@@ -132,4 +132,8 @@ fn test_search_mode() {
     assert_eq!(ui.search_mode(), SearchMode::Favoriten);
     let _ = ui.update(Message::SearchModeChanged(SearchMode::Description));
     assert_eq!(ui.search_mode(), SearchMode::Description);
+    let _ = ui.update(Message::SearchModeChanged(SearchMode::MimeType));
+    assert_eq!(ui.search_mode(), SearchMode::MimeType);
+    let _ = ui.update(Message::SearchModeChanged(SearchMode::CameraModel));
+    assert_eq!(ui.search_mode(), SearchMode::CameraModel);
 }

@@ -60,3 +60,9 @@ jobs:
 
       - name: Run packaging tests
         run: cargo test -p packaging
+      - name: Upload checksums
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums-${{ runner.os }}
+          path: checksums.txt

@@ -9,6 +9,8 @@ members = [
     "sync",
     "packaging",
     "face_recognition",
+
+    "tests/e2e",
 ]
 
 [workspace.package]

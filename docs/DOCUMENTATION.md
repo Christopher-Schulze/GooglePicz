@@ -164,6 +164,7 @@ The `~/.googlepicz/config` file supports these keys:
 | `sync_interval_minutes` | `5` | Interval between automatic sync runs |
 | `cache_path` | `~/.googlepicz` | Directory for cache and logs |
 | `debug_console` | `false` | Enable Tokio console diagnostics |
+| `trace_spans` | `false` | Record detailed tracing spans when compiled with the `trace-spans` features |
 
 ### Setting up OAuth Credentials
 
@@ -244,6 +245,22 @@ cargo run --package googlepicz --bin sync_cli -- cache-stats
 
 Displays the number of cached albums and media items.
 
+### Background tasks
+
+The `sync` crate exposes helpers for long running operations. `start_periodic_sync`
+spawns a task that repeatedly calls `sync_media_items`. Failures trigger an
+exponential backoff and each retry is reported via `SyncTaskError::RestartAttempt`.
+After five consecutive failures the task emits `SyncTaskError::Aborted` and
+terminates. The join handle now resolves to `Result<(), SyncTaskError>` so callers
+can check why the loop ended.
+
+`start_token_refresh_task` behaves the same but only refreshes the OAuth token.
+
+| Variant | Meaning |
+| ------- | ------- |
+| `RestartAttempt(u32)` | The task will retry; the number indicates the attempt. |
+| `Aborted(String)` | Too many failures or shutdown caused the task to end. |
+
 ## 📈 Performance Profiling
 
 Enable detailed tracing spans and Tokio's console to diagnose slow operations.
@@ -262,7 +279,7 @@ tokio-console
 Launch the application with the profiling features enabled:
 
 ```bash
-cargo run --package googlepicz --features sync/trace-spans,ui/trace-spans -- --debug-console
+cargo run --package googlepicz --features sync/trace-spans,ui/trace-spans -- --debug-console --trace-spans
 ```
 
 The console will display asynchronous task metrics while span timings are

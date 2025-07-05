@@ -56,6 +56,9 @@ fn test_package_all_mock() {
         fs::remove_file(exe).unwrap();
     }
 
+    let checksums = root.join("checksums.txt");
+    assert!(checksums.exists(), "Expected {:?} to exist", checksums);
+
     if !use_real {
         std::env::remove_var("MOCK_COMMANDS");
     }

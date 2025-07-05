@@ -35,6 +35,8 @@ const ACCESS_TOKEN_EXPIRY_KEY: &str = "access_token_expiry";
 pub const REFRESH_MARGIN_SECS: u64 = 300;
 /// Environment variable to opt into storing tokens in a file instead of the keyring.
 pub const USE_FILE_STORE_ENV: &str = "USE_FILE_STORE";
+/// Environment variable to simulate keyring failures in tests.
+const MOCK_KEYRING_FAIL_ENV: &str = "MOCK_KEYRING_FAIL";
 
 static SCHEDULED_REFRESH: Lazy<Mutex<Option<JoinHandle<()>>>> =
     Lazy::new(|| Mutex::new(None));
@@ -51,6 +53,11 @@ fn token_file_path() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".googlepicz")
         .join("tokens.json")
+}
+
+#[cfg(feature = "file-store")]
+fn enable_file_store() {
+    std::env::set_var(USE_FILE_STORE_ENV, "1");
 }
 
 #[cfg(feature = "file-store")]
@@ -99,18 +106,43 @@ fn store_value(key: &str, value: &str) -> Result<(), AuthError> {
         store.insert(key.to_string(), value.to_string());
         return Ok(());
     }
+    if std::env::var(MOCK_KEYRING_FAIL_ENV).is_ok() {
+        #[cfg(feature = "file-store")]
+        {
+            enable_file_store();
+            return store_value_file(key, value);
+        }
+        #[cfg(not(feature = "file-store"))]
+        {
+            return Err(AuthError::Keyring("mock failure".into()));
+        }
+    }
     #[cfg(feature = "file-store")]
     if std::env::var(USE_FILE_STORE_ENV).is_ok() {
         return store_value_file(key, value);
     }
     {
-        let entry = Entry::new(KEYRING_SERVICE_NAME, key)
-            .map_err(|e| AuthError::Keyring(e.to_string()))?;
+        let entry = match Entry::new(KEYRING_SERVICE_NAME, key) {
+            Ok(e) => e,
+            Err(e) => {
+                #[cfg(feature = "file-store")]
+                {
+                    enable_file_store();
+                    store_value_file(key, value)?;
+                    return Ok(());
+                }
+                #[cfg(not(feature = "file-store"))]
+                {
+                    return Err(AuthError::Keyring(e.to_string()));
+                }
+            }
+        };
         match entry.set_password(value) {
             Ok(_) => Ok(()),
             Err(e) => {
                 #[cfg(feature = "file-store")]
                 {
+                    enable_file_store();
                     store_value_file(key, value)?;
                     Ok(())
                 }
@@ -130,13 +162,36 @@ fn get_value(key: &str) -> Result<Option<String>, AuthError> {
             .map_err(|_| AuthError::Other("Poisoned mock store lock".into()))?;
         return Ok(store.get(key).cloned());
     }
+    if std::env::var(MOCK_KEYRING_FAIL_ENV).is_ok() {
+        #[cfg(feature = "file-store")]
+        {
+            enable_file_store();
+            return get_value_file(key);
+        }
+        #[cfg(not(feature = "file-store"))]
+        {
+            return Err(AuthError::Keyring("mock failure".into()));
+        }
+    }
     #[cfg(feature = "file-store")]
     if std::env::var(USE_FILE_STORE_ENV).is_ok() {
         return get_value_file(key);
     }
     {
-        let entry = Entry::new(KEYRING_SERVICE_NAME, key)
-            .map_err(|e| AuthError::Keyring(e.to_string()))?;
+        let entry = match Entry::new(KEYRING_SERVICE_NAME, key) {
+            Ok(e) => e,
+            Err(e) => {
+                #[cfg(feature = "file-store")]
+                {
+                    enable_file_store();
+                    return get_value_file(key);
+                }
+                #[cfg(not(feature = "file-store"))]
+                {
+                    return Err(AuthError::Keyring(e.to_string()));
+                }
+            }
+        };
         match entry.get_password() {
             Ok(v) => Ok(Some(v)),
             Err(keyring::Error::NoEntry) => {
@@ -152,6 +207,7 @@ fn get_value(key: &str) -> Result<Option<String>, AuthError> {
             Err(e) => {
                 #[cfg(feature = "file-store")]
                 {
+                    enable_file_store();
                     let val = get_value_file(key)?;
                     if val.is_some() {
                         Ok(val)

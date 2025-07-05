@@ -38,6 +38,9 @@ struct Cli {
     /// Enable tokio console for debugging
     #[arg(long)]
     debug_console: bool,
+    /// Enable tracing spans instrumentation
+    #[arg(long)]
+    trace_spans: bool,
     /// Store auth tokens in ~/.googlepicz/tokens.json instead of the system keyring
     #[arg(long)]
     use_file_store: bool,
@@ -73,8 +76,19 @@ enum Commands {
         #[arg(long)]
         limit: Option<usize>,
     },
+    /// Show metadata for a cached media item
+    ShowItem {
+        /// ID of the media item
+        id: String,
+    },
     /// Export all cached media items to a JSON file
     ExportItems {
+        /// Path to the export file
+        #[arg(long)]
+        file: PathBuf,
+    },
+    /// Export all cached albums to a JSON file
+    ExportAlbums {
         /// Path to the export file
         #[arg(long)]
         file: PathBuf,
@@ -102,6 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         thumbnails_preload: cli.thumbnails_preload,
         sync_interval_minutes: cli.sync_interval_minutes,
         debug_console: cli.debug_console,
+        trace_spans: cli.trace_spans,
     };
     let cfg = config::AppConfig::load_from(cli.config.clone()).apply_overrides(&overrides);
     let base_dir = cfg.cache_path.clone();
@@ -215,6 +230,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("{} - {}", item.id, item.filename);
             }
         }
+        Commands::ShowItem { id } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            if let Some(item) = cache.get_media_item(&id)? {
+                println!("{}", serde_json::to_string_pretty(&item)?);
+            } else {
+                println!("Item not found: {}", id);
+            }
+        }
         Commands::ExportItems { file } => {
             if !db_path.exists() {
                 println!("No cache found at {:?}", db_path);
@@ -223,6 +250,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cache = CacheManager::new(&db_path)?;
             cache.export_media_items(&file)?;
             println!("Exported to {:?}", file);
+        }
+        Commands::ExportAlbums { file } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            cache.export_albums(&file)?;
+            println!("Exported albums to {:?}", file);
         }
         Commands::ImportItems { file } => {
             if !db_path.exists() {

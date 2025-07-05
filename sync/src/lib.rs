@@ -42,6 +42,10 @@ pub enum SyncTaskError {
     PeriodicSyncFailed(String),
     #[error("Token refresh failed: {0}")]
     TokenRefreshFailed(String),
+    #[error("Task aborted: {0}")]
+    Aborted(String),
+    #[error("Restart attempt {0}")]
+    RestartAttempt(u32),
     #[error("Other task error: {0}")]
     Other(String),
 }
@@ -215,12 +219,13 @@ impl Syncer {
         progress_tx: mpsc::UnboundedSender<SyncProgress>,
         error_tx: mpsc::UnboundedSender<SyncTaskError>,
         status_tx: Option<mpsc::UnboundedSender<u32>>,
-    ) -> (JoinHandle<()>, oneshot::Sender<()>) {
+    ) -> (JoinHandle<Result<(), SyncTaskError>>, oneshot::Sender<()>) {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
         let handle = spawn_local(async move {
             let mut syncer = self;
             let mut backoff = 1u64;
             let mut failures: u32 = 0;
+            const MAX_FAILURES: u32 = 5;
             let mut last_success = syncer
                 .cache_manager
                 .get_last_sync_async()
@@ -229,7 +234,8 @@ impl Syncer {
             loop {
                 tokio::select! {
                     _ = &mut shutdown_rx => {
-                        break;
+                        tracing::info!("Periodic sync task shutting down");
+                        return Ok(());
                     }
                     _ = async {
                         if let Err(e) =
@@ -259,6 +265,9 @@ impl Syncer {
                                 let _ = tx.send(failures);
                             }
                             let wait = backoff.min(300);
+                            if let Err(send_err) = error_tx.send(SyncTaskError::RestartAttempt(failures)) {
+                                tracing::error!(error = ?send_err, "Failed to forward restart attempt");
+                            }
                             if failures > 3 {
                                 tracing::error!(?e, attempts = failures, backoff = wait, "Periodic sync failed");
                             } else {
@@ -271,6 +280,12 @@ impl Syncer {
                                     "Failed to send progress update: {}",
                                     send_err
                                 )));
+                            }
+                            if failures >= MAX_FAILURES {
+                                let abort_msg = format!("periodic sync aborted after {} failures", failures);
+                                tracing::error!("{}", abort_msg);
+                                let _ = error_tx.send(SyncTaskError::Aborted(abort_msg.clone()));
+                                return Err(SyncTaskError::Aborted(abort_msg));
                             }
                             sleep(Duration::from_secs(wait)).await;
                         } else {
@@ -293,14 +308,17 @@ impl Syncer {
     pub fn start_token_refresh_task(
         interval: Duration,
         error_tx: mpsc::UnboundedSender<SyncTaskError>,
-    ) -> (JoinHandle<()>, oneshot::Sender<()>) {
+    ) -> (JoinHandle<Result<(), SyncTaskError>>, oneshot::Sender<()>) {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
         let handle = spawn_local(async move {
             let mut last_success = Utc::now();
+            let mut failures: u32 = 0;
+            const MAX_FAILURES: u32 = 5;
             loop {
                 tokio::select! {
                     _ = &mut shutdown_rx => {
-                        break;
+                        tracing::info!("Token refresh task shutting down");
+                        return Ok(());
                     }
                     _ = async {
                         sleep(interval).await;
@@ -318,12 +336,23 @@ impl Syncer {
                             );
                             tracing::error!(error = ?e, "Token refresh failed");
                             if let Err(send_err) =
-                                error_tx.send(SyncTaskError::TokenRefreshFailed(msg))
+                                error_tx.send(SyncTaskError::TokenRefreshFailed(msg.clone()))
                             {
                                 tracing::error!(error = ?send_err, "Failed to forward token refresh error");
                             }
+                            failures += 1;
+                            if let Err(send_err) = error_tx.send(SyncTaskError::RestartAttempt(failures)) {
+                                tracing::error!(error = ?send_err, "Failed to forward restart attempt");
+                            }
+                            if failures >= MAX_FAILURES {
+                                let abort_msg = format!("token refresh aborted after {} failures", failures);
+                                tracing::error!("{}", abort_msg);
+                                let _ = error_tx.send(SyncTaskError::Aborted(abort_msg.clone()));
+                                return Err(SyncTaskError::Aborted(abort_msg));
+                            }
                         } else {
                             last_success = Utc::now();
+                            failures = 0;
                         }
                     } => {}
                 }
