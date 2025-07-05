@@ -520,7 +520,7 @@ impl Application for GooglePiczUI {
             Message::PlayVideo(item) => {
                 let url = format!("{}=dv", item.base_url);
                 if let Ok(mut player) = GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
-                    player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
+                    let _ = player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
                     self.state = ViewState::PlayingVideo(player);
                 } else {
                     let msg = "Failed to start video".to_string();
