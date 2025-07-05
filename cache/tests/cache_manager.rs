@@ -23,6 +23,23 @@ fn sample_item(id: &str) -> MediaItem {
 }
 
 #[test]
+fn export_and_import_roundtrip() {
+    let file = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(file.path()).unwrap();
+    let item = sample_item("1");
+    cache.insert_media_item(&item).unwrap();
+
+    let export_file = NamedTempFile::new().unwrap();
+    cache.export_media_items(export_file.path()).unwrap();
+    cache.clear_cache().unwrap();
+    cache.import_media_items(export_file.path()).unwrap();
+
+    let items = cache.get_all_media_items().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].id, item.id);
+}
+
+#[test]
 fn test_new_applies_migrations() {
     let file = NamedTempFile::new().unwrap();
     let _ = CacheManager::new(file.path()).unwrap();

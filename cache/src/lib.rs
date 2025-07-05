@@ -584,7 +584,7 @@ impl CacheManager {
     }
 
     pub fn get_media_items_by_favorite(&self, fav: bool) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let mut conn = self.lock_conn()?;
+        let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
@@ -863,6 +863,25 @@ impl CacheManager {
         Ok(())
     }
 
+    pub fn export_media_items<P: AsRef<Path>>(&self, path: P) -> Result<(), CacheError> {
+        let items = self.get_all_media_items()?;
+        let file = std::fs::File::create(path.as_ref())
+            .map_err(|e| CacheError::Other(format!("Failed to create export file: {}", e)))?;
+        serde_json::to_writer(file, &items)
+            .map_err(|e| CacheError::SerializationError(e.to_string()))
+    }
+
+    pub fn import_media_items<P: AsRef<Path>>(&self, path: P) -> Result<(), CacheError> {
+        let file = std::fs::File::open(path.as_ref())
+            .map_err(|e| CacheError::Other(format!("Failed to open import file: {}", e)))?;
+        let items: Vec<api_client::MediaItem> = serde_json::from_reader(file)
+            .map_err(|e| CacheError::DeserializationError(e.to_string()))?;
+        for item in &items {
+            self.insert_media_item(item)?;
+        }
+        Ok(())
+    }
+
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, item)))]
     pub async fn insert_media_item_async(&self, item: api_client::MediaItem) -> Result<(), CacheError> {
         let this = self.clone();
@@ -891,6 +910,26 @@ impl CacheManager {
     pub async fn update_last_sync_async(&self, ts: DateTime<Utc>) -> Result<(), CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.update_last_sync(ts))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn export_media_items_async<P>(&self, path: P) -> Result<(), CacheError>
+    where
+        P: AsRef<Path> + Send + 'static,
+    {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.export_media_items(path))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn import_media_items_async<P>(&self, path: P) -> Result<(), CacheError>
+    where
+        P: AsRef<Path> + Send + 'static,
+    {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.import_media_items(path))
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }

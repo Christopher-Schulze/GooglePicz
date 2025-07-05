@@ -4518,8 +4518,10 @@ dependencies = [
 name = "packaging"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "cargo-bundle-licenses",
  "cargo-deb",
+ "predicates 2.1.5",
  "serde_json",
  "serial_test",
  "thiserror 1.0.69",
