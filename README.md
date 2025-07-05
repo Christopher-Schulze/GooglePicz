@@ -154,7 +154,7 @@ See the following documents for additional details:
 - [Configuration Guide](docs/CONFIGURATION.md) – lists available `AppConfig` options.
 - Command line flags (e.g. `--log-level debug`) can override config values at runtime.
 - [Example Config](docs/EXAMPLE_CONFIG.md) – sample `AppConfig` file.
-- [Release Artifacts Guide](docs/RELEASE_ARTIFACTS.md) – how to create installers.
+- [Release Artifacts Guide](docs/RELEASE_ARTIFACTS.md#release-process) – how to create installers and sign them.
 
 ## Sync CLI
 
@@ -273,6 +273,7 @@ Set these variables in your shell or CI environment before running `cargo run --
 2. Export the signing variables needed for your platform.
 3. Run `cargo run --package packaging --bin packager` from the workspace root.
 4. Retrieve the generated files from `target/` (e.g. `GooglePicz-<version>-Setup.exe` or `GooglePicz-<version>.deb`).
+5. See the [release process](docs/RELEASE_ARTIFACTS.md#release-process) for signing and notarization details.
 
 ## Running Tests
 
