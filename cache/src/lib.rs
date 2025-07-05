@@ -1385,12 +1385,49 @@ impl CacheManager {
         .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
-    pub async fn get_faces_for_media_item(&self, _id: &str) -> Result<Vec<face_recognition::Face>, CacheError> {
-        Ok(Vec::new())
+    pub async fn get_faces_for_media_item(&self, id: &str) -> Result<Vec<face_recognition::Face>, CacheError> {
+        let this = self.clone();
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            match this.get_faces(&id)? {
+                Some(list) => Ok(list
+                    .into_iter()
+                    .map(|f| face_recognition::Face {
+                        bbox: f.bbox,
+                        name: f.name,
+                        rect: (
+                            f.bbox[0] as u32,
+                            f.bbox[1] as u32,
+                            f.bbox[2] as u32,
+                            f.bbox[3] as u32,
+                        ),
+                    })
+                    .collect()),
+                None => Ok(Vec::new()),
+            }
+        })
+        .await
+        .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
-    pub async fn update_face_name(&self, _id: &str, _idx: usize, _name: &str) -> Result<(), CacheError> {
-        Ok(())
+    pub async fn update_face_name(&self, id: &str, idx: usize, name: &str) -> Result<(), CacheError> {
+        let this = self.clone();
+        let id = id.to_string();
+        let name = name.to_string();
+        tokio::task::spawn_blocking(move || {
+            let mut faces = this
+                .get_faces(&id)?
+                .unwrap_or_default();
+            if idx < faces.len() {
+                faces[idx].name = Some(name);
+                let json = serde_json::to_string(&faces)
+                    .map_err(|e| CacheError::SerializationError(e.to_string()))?;
+                this.insert_faces(&id, &json)?;
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|e| CacheError::Other(e.to_string()))?
     }
   
   
