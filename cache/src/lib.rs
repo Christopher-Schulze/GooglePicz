@@ -488,7 +488,7 @@ impl CacheManager {
     }
 
     pub fn get_media_items_by_favorite(&self, fav: bool) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let mut conn = self.lock_conn()?;
+        let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, m.filename
@@ -513,6 +513,7 @@ impl CacheManager {
                         creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
+                        video: None,
                     },
                     filename: row.get(8)?,
                 })
