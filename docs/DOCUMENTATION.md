@@ -5,7 +5,7 @@ GooglePicz is a native Google Photos client being developed in Rust. The applica
 
 ## 🚧 Project Status: Early Development
 
-**Note**: GooglePicz is an **experimental** project. The information in this documentation reflects the current state and is subject to change as development progresses. Planned features include video playback, advanced search and face recognition.
+**Note**: GooglePicz is still experimental but now includes advanced search filters, optional video playback and an early face recognition module. The APIs may change as these features are refined.
 
 ## 🏗️ Architecture
 
@@ -19,13 +19,13 @@ GooglePicz is a native Google Photos client being developed in Rust. The applica
 - **cache**: Manages local media cache (SQLite)
 - **sync**: Handles synchronization with Google Photos
 - **packaging**: Handles application packaging
-- **face_recognition**: Planned module for detecting faces in media items
+- **face_recognition**: Optional module for detecting and tagging faces
 
-### Face Recognition Module (planned)
-The optional `face_recognition` crate defines placeholder functions to detect
-faces in a `MediaItem`. When built with the `cache` feature the results can be
-stored in the local cache. Enabling the `ui` feature will later allow the user
-interface to display tagged faces once real detection logic is implemented.
+### Face Recognition Module (optional)
+The `face_recognition` crate can detect faces in a `MediaItem`. When compiled
+with the `cache` feature the results are written to the local cache. Building
+with the `ui` feature shows bounding boxes in the photo viewer. The feature is
+experimental and disabled by default.
 
 ### Crate Interactions
 
@@ -56,6 +56,15 @@ interface to display tagged faces once real detection logic is implemented.
 ```
 
 The `app` crate launches the UI and coordinates other modules. During startup, the UI triggers the OAuth flow in the `auth` crate to obtain an access token. The `sync` crate uses this token through `api_client` to fetch photos and album data, storing the results via the `cache` crate. The UI then queries the cache to render thumbnails and albums, while sync continues to update the cache in the background.
+
+### Optional Features
+
+Several capabilities are gated behind feature flags:
+
+- **ui/gstreamer** – enables video playback through GStreamer. Disable with `ui/no-gstreamer` if the libraries are missing.
+- **auth/file-store** – stores OAuth tokens in `~/.googlepicz/tokens.json` when built with this feature and started with `--use-file-store` or `USE_FILE_STORE=1`.
+- **trace-spans** – each crate exposes a `trace-spans` feature to record detailed timing information.
+- **face_recognition/cache** – writes detected face data to the cache so it can be reused by the UI.
 
 ## 🛠️ Technologies
 
@@ -149,6 +158,7 @@ your changes to ensure consistent formatting and catch linter warnings.
 ## 🌎 Configuration
 
 Details about required environment variables and optional `AppConfig` settings have been consolidated in [docs/CONFIGURATION.md](CONFIGURATION.md). Refer to that document for a full list of keys and examples for setting up OAuth credentials.
+Recent parameters include `cache_path` to control the data directory as well as the `debug_console` and `trace_spans` switches for troubleshooting.
 
 ### Packaging installers
 Follow these steps to produce release artifacts:
@@ -230,7 +240,8 @@ Lists items stored for the given album.
 cargo run --package googlepicz --bin sync_cli -- search QUERY
 ```
 
-Searches cached media items by filename or description.
+Searches cached media items. The UI and CLI support filters for
+filename, description, favorites, date range, MIME type and camera metadata.
 
 ```bash
 cargo run --package googlepicz --bin sync_cli -- cache-stats
