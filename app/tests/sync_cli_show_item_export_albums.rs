@@ -84,3 +84,28 @@ fn export_albums_writes_file() {
     assert_eq!(exported.len(), 1);
     assert_eq!(exported[0].id, album.id);
 }
+#[test]
+fn export_albums_exports_all_entries() {
+    let dir = tempdir().unwrap();
+    let base = dir.path().join(".googlepicz");
+    std::fs::create_dir_all(&base).unwrap();
+    let db = base.join("cache.sqlite");
+    let cache = CacheManager::new(&db).unwrap();
+    let album1 = sample_album("1");
+    let album2 = sample_album("2");
+    cache.insert_album(&album1).unwrap();
+    cache.insert_album(&album2).unwrap();
+
+    let export_file = dir.path().join("all_albums.json");
+    build_cmd(dir.path())
+        .args(&["export-albums", "--file", export_file.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(contains("Exported albums"));
+
+    let exported: Vec<api_client::Album> = serde_json::from_reader(
+        std::fs::File::open(&export_file).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(exported.len(), 2);
+}

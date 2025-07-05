@@ -163,3 +163,45 @@ fn list_album_items_outputs_entries() {
         .success()
         .stdout(contains("1 - 1.jpg"));
 }
+#[test]
+fn rename_album_prints_details() {
+    let dir = tempdir().unwrap();
+    let base = dir.path().join(".googlepicz");
+    std::fs::create_dir_all(&base).unwrap();
+    let db = base.join("cache.sqlite");
+    let cache = CacheManager::new(&db).unwrap();
+    let album = sample_album("1");
+    cache.insert_album(&album).unwrap();
+
+    build_cmd(dir.path())
+        .args(&["rename-album", "1", "Renamed"])
+        .assert()
+        .success()
+        .stdout(contains("Album renamed"))
+        .stdout(contains("Renamed"))
+        .stdout(contains("(id: 1)"));
+}
+
+#[test]
+fn list_album_items_respects_limit() {
+    let dir = tempdir().unwrap();
+    let base = dir.path().join(".googlepicz");
+    std::fs::create_dir_all(&base).unwrap();
+    let db = base.join("cache.sqlite");
+    let cache = CacheManager::new(&db).unwrap();
+    let album = sample_album("1");
+    cache.insert_album(&album).unwrap();
+    let item1 = sample_item("1");
+    let item2 = sample_item("2");
+    cache.insert_media_item(&item1).unwrap();
+    cache.insert_media_item(&item2).unwrap();
+    cache.associate_media_item_with_album(&item1.id, &album.id).unwrap();
+    cache.associate_media_item_with_album(&item2.id, &album.id).unwrap();
+
+    build_cmd(dir.path())
+        .args(&["list-album-items", "1", "--limit", "1"])
+        .assert()
+        .success()
+        .stdout(contains("1 - 1.jpg"))
+        .stdout(contains("2 - 2.jpg").not());
+}
