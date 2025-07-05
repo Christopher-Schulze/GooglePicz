@@ -562,7 +562,7 @@ impl Application for GooglePiczUI {
                     }
                 }
                 self.errors.push(err_msg.to_string());
-                self.log_error(err_msg);
+                self.log_error(&err_msg.to_string());
                 self.sync_status = "Sync error".into();
                 self.syncing = false;
                 return GooglePiczUI::error_timeout();
