@@ -20,5 +20,4 @@ tempfile = "3"
 
 [features]
 cache = ["dep:cache"]
-ui = ["dep:ui"]
 default = []

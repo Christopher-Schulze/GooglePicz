@@ -18,6 +18,7 @@ pub struct Face {
     pub bbox: [i32; 4],
     /// Optional name of the person.
     pub name: Option<String>,
+    pub rect: (u32, u32, u32, u32),
 }
 
 #[derive(Debug, Error)]

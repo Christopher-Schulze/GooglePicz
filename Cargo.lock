@@ -2059,7 +2059,6 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tracing",
- "ui",
 ]
 
 [[package]]
@@ -6920,6 +6919,7 @@ dependencies = [
  "cache",
  "chrono",
  "dirs",
+ "face_recognition",
  "futures",
  "gstreamer_iced",
  "httpmock",
