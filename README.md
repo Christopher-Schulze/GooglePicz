@@ -102,7 +102,7 @@ Having trouble starting the application? Here are a few common issues:
 - **Developing without network access** – Set `MOCK_API_CLIENT=1` and `MOCK_KEYRING=1` (and optionally `MOCK_ACCESS_TOKEN`/`MOCK_REFRESH_TOKEN`) to run all tests without hitting Google APIs.
 - **Need more insight into async tasks?** – Set `debug_console = true` in `~/.googlepicz/config` or pass `--debug-console` to print detailed Tokio diagnostics.
 - **Profiling spans** – Set `trace_spans = true` or pass `--trace-spans` and build with `--features sync/trace-spans,ui/trace-spans` to record timing data.
-- **Missing system libraries on Linux** – Install `glib2.0-dev`, `gstreamer1.0-dev` and `libssl-dev` (or the equivalent packages for your distribution). On Debian/Ubuntu run:
+- **Missing system libraries on Linux** – Install `glib2.0-dev`, `gstreamer1.0-dev` and `libssl-dev` (or the equivalent packages for your distribution). See [docs/Todo-fuer-User.md](docs/Todo-fuer-User.md) for details. On Debian/Ubuntu run:
 
   ```bash
   sudo apt install glib2.0-dev gstreamer1.0-dev libssl-dev
