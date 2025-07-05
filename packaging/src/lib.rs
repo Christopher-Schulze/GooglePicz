@@ -40,6 +40,10 @@ pub enum PackagingError {
     MissingCommand(String),
 }
 
+fn hint(cmd: &str, install: &str) -> String {
+    format!("Required tool '{cmd}' not found. Install with {install}")
+}
+
 fn command_available(cmd: &str) -> bool {
     which(cmd).is_ok()
 }
@@ -49,24 +53,27 @@ fn verify_tools() -> Result<(), PackagingError> {
         return Ok(());
     }
 
-    let mut tools: Vec<(&str, &str)> = Vec::new();
+    let mut tools: Vec<(&str, String)> = Vec::new();
 
-    tools.push(("cargo", "cargo"));
+    tools.push(("cargo", hint("cargo", "install Rust from https://rustup.rs")));
     if cfg!(target_os = "linux") {
         let format = std::env::var("LINUX_PACKAGE_FORMAT").unwrap_or_else(|_| "deb".into());
         match format.as_str() {
-            "rpm" => tools.push(("cargo-rpm", "cargo-rpm (install with `cargo install cargo-rpm`)")),
-            "appimage" => tools.push(("appimagetool", "appimagetool")),
-            _ => tools.push(("cargo-deb", "cargo-deb (install with `cargo install cargo-deb`)")),
+            "rpm" => tools.push(("cargo-rpm", hint("cargo-rpm", "cargo install cargo-rpm"))),
+            "appimage" => tools.push(("appimagetool", hint("appimagetool", "install appimagetool from your distribution"))),
+            _ => tools.push(("cargo-deb", hint("cargo-deb", "cargo install cargo-deb"))),
+        }
+        if std::env::var("LINUX_SIGN_KEY").map(|v| !v.is_empty()).unwrap_or(false) {
+            tools.push(("dpkg-sig", hint("dpkg-sig", "install dpkg-sig from your distribution")));
         }
     } else if cfg!(target_os = "macos") {
-        tools.push(("cargo-bundle", "cargo-bundle (install with `cargo install cargo-bundle`)"));
-        tools.push(("codesign", "codesign"));
-        tools.push(("hdiutil", "hdiutil"));
-        tools.push(("xcrun", "xcrun"));
+        tools.push(("cargo-bundle", hint("cargo-bundle", "cargo install cargo-bundle")));
+        tools.push(("codesign", hint("codesign", "install Xcode command line tools")));
+        tools.push(("hdiutil", hint("hdiutil", "install Xcode command line tools")));
+        tools.push(("xcrun", hint("xcrun", "install Xcode command line tools")));
     } else if cfg!(target_os = "windows") {
-        tools.push(("makensis", "makensis (install NSIS)"));
-        tools.push(("signtool", "signtool"));
+        tools.push(("makensis", hint("makensis", "install NSIS")));
+        tools.push(("signtool", hint("signtool", "install Windows SDK")));
     }
 
     for (cmd, msg) in tools {
@@ -90,23 +97,17 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
             match *sub {
                 "deb" => {
                     if !command_available("cargo-deb") {
-                        return Err(PackagingError::MissingCommand(
-                            "cargo-deb (install with `cargo install cargo-deb`)".into(),
-                        ));
+                        return Err(PackagingError::MissingCommand(hint("cargo-deb", "cargo install cargo-deb")));
                     }
                 }
                 "bundle" => {
                     if !command_available("cargo-bundle") {
-                        return Err(PackagingError::MissingCommand(
-                            "cargo-bundle (install with `cargo install cargo-bundle`)".into(),
-                        ));
+                        return Err(PackagingError::MissingCommand(hint("cargo-bundle", "cargo install cargo-bundle")));
                     }
                 }
                 "bundle-licenses" => {
                     if !command_available("cargo-bundle-licenses") {
-                        return Err(PackagingError::MissingCommand(
-                            "cargo-bundle-licenses (install with `cargo install cargo-bundle-licenses`)".into(),
-                        ));
+                        return Err(PackagingError::MissingCommand(hint("cargo-bundle-licenses", "cargo install cargo-bundle-licenses")));
                     }
                 }
                 _ => {}
@@ -116,8 +117,9 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
 
     if !command_available(cmd) {
         let msg = match cmd {
-            "makensis" => "makensis (install NSIS)".to_string(),
-            _ => cmd.to_string(),
+            "makensis" => hint("makensis", "install NSIS"),
+            "dpkg-sig" => hint("dpkg-sig", "install dpkg-sig from your distribution"),
+            _ => hint(cmd, &format!("install {cmd} and ensure it is in your PATH")),
         };
         return Err(PackagingError::MissingCommand(msg));
     }

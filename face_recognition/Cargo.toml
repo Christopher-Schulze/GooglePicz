@@ -8,6 +8,15 @@ api_client = { path = "../api_client" }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 cache = { path = "../cache", optional = true }
+ui = { path = "../ui", optional = true }
+opencv = { version = "0.95", default-features = false, features = ["imgcodecs", "objdetect", "imgproc"] }
+reqwest = { version = "0.11", features = ["blocking"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+base64 = "0.21"
+tempfile = "3"
 
 [features]
 cache = ["dep:cache"]
