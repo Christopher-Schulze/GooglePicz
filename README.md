@@ -14,7 +14,7 @@
 
 ## 🚧 Project Status: Early Development
 
-This project is currently in active development and not yet ready for production use. We're building a native desktop solution to fill the gap left by Google's lack of official desktop clients.
+This project is **experimental** and not yet ready for production use. We're building a native desktop solution to fill the gap left by Google's lack of official desktop clients. Planned features like video playback, advanced search and face recognition are still under development.
 
 ## 🎯 Project Goals
 
@@ -23,6 +23,11 @@ This project is currently in active development and not yet ready for production
 - ⚡ GPU-accelerated image rendering
 - 📂 Local cache for offline access
 - 🎨 Cross-platform UI with Iced
+
+### Planned Features
+- Video playback
+- Advanced search capabilities
+- Face recognition and tagging
 
 ## 🛠️ Technical Stack
 
@@ -41,7 +46,7 @@ cd GooglePicz
 
 ## 🚀 Quick Start
 
-1. Create OAuth credentials in the [Google Cloud Console](https://console.developers.google.com/).
+1. [Create OAuth credentials](#setting-up-oauth-credentials).
 2. Export the required environment variables so the application can authenticate:
 
 ```bash
@@ -62,6 +67,26 @@ cargo run --package googlepicz --bin sync_cli -- sync
 ```
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for optional settings via `AppConfig`.
+
+### Setting up OAuth Credentials
+
+1. Sign in to the [Google Cloud Console](https://console.developers.google.com/) and create a new project.
+2. Enable the **Google Photos Library API** for that project.
+3. Configure an **OAuth consent screen** (External) and add your user as a tester.
+4. Create new **OAuth client credentials** of type **Desktop application**.
+5. Note the generated **client ID** and **client secret**.
+6. Export the credentials so the application can authenticate:
+
+```bash
+export GOOGLE_CLIENT_ID="your_client_id"
+export GOOGLE_CLIENT_SECRET="your_client_secret"
+```
+
+Now you can run the application as shown above.
+
+### Token Storage
+
+Authentication tokens are stored in the system keyring by default. If the application is compiled with the optional `file-store` feature you can persist tokens in `~/.googlepicz/tokens.json` instead by passing `--use-file-store` or setting `USE_FILE_STORE=1` before launching.
 
 ## ❓ Troubleshooting
 
