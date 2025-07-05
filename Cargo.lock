@@ -2017,6 +2017,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "face_recognition"
+version = "0.1.0"
+dependencies = [
+ "api_client",
+ "cache",
+ "thiserror 1.0.69",
+ "tracing",
+ "ui",
+]
+
+[[package]]
 name = "fallible-iterator"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

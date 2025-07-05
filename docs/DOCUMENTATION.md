@@ -19,6 +19,13 @@ GooglePicz is a native Google Photos client being developed in Rust. The applica
 - **cache**: Manages local media cache (SQLite)
 - **sync**: Handles synchronization with Google Photos
 - **packaging**: Handles application packaging
+- **face_recognition**: Planned module for detecting faces in media items
+
+### Face Recognition Module (planned)
+The optional `face_recognition` crate defines placeholder functions to detect
+faces in a `MediaItem`. When built with the `cache` feature the results can be
+stored in the local cache. Enabling the `ui` feature will later allow the user
+interface to display tagged faces once real detection logic is implemented.
 
 ### Crate Interactions
 
