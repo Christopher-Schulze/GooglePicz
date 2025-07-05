@@ -78,6 +78,7 @@ fn verify_tools() -> Result<(), PackagingError> {
 
     for (cmd, msg) in tools {
         if !command_available(cmd) {
+            tracing::error!("{}", msg);
             return Err(PackagingError::MissingCommand(msg.into()));
         }
     }
@@ -97,17 +98,23 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
             match *sub {
                 "deb" => {
                     if !command_available("cargo-deb") {
-                        return Err(PackagingError::MissingCommand(hint("cargo-deb", "cargo install cargo-deb")));
+                        let msg = hint("cargo-deb", "cargo install cargo-deb");
+                        tracing::error!("{}", msg);
+                        return Err(PackagingError::MissingCommand(msg));
                     }
                 }
                 "bundle" => {
                     if !command_available("cargo-bundle") {
-                        return Err(PackagingError::MissingCommand(hint("cargo-bundle", "cargo install cargo-bundle")));
+                        let msg = hint("cargo-bundle", "cargo install cargo-bundle");
+                        tracing::error!("{}", msg);
+                        return Err(PackagingError::MissingCommand(msg));
                     }
                 }
                 "bundle-licenses" => {
                     if !command_available("cargo-bundle-licenses") {
-                        return Err(PackagingError::MissingCommand(hint("cargo-bundle-licenses", "cargo install cargo-bundle-licenses")));
+                        let msg = hint("cargo-bundle-licenses", "cargo install cargo-bundle-licenses");
+                        tracing::error!("{}", msg);
+                        return Err(PackagingError::MissingCommand(msg));
                     }
                 }
                 _ => {}
@@ -121,6 +128,7 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
             "dpkg-sig" => hint("dpkg-sig", "install dpkg-sig from your distribution"),
             _ => hint(cmd, &format!("install {cmd} and ensure it is in your PATH")),
         };
+        tracing::error!("{}", msg);
         return Err(PackagingError::MissingCommand(msg));
     }
 

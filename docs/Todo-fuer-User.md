@@ -17,3 +17,21 @@ Wenn GStreamer nicht verfügbar ist oder die Video-Unterstützung nicht benötig
 ```bash
 cargo build -p ui --no-default-features
 ```
+
+## Pakete für den Packager
+
+Zur Erstellung von Installern benötigt der Packager einige externe Tools. Stelle sicher, dass folgende Programme verfügbar sind:
+
+- `cargo-deb`, `cargo-bundle`, `cargo-bundle-licenses`, `cargo-rpm`
+  ```bash
+  cargo install cargo-deb cargo-bundle cargo-bundle-licenses cargo-rpm
+  ```
+- `appimagetool` und `dpkg-sig` (optional für Linux-Signing)
+  ```bash
+  sudo apt install appimagetool dpkg-sig   # Debian/Ubuntu
+  sudo dnf install appimagetool dpkg-sig   # Fedora/RHEL
+  ```
+- `makensis` (Windows) und `signtool` aus dem Windows SDK
+- `codesign`, `hdiutil` und `xcrun` auf macOS (Teil der Xcode Command Line Tools)
+
+Diese Programme müssen im `PATH` liegen, damit `cargo run --package packaging --bin packager` erfolgreich ist.
