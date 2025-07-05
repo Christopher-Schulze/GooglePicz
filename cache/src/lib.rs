@@ -203,6 +203,7 @@ impl CacheManager {
             .unwrap_or_else(|| DateTime::<Utc>::from(std::time::UNIX_EPOCH))
             .to_rfc3339()
     }
+    #[cfg_attr(feature = "trace-spans", tracing::instrument)]
     pub fn new(db_path: &Path) -> Result<Self, CacheError> {
         let mut conn = Connection::open(db_path)
             .map_err(|e| CacheError::DatabaseError(format!("Failed to open database: {}", e)))?;
@@ -211,6 +212,7 @@ impl CacheManager {
         Ok(CacheManager { conn: Arc::new(Mutex::new(conn)) })
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, item)))]
     pub fn insert_media_item(&self, item: &api_client::MediaItem) -> Result<(), CacheError> {
         let creation_ts = DateTime::parse_from_rfc3339(&item.media_metadata.creation_time)
             .map_err(|e| CacheError::SerializationError(e.to_string()))?
@@ -266,6 +268,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_item(&self, id: &str) -> Result<Option<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -319,6 +322,7 @@ impl CacheManager {
         }
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_all_media_items(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let start = std::time::Instant::now();
         let conn = self.lock_conn()?;
@@ -369,6 +373,7 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_mime_type(&self, mime: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -417,6 +422,7 @@ impl CacheManager {
     }
 
     /// Retrieve media items filtered by optional camera model, date range and favorite flag.
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn query_media_items(
         &self,
         camera_model: Option<&str>,
@@ -487,6 +493,7 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_camera_model(&self, model: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let start = std::time::Instant::now();
         let conn = self.lock_conn()?;
@@ -536,6 +543,7 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_camera_make(&self, make: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let start = std::time::Instant::now();
         let conn = self.lock_conn()?;
@@ -585,6 +593,7 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_filename(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let start = std::time::Instant::now();
         let like_pattern = format!("%{}%", pattern);
@@ -635,6 +644,7 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_description(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let like_pattern = format!("%{}%", pattern);
         let conn = self.lock_conn()?;
@@ -683,6 +693,7 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_text(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let like_pattern = format!("%{}%", pattern);
         let conn = self.lock_conn()?;
@@ -731,6 +742,7 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_favorite_media_items(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -778,6 +790,7 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_favorite(&self, fav: bool) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -825,6 +838,7 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, album)))]
     pub fn insert_album(&self, album: &api_client::Album) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
         conn
@@ -847,6 +861,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn delete_album(&self, album_id: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
         conn
@@ -855,6 +870,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn rename_album(&self, album_id: &str, new_title: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
         conn
@@ -866,6 +882,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_all_albums(&self) -> Result<Vec<api_client::Album>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -897,6 +914,7 @@ impl CacheManager {
         Ok(albums)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn associate_media_item_with_album(&self, media_item_id: &str, album_id: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
         conn
@@ -908,6 +926,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn remove_media_item_from_album(&self, media_item_id: &str, album_id: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
         conn
@@ -921,6 +940,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_album(&self, album_id: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -969,6 +989,7 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_date_range(&self, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -1016,6 +1037,7 @@ impl CacheManager {
         Ok(items)
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn delete_media_item(&self, id: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
         conn
@@ -1024,6 +1046,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn clear_cache(&self) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
         conn
@@ -1047,6 +1070,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_last_sync(&self) -> Result<DateTime<Utc>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -1060,6 +1084,7 @@ impl CacheManager {
             .map(|dt| Utc.from_utc_datetime(&dt.naive_utc()))
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn update_last_sync(&self, ts: DateTime<Utc>) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
         conn
@@ -1071,6 +1096,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn export_media_items<P: AsRef<Path>>(&self, path: P) -> Result<(), CacheError> {
         let items = self.get_all_media_items()?;
         let file = std::fs::File::create(path.as_ref())
@@ -1079,6 +1105,7 @@ impl CacheManager {
             .map_err(|e| CacheError::SerializationError(e.to_string()))
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn export_albums<P: AsRef<Path>>(&self, path: P) -> Result<(), CacheError> {
         let albums = self.get_all_albums()?;
         let file = std::fs::File::create(path.as_ref())
@@ -1087,6 +1114,7 @@ impl CacheManager {
             .map_err(|e| CacheError::SerializationError(e.to_string()))
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn import_media_items<P: AsRef<Path>>(&self, path: P) -> Result<(), CacheError> {
         let file = std::fs::File::open(path.as_ref())
             .map_err(|e| CacheError::Other(format!("Failed to open import file: {}", e)))?;
@@ -1098,6 +1126,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn insert_faces(&self, media_item_id: &str, faces_json: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
         conn.execute(
@@ -1108,6 +1137,7 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_faces(&self, media_item_id: &str) -> Result<Option<Vec<FaceData>>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn

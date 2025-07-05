@@ -19,4 +19,5 @@ tempfile = "3"
 
 [features]
 cache = ["dep:cache"]
+trace-spans = []
 default = []
