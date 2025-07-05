@@ -32,10 +32,10 @@ Starte sie in einem separaten Terminal:
 tokio-console
 ```
 
-Baue und starte GooglePicz mit aktivierten `trace-spans` Features:
+Baue und starte GooglePicz mit aktivierten `trace-spans` und `tokio-console` Features:
 
 ```bash
-cargo run --package googlepicz --features sync/trace-spans,ui/trace-spans -- --debug-console --trace-spans
+cargo run --package googlepicz --features googlepicz/tokio-console,sync/trace-spans,ui/trace-spans -- --debug-console --trace-spans
 ```
 
 Die Konsole zeigt laufende Tasks an, detaillierte Span-Daten finden sich in `~/.googlepicz/googlepicz.log`.

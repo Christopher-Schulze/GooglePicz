@@ -32,3 +32,11 @@ The `album_query` benchmark retrieves items belonging to a single album from a d
 
 Benchmark result (`album_query`): ~7 ms per query.
 
+The `app_startup` benchmark measures the time to create a `Syncer` instance using mocked services.
+
+Benchmark result (`app_startup`): ~15 ms per run.
+
+The `full_sync` benchmark performs a complete synchronization with mocked API responses.
+
+Benchmark result (`full_sync`): ~30 ms per run.
+

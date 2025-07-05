@@ -283,7 +283,7 @@ tokio-console
 Launch the application with the profiling features enabled:
 
 ```bash
-cargo run --package googlepicz --features sync/trace-spans,ui/trace-spans -- --debug-console --trace-spans
+cargo run --package googlepicz --features googlepicz/tokio-console,sync/trace-spans,ui/trace-spans -- --debug-console --trace-spans
 ```
 
 The console will display asynchronous task metrics while span timings are
