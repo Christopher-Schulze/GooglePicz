@@ -54,16 +54,31 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: googlepicz-linux
-          path: GooglePicz-*.deb
+          path: GooglePicz-*.*
+      - name: Release Linux artifact
+        if: runner.os == 'Linux' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: GooglePicz-*.*
       - name: Upload macOS artifact
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: googlepicz-macos
           path: target/release/GooglePicz-*.dmg
+      - name: Release macOS artifact
+        if: runner.os == 'macOS' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/release/GooglePicz-*.dmg
       - name: Upload Windows artifact
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: googlepicz-windows
           path: target/windows/GooglePicz-*-Setup.exe
+      - name: Release Windows artifact
+        if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/windows/GooglePicz-*-Setup.exe

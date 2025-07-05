@@ -1,7 +1,11 @@
+#[path = "../../app/src/config.rs"]
+mod app_config;
+use app_config::AppConfig;
 use ui::{GooglePiczUI, Message, SearchMode};
-use sync::SyncTaskError;
+use sync::{SyncTaskError, SyncErrorCode};
 use iced::Application;
 use tempfile::tempdir;
+use std::path::PathBuf;
 use api_client::{MediaItem, MediaMetadata};
 use serial_test::serial;
 
@@ -60,7 +64,10 @@ fn test_dismiss_error() {
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
     let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
-    let _ = ui.update(Message::SyncError(SyncTaskError::Other("err".into())));
+    let _ = ui.update(Message::SyncError(SyncTaskError::Other {
+        code: SyncErrorCode::Other,
+        message: "err".into(),
+    }));
     assert_eq!(ui.error_count(), 1);
     let _ = ui.update(Message::DismissError(0));
     assert_eq!(ui.error_count(), 0);
@@ -74,7 +81,10 @@ fn test_sync_error_added() {
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
 
     let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
-    let _ = ui.update(Message::SyncError(SyncTaskError::Other("boom".into())));
+    let _ = ui.update(Message::SyncError(SyncTaskError::Other {
+        code: SyncErrorCode::Other,
+        message: "boom".into(),
+    }));
     assert!(ui.error_count() > 0);
 }
 
@@ -152,5 +162,37 @@ fn test_settings_dialog() {
     let _ = ui.update(Message::ShowSettings);
     assert!(ui.settings_open());
     let _ = ui.update(Message::CloseSettings);
+    assert!(!ui.settings_open());
+}
+
+#[test]
+#[serial]
+fn test_save_settings() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    let gp_dir = dir.path().join(".googlepicz");
+    std::fs::create_dir_all(&gp_dir).unwrap();
+    let cfg = AppConfig {
+        log_level: "info".into(),
+        oauth_redirect_port: 8080,
+        thumbnails_preload: 20,
+        sync_interval_minutes: 5,
+        debug_console: false,
+        trace_spans: false,
+        cache_path: gp_dir.clone(),
+    };
+    cfg.save_to(Some(gp_dir.join("config"))).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, 0, gp_dir.clone()));
+    let _ = ui.update(Message::ShowSettings);
+    ui.update(Message::SettingsLogLevelChanged("debug".into()));
+    let new_cache = gp_dir.join("new_cache");
+    let new_cache_str = new_cache.to_string_lossy().to_string();
+    ui.update(Message::SettingsCachePathChanged(new_cache_str.clone()));
+    let _ = ui.update(Message::SaveSettings);
+
+    let saved = AppConfig::load_from(Some(gp_dir.join("config")));
+    assert_eq!(saved.log_level, "debug");
+    assert_eq!(saved.cache_path, PathBuf::from(new_cache_str));
     assert!(!ui.settings_open());
 }

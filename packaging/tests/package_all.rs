@@ -14,9 +14,20 @@ fn test_package_all_mock() {
     let root = get_project_root();
 
     if cfg!(target_os = "linux") {
-        let deb_dir = root.join("target/debian");
-        fs::create_dir_all(&deb_dir).unwrap();
-        fs::write(deb_dir.join("dummy.deb"), b"test").unwrap();
+        let format = std::env::var("LINUX_PACKAGE_FORMAT").unwrap_or_else(|_| "deb".into());
+        if format == "rpm" {
+            let rpm_dir = root.join("target/rpmbuild/RPMS");
+            fs::create_dir_all(&rpm_dir).unwrap();
+            fs::write(rpm_dir.join("dummy.rpm"), b"test").unwrap();
+        } else if format == "appimage" {
+            let img_dir = root.join("target/appimage");
+            fs::create_dir_all(&img_dir).unwrap();
+            fs::write(img_dir.join("dummy.AppImage"), b"test").unwrap();
+        } else {
+            let deb_dir = root.join("target/debian");
+            fs::create_dir_all(&deb_dir).unwrap();
+            fs::write(deb_dir.join("dummy.deb"), b"test").unwrap();
+        }
     }
 
     if cfg!(target_os = "macos") {
@@ -37,9 +48,14 @@ fn test_package_all_mock() {
 
     if cfg!(target_os = "linux") {
         let version = workspace_version().unwrap();
-        let deb_file = root.join(format!("GooglePicz-{}.deb", version));
-        assert!(deb_file.exists(), "Expected {:?} to exist", deb_file);
-        fs::remove_file(deb_file).unwrap();
+        let format = std::env::var("LINUX_PACKAGE_FORMAT").unwrap_or_else(|_| "deb".into());
+        let file = match format.as_str() {
+            "rpm" => root.join(format!("GooglePicz-{}.rpm", version)),
+            "appimage" => root.join(format!("GooglePicz-{}.AppImage", version)),
+            _ => root.join(format!("GooglePicz-{}.deb", version)),
+        };
+        assert!(file.exists(), "Expected {:?} to exist", file);
+        fs::remove_file(file).unwrap();
     }
 
     if cfg!(target_os = "macos") {

@@ -31,11 +31,11 @@ async fn test_periodic_sync_reports_error() {
             let detail_err = [err1, err2]
                 .into_iter()
                 .flatten()
-                .find(|e| matches!(e, SyncTaskError::PeriodicSyncFailed(_)))
+                .find(|e| matches!(e, SyncTaskError::PeriodicSyncFailed { .. }))
                 .expect("no periodic sync failure");
-            if let SyncTaskError::PeriodicSyncFailed(detail) = detail_err {
-                assert!(detail.contains("last_success"));
-                assert!(detail.contains("code:"));
+            if let SyncTaskError::PeriodicSyncFailed { message, code } = detail_err {
+                assert_eq!(code, sync::SyncErrorCode::Network);
+                assert!(message.contains("last_success"));
             } else {
                 panic!("unexpected error variant: {:?}", detail_err);
             }
@@ -77,11 +77,11 @@ async fn test_periodic_sync_progress_send_failure_forwarded() {
             let primary = [first, second]
                 .into_iter()
                 .flatten()
-                .find(|e| matches!(e, SyncTaskError::PeriodicSyncFailed(_)))
+                .find(|e| matches!(e, SyncTaskError::PeriodicSyncFailed { .. }))
                 .expect("no periodic failure");
-            if let SyncTaskError::PeriodicSyncFailed(msg) = &primary {
-                assert!(msg.contains("last_success"));
-                assert!(msg.contains("code:"));
+            if let SyncTaskError::PeriodicSyncFailed { message, code } = &primary {
+                assert_eq!(*code, sync::SyncErrorCode::Network);
+                assert!(message.contains("last_success"));
             }
             let _ = shutdown.send(());
             let _ = handle.await;
