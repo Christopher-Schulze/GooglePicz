@@ -1,21 +1,26 @@
 //! User Interface module for GooglePicz.
 
 mod image_loader;
+mod dialog;
+mod search;
+mod video;
 
 pub use image_loader::{ImageLoader, ImageLoaderError};
+pub use dialog::{AlbumOption, error_container_style};
+pub use search::SearchMode;
+use search::parse_date_query;
+use video::{VideoPlayer, GStreamerMessage, start_video};
+use video::url;
 
 use api_client::{Album, ApiClient, MediaItem};
 use auth;
 use cache::CacheManager;
 use chrono::{DateTime, Utc};
 use iced::subscription;
-use iced::widget::container::Appearance;
 use iced::widget::image::Handle;
 use iced::widget::{
     button, column, container, image, pick_list, row, scrollable, text, text_input, Column,
 };
-use iced::Border;
-use iced::Color;
 use iced::{executor, Application, Command, Element, Length, Settings, Subscription, Theme};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -23,44 +28,8 @@ use sync::{SyncProgress, SyncTaskError};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
-use gstreamer_iced::{GstreamerIcedBase, GStreamerMessage, PlayStatus};
-use gstreamer_iced::reexport::url;
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
-
-fn parse_date_query(query: &str) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
-    use chrono::{NaiveDate, TimeZone};
-    if let Some(idx) = query.find("..") {
-        let start_str = &query[..idx];
-        let end_str = &query[idx + 2..];
-        if let (Ok(s), Ok(e)) = (
-            NaiveDate::parse_from_str(start_str, "%Y-%m-%d"),
-            NaiveDate::parse_from_str(end_str, "%Y-%m-%d"),
-        ) {
-            let start = Utc.from_utc_datetime(&s.and_hms_opt(0, 0, 0)?);
-            let end = Utc.from_utc_datetime(&e.and_hms_opt(23, 59, 59)?);
-            return Some((start, end));
-        }
-    } else if let Ok(d) = NaiveDate::parse_from_str(query, "%Y-%m-%d") {
-        let start = Utc.from_utc_datetime(&d.and_hms_opt(0, 0, 0)?);
-        let end = Utc.from_utc_datetime(&d.and_hms_opt(23, 59, 59)?);
-        return Some((start, end));
-    }
-    None
-}
-
-fn error_container_style() -> iced::theme::Container {
-    iced::theme::Container::Custom(Box::new(|_theme: &Theme| Appearance {
-        text_color: Some(Color::from_rgb(0.5, 0.0, 0.0)),
-        background: Some(Color::from_rgb(1.0, 0.9, 0.9).into()),
-        border: Border {
-            color: Color::from_rgb(0.8, 0.0, 0.0),
-            width: 1.0,
-            radius: 2.0.into(),
-        },
-        shadow: Default::default(),
-    }))
-}
 
 #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(progress, errors)))]
 pub fn run(
@@ -114,49 +83,12 @@ pub enum Message {
     ClearErrors,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct AlbumOption {
-    id: String,
-    title: String,
-}
 
-impl std::fmt::Display for AlbumOption {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.title)
-    }
-}
-
-
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SearchMode {
-    Filename,
-    Favoriten,
-    DateRange,
-}
-
-impl SearchMode {
-    const ALL: [SearchMode; 3] = [SearchMode::Filename, SearchMode::Favoriten, SearchMode::DateRange];
-}
-
-impl std::fmt::Display for SearchMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            SearchMode::Filename => "Filename",
-            SearchMode::Favoriten => "Favoriten",
-            SearchMode::DateRange => "Datum von/bis",
-        };
-        write!(f, "{}", s)
-    }
-}
-
-#[derive(Debug, Clone)]
-
-
+#[derive(Debug)]
 enum ViewState {
     Grid,
     SelectedPhoto(MediaItem),
-    PlayingVideo(GstreamerIcedBase),
+    PlayingVideo(VideoPlayer),
 }
 
 pub struct GooglePiczUI {
@@ -473,9 +405,8 @@ impl Application for GooglePiczUI {
                 self.state = ViewState::Grid;
             }
             Message::PlayVideo(item) => {
-                let url = format!("{}=dv", item.base_url);
-                if let Ok(mut player) = GstreamerIcedBase::new_url(&url::Url::parse(&url).unwrap(), false) {
-                    player.update(GStreamerMessage::PlayStatusChanged(PlayStatus::Playing));
+                let url = url::Url::parse(&format!("{}=dv", item.base_url)).unwrap();
+                if let Some(player) = start_video(&url) {
                     self.state = ViewState::PlayingVideo(player);
                 } else {
                     self.errors.push("Failed to start video".into());

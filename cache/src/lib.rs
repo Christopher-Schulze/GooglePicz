@@ -513,6 +513,7 @@ impl CacheManager {
                         creation_time: Self::ts_to_rfc3339(ts),
                         width: w.to_string(),
                         height: h.to_string(),
+                        video: None,
                     },
                     filename: row.get(8)?,
                 })
