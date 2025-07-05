@@ -18,6 +18,9 @@ tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 criterion = "0.5"
 
+[features]
+trace-spans = []
+
 [[bench]]
 name = "cache_bench"
 harness = false

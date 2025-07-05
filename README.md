@@ -111,6 +111,14 @@ Having trouble starting the application? Here are a few common issues:
 - **Developing without network access** – Set `MOCK_API_CLIENT=1` and `MOCK_KEYRING=1` (and optionally `MOCK_ACCESS_TOKEN`/`MOCK_REFRESH_TOKEN`) to run all tests without hitting Google APIs.
 - **Need more insight into async tasks?** – Set `debug_console = true` in `~/.googlepicz/config` or pass `--debug-console` to print detailed Tokio diagnostics.
 
+## 📑 Logs and Error Reports
+
+Runtime logs are written to `~/.googlepicz/googlepicz.log`. The UI also
+stores recent error messages in `~/.googlepicz/ui_errors.log` for easier
+diagnostics. Delete these files if they grow too large.
+To record detailed span timings, build with the `trace-spans` feature for
+each crate, for example `--features sync/trace-spans,ui/trace-spans`.
+
 ## 🏗️ Project Structure
 
 ```

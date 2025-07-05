@@ -27,6 +27,7 @@ fn command_available(cmd: &str) -> bool {
     which(cmd).is_ok()
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument(skip(args)))]
 fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
     tracing::info!("Running command: {} {:?}", cmd, args);
     if std::env::var("MOCK_COMMANDS").is_ok() {
@@ -103,6 +104,7 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
 
 use utils::{get_project_root, workspace_version};
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 pub fn bundle_licenses() -> Result<(), PackagingError> {
     tracing::info!("Bundling licenses...");
     run_command(
@@ -117,11 +119,13 @@ pub fn bundle_licenses() -> Result<(), PackagingError> {
     )
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 pub fn build_release() -> Result<(), PackagingError> {
     tracing::info!("Building release binary...");
     run_command("cargo", &["build", "--release"])
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 fn create_macos_installer() -> Result<(), PackagingError> {
     tracing::info!("Bundling macOS app...");
     run_command("cargo", &["bundle", "--release"])?;
@@ -187,6 +191,7 @@ fn create_macos_installer() -> Result<(), PackagingError> {
     Ok(())
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 fn create_windows_installer() -> Result<(), PackagingError> {
     tracing::info!("Creating Windows installer...");
     let release_exe = "target\\release\\googlepicz.exe";
@@ -243,6 +248,7 @@ fn create_windows_installer() -> Result<(), PackagingError> {
     Ok(())
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 fn create_linux_package() -> Result<(), PackagingError> {
     tracing::info!("Creating Linux .deb package...");
 
@@ -295,6 +301,7 @@ fn create_linux_package() -> Result<(), PackagingError> {
     Ok(())
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 pub fn create_installer() -> Result<(), PackagingError> {
     if cfg!(target_os = "macos") {
         create_macos_installer()?;
@@ -329,6 +336,7 @@ pub fn create_installer() -> Result<(), PackagingError> {
     }
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 pub fn package_all() -> Result<(), PackagingError> {
     let root = get_project_root();
     std::env::set_current_dir(&root)

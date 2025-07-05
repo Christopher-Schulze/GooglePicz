@@ -18,6 +18,9 @@ cargo-deb = "3.1"
 [build-dependencies]
 cargo-bundle-licenses = "0.4"
 
+[features]
+trace-spans = []
+
 [[bin]]
 name = "packager"
 path = "src/main.rs"

@@ -69,6 +69,7 @@ enum Commands {
     CacheStats,
 }
 
+#[cfg_attr(feature = "trace-spans", tracing::instrument)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();

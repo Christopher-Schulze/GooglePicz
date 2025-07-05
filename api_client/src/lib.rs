@@ -129,6 +129,7 @@ impl ApiClient {
         self.access_token = token;
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, page_token)))]
     pub async fn list_media_items(
         &self,
         page_size: i32,
@@ -173,6 +174,7 @@ impl ApiClient {
         ))
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, page_token)))]
     pub async fn list_albums(
         &self,
         page_size: i32,
@@ -225,6 +227,7 @@ impl ApiClient {
         ))
     }
 
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, album_id, page_token, filters)))]
     pub async fn search_media_items(
         &self,
         album_id: Option<String>,
@@ -275,6 +278,7 @@ impl ApiClient {
     }
 
     /// Create a new album with the given title.
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn create_album(&self, title: &str) -> Result<Album, ApiClientError> {
         if std::env::var("MOCK_API_CLIENT").is_ok() {
             return Ok(Album {
@@ -320,6 +324,7 @@ impl ApiClient {
     }
 
     /// Rename an existing album (returns new Album object).
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn rename_album(&self, album_id: &str, title: &str) -> Result<Album, ApiClientError> {
         if std::env::var("MOCK_API_CLIENT").is_ok() {
             return Ok(Album {
@@ -365,6 +370,7 @@ impl ApiClient {
     }
 
     /// Delete an album from Google Photos.
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub async fn delete_album(&self, album_id: &str) -> Result<(), ApiClientError> {
         if std::env::var("MOCK_API_CLIENT").is_ok() {
             return Ok(());
@@ -390,6 +396,7 @@ impl ApiClient {
     }
 
     /// Retrieve media items for a specific album using its ID.
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, page_token)))]
     pub async fn get_album_media_items(
         &self,
         album_id: &str,
