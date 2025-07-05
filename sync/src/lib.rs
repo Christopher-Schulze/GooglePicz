@@ -6,7 +6,7 @@ use cache::CacheManager;
 use chrono::{DateTime, Datelike, Utc};
 use serde_json::json;
 use thiserror::Error;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::{spawn_local, JoinHandle};
 use tokio::time::{sleep, Duration};
@@ -26,6 +26,13 @@ pub enum SyncError {
 pub struct Syncer {
     api_client: ApiClient,
     cache_manager: CacheManager,
+    state_path: PathBuf,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct SyncState {
+    page_token: Option<String>,
+    total_synced: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -64,6 +71,20 @@ impl Syncer {
             let _ = t.send(value);
         }
     }
+
+    fn load_state(&self) -> SyncState {
+        if let Ok(data) = std::fs::read_to_string(&self.state_path) {
+            serde_json::from_str(&data).unwrap_or_default()
+        } else {
+            SyncState::default()
+        }
+    }
+
+    fn save_state(&self, state: &SyncState) {
+        if let Ok(data) = serde_json::to_string(state) {
+            let _ = std::fs::write(&self.state_path, data);
+        }
+    }
     #[cfg_attr(feature = "trace-spans", tracing::instrument)]
     pub async fn new(db_path: &Path) -> Result<Self, SyncError> {
         let access_token = ensure_access_token_valid().await.map_err(|e| {
@@ -75,9 +96,13 @@ impl Syncer {
         let cache_manager = CacheManager::new(db_path)
             .map_err(|e| SyncError::CacheError(format!("Failed to create cache manager: {}", e)))?;
 
+        let mut state_path = db_path.to_path_buf();
+        state_path.set_extension("state.json");
+
         Ok(Syncer {
             api_client,
             cache_manager,
+            state_path,
         })
     }
 
@@ -105,8 +130,9 @@ impl Syncer {
             }
         }
         Self::forward(&ui_progress, SyncProgress::Started);
-        let mut page_token: Option<String> = None;
-        let mut total_synced = 0;
+        let mut state = self.load_state();
+        let mut page_token: Option<String> = state.page_token.clone();
+        let mut total_synced = state.total_synced;
 
         let last_sync = match self.cache_manager.get_last_sync_async().await {
             Ok(ts) => ts,
@@ -221,6 +247,10 @@ impl Syncer {
 
             tracing::info!("Synced {} media items so far.", total_synced);
 
+            state.page_token = next_page_token.clone();
+            state.total_synced = total_synced;
+            self.save_state(&state);
+
             if next_page_token.is_none() {
                 break;
             }
@@ -247,6 +277,7 @@ impl Syncer {
             }
         }
         Self::forward(&ui_progress, SyncProgress::Finished(total_synced));
+        let _ = std::fs::remove_file(&self.state_path);
         self.cache_manager
             .update_last_sync_async(Utc::now())
             .await

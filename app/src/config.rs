@@ -6,6 +6,7 @@ pub struct AppConfig {
     pub log_level: String,
     pub oauth_redirect_port: u16,
     pub thumbnails_preload: usize,
+    pub preload_threads: usize,
     pub sync_interval_minutes: u64,
     pub debug_console: bool,
     pub trace_spans: bool,
@@ -16,6 +17,7 @@ pub struct AppConfigOverrides {
     pub log_level: Option<String>,
     pub oauth_redirect_port: Option<u16>,
     pub thumbnails_preload: Option<usize>,
+    pub preload_threads: Option<usize>,
     pub sync_interval_minutes: Option<u64>,
     pub debug_console: bool,
     pub trace_spans: bool,
@@ -39,6 +41,7 @@ impl AppConfig {
             .unwrap_or_else(|_| "info".to_string());
         let oauth_redirect_port = cfg.get_int("oauth_redirect_port").unwrap_or(8080) as u16;
         let thumbnails_preload = cfg.get_int("thumbnails_preload").unwrap_or(20) as usize;
+        let preload_threads = cfg.get_int("preload_threads").unwrap_or(4) as usize;
         let sync_interval_minutes = cfg.get_int("sync_interval_minutes").unwrap_or(5) as u64;
         let debug_console = cfg.get_bool("debug_console").unwrap_or(false);
         let trace_spans = cfg.get_bool("trace_spans").unwrap_or(false);
@@ -55,6 +58,7 @@ impl AppConfig {
             log_level,
             oauth_redirect_port,
             thumbnails_preload,
+            preload_threads,
             sync_interval_minutes,
             debug_console,
             trace_spans,
@@ -71,6 +75,9 @@ impl AppConfig {
         }
         if let Some(t) = ov.thumbnails_preload {
             self.thumbnails_preload = t;
+        }
+        if let Some(pt) = ov.preload_threads {
+            self.preload_threads = pt;
         }
         if let Some(s) = ov.sync_interval_minutes {
             self.sync_interval_minutes = s;

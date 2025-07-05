@@ -84,9 +84,10 @@ pub fn run(
     progress: Option<mpsc::UnboundedReceiver<SyncProgress>>,
     errors: Option<mpsc::UnboundedReceiver<SyncTaskError>>,
     preload: usize,
+    preload_threads: usize,
     cache_dir: PathBuf,
 ) -> iced::Result {
-    GooglePiczUI::run(Settings::with_flags((progress, errors, preload, cache_dir)))
+    GooglePiczUI::run(Settings::with_flags((progress, errors, preload, preload_threads, cache_dir)))
 }
 
 #[derive(Debug, Clone)]
@@ -349,12 +350,13 @@ impl Application for GooglePiczUI {
         Option<mpsc::UnboundedReceiver<SyncProgress>>,
         Option<mpsc::UnboundedReceiver<SyncTaskError>>,
         usize,
+        usize,
         PathBuf,
     );
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(flags)))]
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
-        let (progress_flag, error_flag, preload_count, cache_dir) = flags;
+        let (progress_flag, error_flag, preload_count, preload_threads, cache_dir) = flags;
         let mut init_errors = Vec::new();
         let error_log_path = cache_dir.join("ui_errors.log");
         let cache_path = cache_dir.join("cache.sqlite");
@@ -383,7 +385,7 @@ impl Application for GooglePiczUI {
             None
         };
 
-        let image_loader = Arc::new(Mutex::new(ImageLoader::new(cache_dir.clone())));
+        let image_loader = Arc::new(Mutex::new(ImageLoader::new(cache_dir.clone(), preload_threads)));
 
         let progress_receiver = progress_flag.map(|rx| Arc::new(Mutex::new(rx)));
         let error_receiver = error_flag.map(|rx| Arc::new(Mutex::new(rx)));

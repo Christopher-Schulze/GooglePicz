@@ -11,3 +11,6 @@ runs:
     - name: Run tests
       run: cargo test --all
       shell: bash
+    - name: Run benchmarks
+      run: cargo bench --bench cache_bench -p cache -- --test
+      shell: bash

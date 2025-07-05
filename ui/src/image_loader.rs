@@ -33,19 +33,19 @@ pub struct ImageLoader {
 }
 
 impl ImageLoader {
-    pub fn new(cache_dir: PathBuf) -> Self {
+    pub fn new(cache_dir: PathBuf, threads: usize) -> Self {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .expect("failed to build client");
-        Self::with_client(cache_dir, client)
+        Self::with_client(cache_dir, client, threads)
     }
 
-    pub fn with_client(cache_dir: PathBuf, client: reqwest::Client) -> Self {
+    pub fn with_client(cache_dir: PathBuf, client: reqwest::Client, threads: usize) -> Self {
         Self {
             cache_dir,
             client,
-            semaphore: Arc::new(Semaphore::new(4)),
+            semaphore: Arc::new(Semaphore::new(threads)),
         }
     }
 
@@ -230,7 +230,7 @@ mod tests {
             then.status(200).body("img");
         });
         let dir = tempdir().unwrap();
-        let loader = ImageLoader::new(dir.path().to_path_buf());
+        let loader = ImageLoader::new(dir.path().to_path_buf(), 4);
         let url = format!("{}/thumb.jpg", server.url(""));
         let _ = loader.load_thumbnail("1", &url).await.unwrap();
         assert!(dir.path().join("thumbnails/1.jpg").exists());

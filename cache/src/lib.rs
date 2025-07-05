@@ -181,6 +181,10 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
              );\
              UPDATE schema_version SET version = 14;"
         ),
+        M::up(
+            "CREATE INDEX IF NOT EXISTS idx_media_metadata_camera_make ON media_metadata (camera_make);\
+             UPDATE schema_version SET version = 15;"
+        ),
     ]);
     migrations
         .to_latest(conn)
@@ -484,6 +488,7 @@ impl CacheManager {
     }
 
     pub fn get_media_items_by_camera_model(&self, model: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let start = std::time::Instant::now();
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
@@ -527,10 +532,12 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
             })?);
         }
+        tracing::info!("query_time_ms" = %start.elapsed().as_millis(), "query" = "camera_model", "count" = items.len());
         Ok(items)
     }
 
     pub fn get_media_items_by_camera_make(&self, make: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let start = std::time::Instant::now();
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
@@ -574,10 +581,12 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
             })?);
         }
+        tracing::info!("query_time_ms" = %start.elapsed().as_millis(), "query" = "camera_make", "count" = items.len());
         Ok(items)
     }
 
     pub fn get_media_items_by_filename(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let start = std::time::Instant::now();
         let like_pattern = format!("%{}%", pattern);
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -622,6 +631,7 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
             })?);
         }
+        tracing::info!("query_time_ms" = %start.elapsed().as_millis(), "query" = "filename", "count" = items.len());
         Ok(items)
     }
 

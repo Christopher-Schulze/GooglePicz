@@ -12,7 +12,7 @@ async fn test_thumbnail_cached() {
     });
 
     let dir = tempdir().unwrap();
-    let loader = ImageLoader::new(dir.path().to_path_buf());
+    let loader = ImageLoader::new(dir.path().to_path_buf(), 4);
     let url = format!("{}/img.jpg", server.url(""));
 
     loader.load_thumbnail("1", &url).await.unwrap();
@@ -34,7 +34,7 @@ async fn test_full_image_cached() {
     });
 
     let dir = tempdir().unwrap();
-    let loader = ImageLoader::new(dir.path().to_path_buf());
+    let loader = ImageLoader::new(dir.path().to_path_buf(), 4);
     let url = format!("{}/img.jpg", server.url(""));
 
     loader.load_full_image("1", &url).await.unwrap();
@@ -59,7 +59,7 @@ async fn test_thumbnail_not_found() {
         .timeout(Duration::from_secs(1))
         .build()
         .unwrap();
-    let loader = ImageLoader::with_client(dir.path().to_path_buf(), client);
+    let loader = ImageLoader::with_client(dir.path().to_path_buf(), client, 4);
     let url = format!("{}/missing.jpg", server.url(""));
 
     let err = loader.load_thumbnail("1", &url).await.err().unwrap();
@@ -79,7 +79,7 @@ async fn test_thumbnail_timeout() {
         .timeout(Duration::from_millis(50))
         .build()
         .unwrap();
-    let loader = ImageLoader::with_client(dir.path().to_path_buf(), client);
+    let loader = ImageLoader::with_client(dir.path().to_path_buf(), client, 4);
     let url = format!("{}/slow.jpg", server.url(""));
 
     let err = loader.load_thumbnail("1", &url).await.err().unwrap();
@@ -93,7 +93,7 @@ async fn test_network_error() {
         .timeout(Duration::from_millis(100))
         .build()
         .unwrap();
-    let loader = ImageLoader::with_client(dir.path().to_path_buf(), client);
+    let loader = ImageLoader::with_client(dir.path().to_path_buf(), client, 4);
 
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
