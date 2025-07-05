@@ -161,6 +161,12 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
              ALTER TABLE media_metadata ADD COLUMN status TEXT;\
              UPDATE schema_version SET version = 12;"
         ),
+        M::up(
+            "CREATE INDEX IF NOT EXISTS idx_media_metadata_camera_model ON media_metadata (camera_model);\
+             CREATE INDEX IF NOT EXISTS idx_media_items_filename ON media_items (filename);\
+             CREATE INDEX IF NOT EXISTS idx_media_items_description ON media_items (description);\
+             UPDATE schema_version SET version = 13;"
+        ),
     ]);
     migrations
         .to_latest(conn)
@@ -1093,6 +1099,38 @@ impl CacheManager {
     pub async fn get_media_items_by_text_async(&self, pattern: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_media_items_by_text(&pattern))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn get_media_item_async(&self, id: String) -> Result<Option<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_item(&id))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn get_media_items_by_mime_type_async(&self, mime: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_items_by_mime_type(&mime))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn get_media_items_by_camera_model_async(&self, model: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_items_by_camera_model(&model))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn get_media_items_by_filename_async(&self, pattern: String) -> Result<Vec<api_client::MediaItem>, CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.get_media_items_by_filename(&pattern))
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
