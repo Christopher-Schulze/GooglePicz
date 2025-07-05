@@ -27,6 +27,8 @@ async fn test_periodic_sync_repeated_failures_reported() {
                 prog_tx,
                 err_tx,
                 Some(status_tx),
+                None,
+                None,
             );
             let first = timeout(Duration::from_secs(5), status_rx.recv()).await.unwrap().unwrap();
             let second = timeout(Duration::from_secs(5), status_rx.recv()).await.unwrap().unwrap();

@@ -175,7 +175,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             });
-            syncer.sync_media_items(Some(tx), None).await?;
+            syncer
+                .sync_media_items(Some(tx), None, None, None)
+                .await?;
         }
         Commands::Status => {
             if !db_path.exists() {

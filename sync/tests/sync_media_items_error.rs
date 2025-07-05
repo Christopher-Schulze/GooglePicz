@@ -19,7 +19,7 @@ async fn test_sync_media_items_reports_error() {
     let (prog_tx, mut prog_rx) = mpsc::unbounded_channel();
     let (err_tx, mut err_rx) = mpsc::unbounded_channel::<SyncTaskError>();
     let result = syncer
-        .sync_media_items(Some(prog_tx), Some(err_tx))
+        .sync_media_items(Some(prog_tx), Some(err_tx), None, None)
         .await;
     assert!(result.is_err());
     // ensure error forwarded

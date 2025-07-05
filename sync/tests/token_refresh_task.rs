@@ -16,7 +16,7 @@ async fn test_token_refresh_task_reports_error() {
     local
         .run_until(async {
             let (handle, shutdown) =
-                Syncer::start_token_refresh_task(Duration::from_millis(10), err_tx);
+                Syncer::start_token_refresh_task(Duration::from_millis(10), err_tx, None);
             let err = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap();
             assert!(err.is_some());
             let _ = shutdown.send(());
@@ -40,7 +40,7 @@ fn test_token_refresh_error_forwarded_to_ui() {
         local
             .run_until(async move {
                 let (handle, shutdown) =
-                    Syncer::start_token_refresh_task(Duration::from_millis(10), err_tx);
+                    Syncer::start_token_refresh_task(Duration::from_millis(10), err_tx, None);
                 let err = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap().unwrap();
                 let _ = shutdown.send(());
                 let _ = handle.await;
