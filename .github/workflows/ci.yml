@@ -60,6 +60,8 @@ jobs:
 
       - name: Run packaging tests
         run: cargo test -p packaging
+      - name: Run CI checks
+        run: cargo run --package packaging --bin ci_checks
       - name: Upload checksums
         if: always()
         uses: actions/upload-artifact@v4
