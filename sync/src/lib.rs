@@ -301,6 +301,8 @@ impl Syncer {
                     } => {}
                 }
             }
+            #[allow(unreachable_code)]
+            Ok::<(), SyncTaskError>(())
         });
         (handle, shutdown_tx)
     }
@@ -359,6 +361,8 @@ impl Syncer {
                     } => {}
                 }
             }
+            #[allow(unreachable_code)]
+            Ok::<(), SyncTaskError>(())
         });
         (handle, shutdown_tx)
     }
