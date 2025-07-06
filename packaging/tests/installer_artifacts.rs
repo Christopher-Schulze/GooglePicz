@@ -18,6 +18,8 @@ fn test_linux_installer_artifact_exists() -> Result<(), Box<dyn std::error::Erro
     let version = workspace_version()?;
     let deb = artifact_path(&version);
     assert!(deb.exists());
+    let data = fs::read(&deb)?;
+    assert_eq!(data, b"test");
     fs::remove_file(deb)?;
 
     std::env::remove_var("MOCK_COMMANDS");
@@ -41,6 +43,8 @@ fn test_macos_installer_artifact_exists() -> Result<(), Box<dyn std::error::Erro
     let version = workspace_version()?;
     let dmg = artifact_path(&version);
     assert!(dmg.exists());
+    let data = fs::read(&dmg)?;
+    assert_eq!(data, b"test");
     fs::remove_file(dmg)?;
 
     std::env::remove_var("MOCK_COMMANDS");
@@ -64,6 +68,8 @@ fn test_windows_installer_artifact_exists() -> Result<(), Box<dyn std::error::Er
     create_installer()?;
     let exe = artifact_path(&version);
     assert!(exe.exists());
+    let data = fs::read(&exe)?;
+    assert_eq!(data, b"test");
     fs::remove_file(exe)?;
     fs::remove_file(rel_dir.join("googlepicz.exe"))?;
 

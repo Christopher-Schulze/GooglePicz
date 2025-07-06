@@ -28,6 +28,8 @@ fn test_packager_cli_format() -> Result<(), Box<dyn std::error::Error>> {
         let version = workspace_version()?;
         let rpm = artifact_path(&version);
         assert!(rpm.exists());
+        let data = fs::read(&rpm)?;
+        assert_eq!(data, b"test");
         fs::remove_file(rpm)?;
     }
 
