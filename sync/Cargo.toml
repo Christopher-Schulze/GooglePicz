@@ -8,6 +8,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 auth = { path = "../auth" }
 api_client = { path = "../api_client" }
 cache = { path = "../cache" }
+face_recognition = { path = "../face_recognition", optional = true }
 tracing = { workspace = true }
 chrono = { version = "0.4", features = ["serde"] }
 serde_json = "1.0"
@@ -21,6 +22,7 @@ criterion = "0.5"
 
 [features]
 trace-spans = []
+face-recognition = ["dep:face_recognition", "face_recognition/cache"]
 
 [[bench]]
 name = "overall"

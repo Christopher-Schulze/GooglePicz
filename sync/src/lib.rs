@@ -5,6 +5,8 @@ use auth::ensure_access_token_valid;
 use cache::CacheManager;
 use chrono::{DateTime, Datelike, Utc};
 use serde_json::json;
+#[cfg(feature = "face-recognition")]
+use face_recognition::FaceRecognizer;
 use thiserror::Error;
 use std::path::{Path, PathBuf};
 use tokio::sync::{mpsc, oneshot};
@@ -27,6 +29,7 @@ pub struct Syncer {
     api_client: ApiClient,
     cache_manager: CacheManager,
     state_path: PathBuf,
+    detect_faces: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
@@ -114,7 +117,12 @@ impl Syncer {
             api_client,
             cache_manager,
             state_path,
+            detect_faces: false,
         })
+    }
+
+    pub fn set_face_detection(&mut self, enable: bool) {
+        self.detect_faces = enable;
     }
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, progress, error)))]
@@ -261,6 +269,30 @@ impl Syncer {
                     }
                 }
                 Self::forward(&ui_progress, SyncProgress::ItemSynced(total_synced));
+
+                #[cfg(feature = "face-recognition")]
+                if self.detect_faces {
+                    let cache = self.cache_manager.clone();
+                    let item_clone = item.clone();
+                    tokio::task::spawn_blocking(move || {
+                        let rec = face_recognition::FaceRecognizer::new();
+                        match rec.detect_faces(&item_clone) {
+                            Ok(faces) => {
+                                #[cfg(feature = "face_recognition/cache")]
+                                if let Ok(json) = serde_json::to_string(&faces) {
+                                    if let Err(e) = cache.insert_faces(&item_clone.id, &json) {
+                                        tracing::error!(error = ?e, "Failed to insert faces");
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!(error = ?e, "Face detection failed");
+                            }
+                        }
+                    })
+                    .await
+                    .ok();
+                }
             }
 
             tracing::info!("Synced {} media items so far.", total_synced);
