@@ -80,9 +80,20 @@ pub fn run(
     cache_dir: PathBuf,
 ) -> iced::Result {
     use std::borrow::Cow;
+    use sysinfo::{SystemExt, ProcessExt};
+    let process = sysinfo::System::new_all()
+        .process(sysinfo::get_current_pid().unwrap())
+        .cloned();
+    let start = std::time::Instant::now();
     let mut settings = Settings::with_flags((progress, errors, status, preload, preload_threads, cache_dir));
     settings.fonts.push(Cow::Borrowed(google_material_symbols::FONT_BYTES));
-    GooglePiczUI::run(settings)
+    let res = GooglePiczUI::run(settings);
+    if let Some(p) = process {
+        tracing::info!("ui_startup_ms" = %start.elapsed().as_millis(), "rss_kb" = p.memory());
+    } else {
+        tracing::info!("ui_startup_ms" = %start.elapsed().as_millis());
+    }
+    res
 }
 
 #[derive(Debug, Clone)]

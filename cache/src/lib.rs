@@ -454,24 +454,47 @@ impl CacheManager {
         text: Option<&str>,
     ) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
-        let sql = concat!(
-            "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename ",
-            "FROM media_items m ",
-            "JOIN media_metadata md ON m.id = md.media_item_id ",
-            "WHERE (?1 IS NULL OR md.camera_model = ?1) ",
-            "AND (?2 IS NULL OR md.camera_make = ?2) ",
-            "AND (?3 IS NULL OR md.creation_time >= ?3) ",
-            "AND (?4 IS NULL OR md.creation_time <= ?4) ",
-            "AND (?5 IS NULL OR m.is_favorite = ?5) ",
-            "AND (?6 IS NULL OR m.mime_type = ?6) ",
-            "AND (?7 IS NULL OR m.filename LIKE ?7 OR m.description LIKE ?7)"
-        );
+        let (sql, use_fts) = if text.is_some() {
+            (
+                concat!(
+                    "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename ",
+                    "FROM media_items_fts f ",
+                    "JOIN media_items m ON m.id = f.media_item_id ",
+                    "JOIN media_metadata md ON m.id = md.media_item_id ",
+                    "WHERE (?1 IS NULL OR md.camera_model = ?1) ",
+                    "AND (?2 IS NULL OR md.camera_make = ?2) ",
+                    "AND (?3 IS NULL OR md.creation_time >= ?3) ",
+                    "AND (?4 IS NULL OR md.creation_time <= ?4) ",
+                    "AND (?5 IS NULL OR m.is_favorite = ?5) ",
+                    "AND (?6 IS NULL OR m.mime_type = ?6) ",
+                    "AND f MATCH ?7"
+                ),
+                true,
+            )
+        } else {
+            (
+                concat!(
+                    "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename ",
+                    "FROM media_items m ",
+                    "JOIN media_metadata md ON m.id = md.media_item_id ",
+                    "WHERE (?1 IS NULL OR md.camera_model = ?1) ",
+                    "AND (?2 IS NULL OR md.camera_make = ?2) ",
+                    "AND (?3 IS NULL OR md.creation_time >= ?3) ",
+                    "AND (?4 IS NULL OR md.creation_time <= ?4) ",
+                    "AND (?5 IS NULL OR m.is_favorite = ?5) ",
+                    "AND (?6 IS NULL OR m.mime_type = ?6) ",
+                    "AND (?7 IS NULL OR m.filename LIKE ?7 OR m.description LIKE ?7)"
+                ),
+                false,
+            )
+        };
+
         let mut stmt = conn
             .prepare_cached(sql)
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
         let fav_val: Option<i64> = favorite.map(|f| if f { 1 } else { 0 });
-        let like_pattern = text.map(|t| format!("%{}%", t));
+        let pattern = text.map(|t| if use_fts { t.to_string() } else { format!("%{}%", t) });
 
         let iter = stmt
             .query_map(
@@ -482,7 +505,7 @@ impl CacheManager {
                     end.map(|e| e.timestamp()),
                     fav_val,
                     mime_type,
-                    like_pattern.as_deref()
+                    pattern.as_deref()
                 ],
                 |row| {
                     let ts: i64 = row.get(5)?;

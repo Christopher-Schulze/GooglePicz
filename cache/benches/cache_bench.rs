@@ -317,6 +317,23 @@ fn bench_text_query_general_10k(c: &mut Criterion) {
     });
 }
 
+fn bench_text_query_fts_10k(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..10_000u32 {
+        let mut item = sample_media_item(&i.to_string());
+        if i % 2 == 0 {
+            item.description = Some("foo".into());
+        }
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("query_text_fts_10k", |b| {
+        b.iter(|| {
+            let _ = cache.get_media_items_by_text("foo").unwrap();
+        })
+    });
+}
+
 fn bench_text_query_general_100k(c: &mut Criterion) {
     let tmp = NamedTempFile::new().unwrap();
     let cache = CacheManager::new(tmp.path()).unwrap();
@@ -387,6 +404,7 @@ criterion_group!(
     bench_text_query_general_10k,
     bench_text_query_general_100k,
     bench_text_query_general_200k,
+    bench_text_query_fts_10k,
     bench_mime_type_query,
     bench_album_query
 );
