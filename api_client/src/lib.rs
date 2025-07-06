@@ -83,6 +83,18 @@ struct NewAlbum {
     title: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BatchCreateMediaItemsResponse {
+    new_media_item_results: Vec<NewMediaItemResult>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NewMediaItemResult {
+    media_item: Option<MediaItem>,
+}
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -405,6 +417,159 @@ impl ApiClient {
     ) -> Result<(Vec<MediaItem>, Option<String>), ApiClientError> {
         self.search_media_items(Some(album_id.to_string()), page_size, page_token, None)
             .await
+    }
+
+    /// Retrieve the last modification timestamp of an album if available.
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn get_album_modified_time(
+        &self,
+        album_id: &str,
+    ) -> Result<Option<String>, ApiClientError> {
+        if std::env::var("MOCK_API_CLIENT").is_ok() {
+            return Ok(Some("2023-01-02T00:00:00Z".into()));
+        }
+
+        let url = format!("https://photoslibrary.googleapis.com/v1/albums/{}", album_id);
+        let response = self
+            .client
+            .get(&url)
+            .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
+            .send()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiClientError::GoogleApiError(error_text));
+        }
+
+        let value: Value = response
+            .json()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+
+        Ok(value
+            .get("updateTime")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()))
+    }
+
+    /// Update the description metadata of a media item.
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub async fn update_media_item_description(
+        &self,
+        media_item_id: &str,
+        description: &str,
+    ) -> Result<MediaItem, ApiClientError> {
+        if std::env::var("MOCK_API_CLIENT").is_ok() {
+            let mut item = Self::mock_media_item(media_item_id);
+            item.description = Some(description.to_string());
+            return Ok(item);
+        }
+
+        let url = format!(
+            "https://photoslibrary.googleapis.com/v1/mediaItems/{}?updateMask=description",
+            media_item_id
+        );
+        let body = serde_json::json!({ "description": description });
+
+        let response = self
+            .client
+            .patch(&url)
+            .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
+            .header(CONTENT_TYPE, "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiClientError::GoogleApiError(error_text));
+        }
+
+        let item = response
+            .json::<MediaItem>()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+        Ok(item)
+    }
+
+    /// Upload new media data and create a media item in Google Photos.
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, data)))]
+    pub async fn upload_media_item(
+        &self,
+        data: &[u8],
+        file_name: &str,
+        description: &str,
+    ) -> Result<MediaItem, ApiClientError> {
+        if std::env::var("MOCK_API_CLIENT").is_ok() {
+            return Ok(Self::mock_media_item("uploaded"));
+        }
+
+        // Step 1: upload bytes and obtain upload token
+        let upload_token = self
+            .client
+            .post("https://photoslibrary.googleapis.com/v1/uploads")
+            .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
+            .header("X-Goog-Upload-File-Name", file_name)
+            .header("X-Goog-Upload-Protocol", "raw")
+            .body(data.to_vec())
+            .send()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?
+            .text()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+
+        // Step 2: create the media item from the upload token
+        let body = serde_json::json!({
+            "newMediaItems": [{
+                "description": description,
+                "simpleMediaItem": {
+                    "uploadToken": upload_token,
+                    "fileName": file_name
+                }
+            }]
+        });
+
+        let response = self
+            .client
+            .post("https://photoslibrary.googleapis.com/v1/mediaItems:batchCreate")
+            .header(AUTHORIZATION, format!("Bearer {}", self.access_token))
+            .header(CONTENT_TYPE, "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiClientError::GoogleApiError(error_text));
+        }
+
+        let result = response
+            .json::<BatchCreateMediaItemsResponse>()
+            .await
+            .map_err(|e| ApiClientError::RequestError(e.to_string()))?;
+
+        let media_item = result
+            .new_media_item_results
+            .into_iter()
+            .next()
+            .and_then(|r| r.media_item)
+            .ok_or_else(|| ApiClientError::Other("No media item returned".into()))?;
+
+        Ok(media_item)
     }
 }
 
