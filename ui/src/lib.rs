@@ -6,9 +6,14 @@ mod video_downloader;
 mod app_config;
 mod style;
 mod icon;
+mod search;
+mod album_dialogs;
+mod settings;
 mod face_recognizer;
 
 pub use icon::{Icon, MaterialSymbol};
+pub use search::SearchMode;
+pub use album_dialogs::AlbumOption;
 pub use face_recognizer::FaceRecognizer;
 
 pub use image_loader::{ImageLoader, ImageLoaderError};
@@ -51,37 +56,6 @@ use tempfile::TempPath;
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
 const PAGE_SIZE: usize = 40;
-const LOG_LEVELS: [&str; 5] = ["trace", "debug", "info", "warn", "error"];
-
-fn parse_date_query(query: &str) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
-    use chrono::{NaiveDate, TimeZone};
-    if let Some(idx) = query.find("..") {
-        let start_str = &query[..idx];
-        let end_str = &query[idx + 2..];
-        if let (Ok(s), Ok(e)) = (
-            NaiveDate::parse_from_str(start_str, "%Y-%m-%d"),
-            NaiveDate::parse_from_str(end_str, "%Y-%m-%d"),
-        ) {
-            let start = Utc.from_utc_datetime(&s.and_hms_opt(0, 0, 0)?);
-            let end = Utc.from_utc_datetime(&e.and_hms_opt(23, 59, 59)?);
-            return Some((start, end));
-        }
-    } else if let Ok(d) = NaiveDate::parse_from_str(query, "%Y-%m-%d") {
-        let start = Utc.from_utc_datetime(&d.and_hms_opt(0, 0, 0)?);
-        let end = Utc.from_utc_datetime(&d.and_hms_opt(23, 59, 59)?);
-        return Some((start, end));
-    }
-    None
-}
-
-fn parse_single_date(query: &str, end: bool) -> Option<DateTime<Utc>> {
-    use chrono::{NaiveDate, TimeZone};
-    if let Ok(d) = NaiveDate::parse_from_str(query, "%Y-%m-%d") {
-        let nd = if end { d.and_hms_opt(23, 59, 59)? } else { d.and_hms_opt(0, 0, 0)? };
-        return Some(Utc.from_utc_datetime(&nd));
-    }
-    None
-}
 
 fn error_container_style() -> iced::theme::Container {
     iced::theme::Container::Custom(Box::new(|_theme: &Theme| Appearance {
@@ -222,7 +196,8 @@ impl SearchMode {
         SearchMode::MimeType,
         SearchMode::CameraModel,
         SearchMode::CameraMake,
-    ];
+        ]
+            .push(search::view(self));
 }
 
 impl std::fmt::Display for SearchMode {
@@ -1163,7 +1138,7 @@ impl Application for GooglePiczUI {
                             };
                             let base = match mode {
                                 SearchMode::DateRange => {
-                                    if let Some((s, e)) = parse_date_query(&query) {
+                                    if let Some((s, e)) = search::parse_date_query(&query) {
                                         cache
                                             .get_media_items_by_date_range(s, e)
                                             .map_err(|e| e.to_string())
@@ -1194,8 +1169,8 @@ impl Application for GooglePiczUI {
                                     .map_err(|e| e.to_string()),
                             }?;
 
-                            let start_dt = parse_single_date(&start, false);
-                            let end_dt = parse_single_date(&end, true);
+                            let start_dt = search::parse_single_date(&start, false);
+                            let end_dt = search::parse_single_date(&end, true);
                             cache
                                 .query_media_items_async(
                                     if camera.is_empty() { None } else { Some(camera) },
@@ -1356,29 +1331,8 @@ impl Application for GooglePiczUI {
             button(Icon::new(MaterialSymbol::Refresh).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::RefreshPhotos),
             button(Icon::new(MaterialSymbol::Add).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::ShowCreateAlbumDialog),
             button(Icon::new(MaterialSymbol::Settings).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::ShowSettings),
-            text_input(placeholder, &self.search_query)
-                .style(style::text_input_basic())
-                .on_input(Message::SearchInputChanged),
-            text_input("Camera", &self.search_camera)
-                .style(style::text_input_basic())
-                .on_input(Message::SearchCameraChanged),
-            text_input("From", &self.search_start)
-                .style(style::text_input_basic())
-                .on_input(Message::SearchStartChanged),
-            text_input("To", &self.search_end)
-                .style(style::text_input_basic())
-                .on_input(Message::SearchEndChanged),
-            checkbox("Fav", self.search_favorite, Message::SearchFavoriteToggled)
-                .style(style::checkbox_primary()),
-            pick_list(
-                &SearchMode::ALL[..],
-                Some(self.search_mode),
-                Message::SearchModeChanged,
-            ),
-            button("Search")
-                .style(style::button_primary())
-                .on_press(Message::PerformSearch)
-        ];
+        ]
+            .push(search::view(self));
 
         if let Some(album_id) = &self.selected_album {
             header = header
@@ -1447,121 +1401,10 @@ impl Application for GooglePiczUI {
             Some(container(banner).style(error_container_style()).padding(10).width(Length::Fill))
         };
 
-        let album_dialog = if self.creating_album {
-            Some(
-                column![
-                    text_input("Album title", &self.new_album_title)
-                        .style(style::text_input_basic())
-                        .on_input(Message::AlbumTitleChanged),
-                    row![
-                        button(Icon::new(MaterialSymbol::Add).color(Palette::ON_PRIMARY))
-                            .style(style::button_primary())
-                            .on_press(Message::CreateAlbum),
-                        button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
-                            .style(style::button_primary())
-                            .on_press(Message::CancelCreateAlbum)
-                    ]
-                    .spacing(10)
-                ]
-                .spacing(10),
-            )
-        } else {
-            None
-        };
-
-        let rename_dialog = if let Some(_) = &self.renaming_album {
-            Some(
-                column![
-                    text_input("New title", &self.rename_album_title)
-                        .style(style::text_input_basic())
-                        .on_input(Message::RenameAlbumTitleChanged),
-                    row![
-                        button(Icon::new(MaterialSymbol::Save).color(Palette::ON_PRIMARY))
-                            .style(style::button_primary())
-                            .on_press(Message::ConfirmRenameAlbum),
-                        button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
-                            .style(style::button_primary())
-                            .on_press(Message::CancelRenameAlbum)
-                    ]
-                    .spacing(10)
-                ]
-                .spacing(10),
-            )
-        } else {
-            None
-        };
-
-        let delete_dialog = if self.deleting_album.is_some() {
-            Some(
-                column![
-                    text("Delete album?").size(16),
-                    row![
-                        button(Icon::new(MaterialSymbol::Delete).color(Palette::ON_PRIMARY))
-                            .style(style::button_primary())
-                            .on_press(Message::ConfirmDeleteAlbum),
-                        button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
-                            .style(style::button_primary())
-                            .on_press(Message::CancelDeleteAlbum)
-                    ]
-                    .spacing(10)
-                ]
-                .spacing(10),
-            )
-        } else {
-            None
-        };
-
-        let settings_dialog = if self.settings_open {
-            Some(
-                column![
-                    text("Settings").size(16),
-                    pick_list(
-                        &LOG_LEVELS[..],
-                        Some(self.settings_log_level.as_str()),
-                        |v| Message::SettingsLogLevelChanged(v.to_string()),
-                    ),
-                    text_input("OAuth port", &self.settings_oauth_port)
-                        .style(style::text_input_basic())
-                        .on_input(Message::SettingsOauthPortChanged),
-                    text_input("Thumbs preload", &self.settings_thumbnails_preload)
-                        .style(style::text_input_basic())
-                        .on_input(Message::SettingsThumbsPreloadChanged),
-                    text_input("Preload threads", &self.settings_preload_threads)
-                        .style(style::text_input_basic())
-                        .on_input(Message::SettingsPreloadThreadsChanged),
-                    text_input("Sync interval", &self.settings_sync_interval)
-                        .style(style::text_input_basic())
-                        .on_input(Message::SettingsSyncIntervalChanged),
-                    checkbox(
-                        "Debug console",
-                        self.settings_debug_console,
-                        Message::SettingsDebugConsoleToggled,
-                    )
-                    .style(style::checkbox_primary()),
-                    checkbox(
-                        "Trace spans",
-                        self.settings_trace_spans,
-                        Message::SettingsTraceSpansToggled,
-                    )
-                    .style(style::checkbox_primary()),
-                    text_input("Cache path", &self.settings_cache_path)
-                        .style(style::text_input_basic())
-                        .on_input(Message::SettingsCachePathChanged),
-                    row![
-                        button("Save")
-                            .style(style::button_primary())
-                            .on_press(Message::SaveSettings),
-                        button("Cancel")
-                            .style(style::button_primary())
-                            .on_press(Message::CloseSettings)
-                    ]
-                    .spacing(10)
-                ]
-                .spacing(10),
-            )
-        } else {
-            None
-        };
+        let album_dialog = album_dialogs::create_dialog(self);
+        let rename_dialog = album_dialogs::rename_dialog(self);
+        let delete_dialog = album_dialogs::delete_dialog(self);
+        let settings_dialog = settings::dialog(self);
 
         let content = match &self.state {
             ViewState::Grid => {
