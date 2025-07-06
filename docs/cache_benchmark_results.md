@@ -20,6 +20,10 @@ The `camera_model_query` benchmark measures filtering by camera model on a table
 
 Benchmark result (`camera_model_query`): ~8.5 ms per query.
 
+The `camera_make_query` benchmark measures filtering by camera make on the same dataset.
+
+Benchmark result (`camera_make_query`): ~8.5 ms per query.
+
 The `load_all_100k` benchmark loads all items after inserting 100,000 entries.
 
 Benchmark result (100k items): ~140 ms per load.
