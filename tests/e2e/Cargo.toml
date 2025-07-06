@@ -47,5 +47,15 @@ name = "face_model_missing_e2e"
 path = "tests/face_model_missing_e2e.rs"
 harness = false
 
+[[test]]
+name = "export_import_faces_e2e"
+path = "tests/export_import_faces_e2e.rs"
+harness = false
+
+[[test]]
+name = "list_favorites_e2e"
+path = "tests/list_favorites_e2e.rs"
+harness = false
+
 [features]
 trace-spans = []
