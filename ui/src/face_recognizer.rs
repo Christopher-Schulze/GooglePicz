@@ -26,15 +26,16 @@ impl<Message> Program<Message> for FaceRecognizer {
         let sx = bounds.width / self.width.max(1) as f32;
         let sy = bounds.height / self.height.max(1) as f32;
         for face in &self.faces {
+            let (x, y, w, h) = face.rect;
             let path = Path::rectangle(
-                Point::new(face.bbox[0] as f32 * sx, face.bbox[1] as f32 * sy),
-                Size::new(face.bbox[2] as f32 * sx, face.bbox[3] as f32 * sy),
+                Point::new(x as f32 * sx, y as f32 * sy),
+                Size::new(w as f32 * sx, h as f32 * sy),
             );
             frame.stroke(&path, Stroke { color: Color::from_rgb(1.0, 0.0, 0.0), width: 2.0, ..Stroke::default() });
             if let Some(name) = &face.name {
                 frame.fill_text(Text {
                     content: name.clone(),
-                    position: Point::new(face.bbox[0] as f32 * sx, (face.bbox[1] as f32 * sy - 14.0).max(0.0)),
+                    position: Point::new(x as f32 * sx, (y as f32 * sy - 14.0).max(0.0)),
                     color: Color::from_rgb(1.0, 0.0, 0.0),
                     size: 16.0,
                     ..Default::default()

@@ -1702,13 +1702,14 @@ impl Application for GooglePiczUI {
                                 .on_press(Message::CancelFaceName)
                         ]
                     } else {
+                        let (x, y, w, h) = face.rect;
                         let label = format!(
                             "Face {} ({},{},{},{}): {}",
                             i + 1,
-                            face.bbox[0],
-                            face.bbox[1],
-                            face.bbox[2],
-                            face.bbox[3],
+                            x,
+                            y,
+                            w,
+                            h,
                             face.name.clone().unwrap_or_else(|| "Unknown".into())
                         );
                         row![

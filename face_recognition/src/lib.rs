@@ -41,6 +41,28 @@ impl FaceRecognizer {
         Self::default()
     }
 
+    fn find_model_path() -> Result<String, FaceRecognitionError> {
+        if let Ok(p) = std::env::var("OPENCV_HAARCASCADE_PATH") {
+            if std::path::Path::new(&p).exists() {
+                return Ok(p);
+            } else {
+                return Err(FaceRecognitionError::ModelNotFound(p));
+            }
+        }
+
+        let defaults = [
+            "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml",
+            "/usr/local/share/opencv4/haarcascades/haarcascade_frontalface_default.xml",
+            "/usr/share/opencv/haarcascades/haarcascade_frontalface_default.xml",
+        ];
+        for p in &defaults {
+            if std::path::Path::new(p).exists() {
+                return Ok((*p).into());
+            }
+        }
+        Err(FaceRecognitionError::ModelNotFound(defaults.join(", ")))
+    }
+
     /// Detect faces in the given media item.
     #[allow(clippy::too_many_lines)]
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, item)))]
@@ -64,11 +86,7 @@ impl FaceRecognizer {
         imgproc::cvt_color(&img, &mut gray, imgproc::COLOR_BGR2GRAY, 0)
             .map_err(|e| FaceRecognitionError::Other(e.to_string()))?;
 
-        let cascade_path = std::env::var("OPENCV_HAARCASCADE_PATH")
-            .unwrap_or_else(|_| "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml".into());
-        if !std::path::Path::new(&cascade_path).exists() {
-            return Err(FaceRecognitionError::ModelNotFound(cascade_path));
-        }
+        let cascade_path = Self::find_model_path()?;
         let mut classifier = objdetect::CascadeClassifier::new(&cascade_path)
             .map_err(|e| FaceRecognitionError::Other(e.to_string()))?;
         let mut rects = core::Vector::<core::Rect>::new();
