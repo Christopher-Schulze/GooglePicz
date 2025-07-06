@@ -16,16 +16,16 @@ pub fn dialog<'a>(ui: &crate::GooglePiczUI) -> Option<iced::Element<'a, Message>
                     |v| Message::SettingsLogLevelChanged(v.to_string()),
                 ),
                 text_input("OAuth port", &ui.settings_oauth_port)
-                    .style(style::text_input_basic())
+                    .style(style::text_input())
                     .on_input(Message::SettingsOauthPortChanged),
                 text_input("Thumbs preload", &ui.settings_thumbnails_preload)
-                    .style(style::text_input_basic())
+                    .style(style::text_input())
                     .on_input(Message::SettingsThumbsPreloadChanged),
                 text_input("Preload threads", &ui.settings_preload_threads)
-                    .style(style::text_input_basic())
+                    .style(style::text_input())
                     .on_input(Message::SettingsPreloadThreadsChanged),
                 text_input("Sync interval", &ui.settings_sync_interval)
-                    .style(style::text_input_basic())
+                    .style(style::text_input())
                     .on_input(Message::SettingsSyncIntervalChanged),
                 checkbox(
                     "Debug console",
@@ -40,14 +40,14 @@ pub fn dialog<'a>(ui: &crate::GooglePiczUI) -> Option<iced::Element<'a, Message>
                 )
                 .style(style::checkbox_primary()),
                 text_input("Cache path", &ui.settings_cache_path)
-                    .style(style::text_input_basic())
+                    .style(style::text_input())
                     .on_input(Message::SettingsCachePathChanged),
                 row![
                     button("Save")
                         .style(style::button_primary())
                         .on_press(Message::SaveSettings),
                     button("Cancel")
-                        .style(style::button_primary())
+                        .style(style::button_secondary())
                         .on_press(Message::CloseSettings),
                 ]
                 .spacing(10),

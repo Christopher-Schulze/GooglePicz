@@ -91,16 +91,16 @@ pub(crate) fn parse_single_date(query: &str, end: bool) -> Option<DateTime<Utc>>
 pub fn view<'a>(ui: &crate::GooglePiczUI) -> iced::Element<'a, Message> {
     row![
         text_input(ui.search_mode.placeholder(), &ui.search_query)
-            .style(style::text_input_basic())
+            .style(style::text_input())
             .on_input(Message::SearchInputChanged),
         text_input("Camera", &ui.search_camera)
-            .style(style::text_input_basic())
+            .style(style::text_input())
             .on_input(Message::SearchCameraChanged),
         text_input("From", &ui.search_start)
-            .style(style::text_input_basic())
+            .style(style::text_input())
             .on_input(Message::SearchStartChanged),
         text_input("To", &ui.search_end)
-            .style(style::text_input_basic())
+            .style(style::text_input())
             .on_input(Message::SearchEndChanged),
         checkbox("Fav", ui.search_favorite, Message::SearchFavoriteToggled)
             .style(style::checkbox_primary()),

@@ -1441,10 +1441,10 @@ impl Application for GooglePiczUI {
             button(Icon::new(MaterialSymbol::Add).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::ShowCreateAlbumDialog),
             button(Icon::new(MaterialSymbol::Settings).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::ShowSettings),
             text_input(placeholder, &self.search_query)
-                .style(style::text_input_basic())
+                .style(style::text_input())
                 .on_input(Message::SearchInputChanged),
             text_input("Camera", &self.search_camera)
-                .style(style::text_input_basic())
+                .style(style::text_input())
                 .on_input(Message::SearchCameraChanged),
             pick_list(
                 &self.camera_make_options,
@@ -1457,10 +1457,10 @@ impl Application for GooglePiczUI {
                 Message::SearchMimeChanged,
             ),
             text_input("From", &self.search_start)
-                .style(style::text_input_basic())
+                .style(style::text_input())
                 .on_input(Message::SearchStartChanged),
             text_input("To", &self.search_end)
-                .style(style::text_input_basic())
+                .style(style::text_input())
                 .on_input(Message::SearchEndChanged),
             checkbox("Fav", self.search_favorite, Message::SearchFavoriteToggled)
                 .style(style::checkbox_primary()),
@@ -1575,7 +1575,7 @@ impl Application for GooglePiczUI {
                                 .style(style::button_primary())
                                 .on_press(Message::ShowRenameAlbumDialog(album.id.clone(), title.clone())),
                             button(Icon::new(MaterialSymbol::Delete))
-                                .style(style::button_primary())
+                                .style(style::button_secondary())
                                 .on_press(Message::ShowDeleteAlbumDialog(album.id.clone()))
                         ]
                         .spacing(5);
@@ -1637,6 +1637,7 @@ impl Application for GooglePiczUI {
                     let w = photo.media_metadata.width.parse::<u32>().unwrap_or(0);
                     let h = photo.media_metadata.height.parse::<u32>().unwrap_or(0);
                     container(base)
+                        .style(style::card())
                         .width(Length::Fill)
                         .height(Length::Fill)
                         .overlay(FaceRecognizer::new(faces.clone(), w, h).view())
@@ -1660,13 +1661,13 @@ impl Application for GooglePiczUI {
                     let row_elem = if self.editing_face == Some(i) {
                         row![
                             text_input("Name", &self.face_name_input)
-                                .style(style::text_input_basic())
+                                .style(style::text_input())
                                 .on_input(Message::FaceNameChanged),
                             button(Icon::new(MaterialSymbol::Save).color(Palette::ON_PRIMARY))
                                 .style(style::button_primary())
                                 .on_press(Message::SaveFaceName),
-                            button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
-                                .style(style::button_primary())
+                            button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_SECONDARY))
+                                .style(style::button_secondary())
                                 .on_press(Message::CancelFaceName)
                         ]
                     } else {
@@ -1766,9 +1767,10 @@ impl Application for GooglePiczUI {
         }
 
         container(base)
+            .style(style::card())
             .width(Length::Fill)
             .height(Length::Fill)
-            .padding(20)
+            .padding(Palette::SPACING)
             .into()
     }
 }

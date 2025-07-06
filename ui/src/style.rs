@@ -5,7 +5,7 @@
 //! application keeps a consistent Material look.
 
 use iced::{Color, Border};
-use iced::widget::{self, button, container, text_input, checkbox, slider};
+use iced::widget::{self, button, checkbox, container, slider, text_input};
 use iced::theme;
 
 /// Material color palette
@@ -13,10 +13,15 @@ pub struct Palette;
 
 impl Palette {
     pub const PRIMARY: Color = Color { r: 0.25, g: 0.32, b: 0.71, a: 1.0 }; // Indigo 700
-    pub const ON_PRIMARY: Color = Color::WHITE;
+    pub const SECONDARY: Color = Color { r: 0.96, g: 0.26, b: 0.21, a: 1.0 }; // Red 500
+    pub const BACKGROUND: Color = Color::WHITE;
     pub const SURFACE: Color = Color { r: 0.98, g: 0.98, b: 0.98, a: 1.0 };
-    pub const ON_SURFACE: Color = Color { r: 0.1, g: 0.1, b: 0.1, a: 1.0 };
     pub const ERROR: Color = Color { r: 0.80, g: 0.0, b: 0.0, a: 1.0 };
+
+    pub const ON_PRIMARY: Color = Color::WHITE;
+    pub const ON_SECONDARY: Color = Color::WHITE;
+    pub const ON_BACKGROUND: Color = Color { r: 0.1, g: 0.1, b: 0.1, a: 1.0 };
+    pub const ON_SURFACE: Color = Self::ON_BACKGROUND;
 
     pub const SPACING: u16 = 16;
     pub const ICON_COLOR: Color = Self::ON_SURFACE;
@@ -33,8 +38,18 @@ pub fn button_primary() -> theme::Button {
     }))
 }
 
+/// Style for secondary action buttons.
+pub fn button_secondary() -> theme::Button {
+    theme::Button::Custom(Box::new(|_theme: &iced::Theme| button::Appearance {
+        background: Some(Palette::SECONDARY.into()),
+        border_radius: 4.0,
+        text_color: Palette::ON_SECONDARY,
+        ..Default::default()
+    }))
+}
+
 /// Basic text input styling.
-pub fn text_input_basic() -> theme::TextInput {
+pub fn text_input() -> theme::TextInput {
     theme::TextInput::Custom(Box::new(|_theme: &iced::Theme| text_input::Appearance {
         background: Palette::SURFACE.into(),
         border_radius: 4.0,
