@@ -198,6 +198,114 @@ fn bench_filename_query(c: &mut Criterion) {
     });
 }
 
+fn bench_text_query_get_1k(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..1_000u32 {
+        let mut item = sample_media_item(&i.to_string());
+        if i % 2 == 0 {
+            item.description = Some("foo".into());
+        }
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("get_text_1k", |b| {
+        b.iter(|| {
+            let _ = cache.get_media_items_by_text("foo").unwrap();
+        })
+    });
+}
+
+fn bench_text_query_get_10k(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..10_000u32 {
+        let mut item = sample_media_item(&i.to_string());
+        if i % 2 == 0 {
+            item.description = Some("foo".into());
+        }
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("get_text_10k", |b| {
+        b.iter(|| {
+            let _ = cache.get_media_items_by_text("foo").unwrap();
+        })
+    });
+}
+
+fn bench_text_query_get_100k(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..100_000u32 {
+        let mut item = sample_media_item(&i.to_string());
+        if i % 2 == 0 {
+            item.description = Some("foo".into());
+        }
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("get_text_100k", |b| {
+        b.iter(|| {
+            let _ = cache.get_media_items_by_text("foo").unwrap();
+        })
+    });
+}
+
+fn bench_text_query_general_1k(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..1_000u32 {
+        let mut item = sample_media_item(&i.to_string());
+        if i % 2 == 0 {
+            item.description = Some("foo".into());
+        }
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("query_text_1k", |b| {
+        b.iter(|| {
+            let _ = cache
+                .query_media_items(None, None, None, None, Some("foo"))
+                .unwrap();
+        })
+    });
+}
+
+fn bench_text_query_general_10k(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..10_000u32 {
+        let mut item = sample_media_item(&i.to_string());
+        if i % 2 == 0 {
+            item.description = Some("foo".into());
+        }
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("query_text_10k", |b| {
+        b.iter(|| {
+            let _ = cache
+                .query_media_items(None, None, None, None, Some("foo"))
+                .unwrap();
+        })
+    });
+}
+
+fn bench_text_query_general_100k(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..100_000u32 {
+        let mut item = sample_media_item(&i.to_string());
+        if i % 2 == 0 {
+            item.description = Some("foo".into());
+        }
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("query_text_100k", |b| {
+        b.iter(|| {
+            let _ = cache
+                .query_media_items(None, None, None, None, Some("foo"))
+                .unwrap();
+        })
+    });
+}
+
 criterion_group!(
     benches,
     bench_load_all,
@@ -206,6 +314,12 @@ criterion_group!(
     bench_camera_model_query,
     bench_camera_make_query,
     bench_filename_query,
+    bench_text_query_get_1k,
+    bench_text_query_get_10k,
+    bench_text_query_get_100k,
+    bench_text_query_general_1k,
+    bench_text_query_general_10k,
+    bench_text_query_general_100k,
     bench_mime_type_query,
     bench_album_query
 );
