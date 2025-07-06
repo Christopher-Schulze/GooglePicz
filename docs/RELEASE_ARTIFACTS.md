@@ -115,10 +115,12 @@ reproducible artifact names across Linux, macOS and Windows.
 
 ### GitHub Actions
 
-The workflow in `.github/workflows/rust.yml` runs the packager on
-Linux, macOS and Windows. Each run uploads the generated `.deb`, `.dmg`
-and Windows installer via `upload-artifact`. You can download these
-artifacts from the workflow run page without building them locally.
+The workflow in `.github/workflows/packager.yml` runs the packager on
+Linux, macOS and Windows. It executes
+`cargo run --package packaging --bin packager` and uploads the resulting
+artifacts from the `target` directory via `upload-artifact`. You can
+download these packages from the workflow run page without building them
+locally.
 
 ## Release Process {#release-process}
 
@@ -145,7 +147,7 @@ The generated installers can be attached to a GitHub release either via the web
 interface or using the `gh` CLI:
 
 ```bash
-gh release upload <tag> target/release/GooglePicz-*.dmg GooglePicz-*.{deb,rpm,AppImage} target/windows/GooglePicz-*-Setup.exe
+gh release upload <tag> target/release/GooglePicz-*.dmg target/GooglePicz-*.{deb,rpm,AppImage} target/windows/GooglePicz-*-Setup.exe
 ```
 
 Replace `<tag>` with the version tag you are publishing. Drag‑and‑drop also

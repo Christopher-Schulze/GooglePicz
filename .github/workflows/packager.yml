@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches: ["main"]
+    tags: ['*']
+  release:
+    types: [published]
   pull_request:
 
 jobs:
@@ -54,12 +57,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: googlepicz-linux
-          path: GooglePicz-*.*
+          path: target/GooglePicz-*.*
       - name: Release Linux artifact
         if: runner.os == 'Linux' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: GooglePicz-*.*
+          files: target/GooglePicz-*.*
       - name: Upload macOS artifact
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
