@@ -57,10 +57,12 @@ Without GStreamer the application still runs but cannot play videos.
 
 ### Face Recognition
 The `face_recognition` crate can detect faces in a `MediaItem`. Building with
-the `cache` feature stores the results in the local database, and the `ui`
-feature displays bounding boxes. When these features are enabled the sync
-process automatically runs face detection and persists the bounding boxes. This
-module is experimental and disabled by default.
+the `cache` feature stores the results permanently using `insert_faces` from
+`cache::CacheManager`. When the `ui` feature is also enabled the
+`ui::FaceRecognizer` widget overlays the saved bounding boxes whenever a photo
+is opened. The sync process automatically runs face detection and persists the
+boxes, making them available across sessions. This module is experimental and
+disabled by default.
 
 ### Building Without Extras
 Compile the workspace without the video and face recognition crates:

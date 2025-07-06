@@ -1152,6 +1152,19 @@ impl CacheManager {
         Ok(())
     }
 
+    #[cfg(feature = "face-recognition")]
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, faces_json)))]
+    pub async fn insert_faces_async(
+        &self,
+        media_item_id: String,
+        faces_json: String,
+    ) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.insert_faces(&media_item_id, &faces_json))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_faces(&self, media_item_id: &str) -> Result<Option<Vec<FaceData>>, CacheError> {
         let conn = self.lock_conn()?;
