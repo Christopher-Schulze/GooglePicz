@@ -19,7 +19,7 @@ mod config;
     author,
     version,
     about = "GooglePicz synchronization CLI",
-    after_help = "EXAMPLES:\n  sync_cli export-faces --file faces.json\n  sync_cli import-faces --file faces.json\n  sync_cli set-favorite <ID> true"
+    after_help = "EXAMPLES:\n  sync_cli export-faces --file faces.json\n  sync_cli import-faces --file faces.json\n  sync_cli set-favorite <ID> true\n  sync_cli show-faces <ID>"
 )]
 struct Cli {
     /// Override log level (e.g. info, debug)
@@ -197,6 +197,11 @@ enum Commands {
         /// Maximum number of items to display
         #[arg(long)]
         limit: Option<usize>,
+    },
+    /// Show stored faces for a media item
+    ShowFaces {
+        /// ID of the media item
+        id: String,
     },
 }
 
@@ -509,6 +514,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let max = limit.unwrap_or(10);
             for item in items.iter().take(max) {
                 println!("{} - {}", item.id, item.filename);
+            }
+        }
+        Commands::ShowFaces { id } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            match cache.get_faces(&id)? {
+                Some(faces) => println!("{}", serde_json::to_string_pretty(&faces)?),
+                None => println!("No faces for {}", id),
             }
         }
     }

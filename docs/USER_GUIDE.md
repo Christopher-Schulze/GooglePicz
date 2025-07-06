@@ -111,8 +111,29 @@ Artifacts appear in `target/` (e.g. `GooglePicz-<version>-Setup.exe` or `.deb`).
 ## Command Line Interface
 The workspace provides `sync_cli` for manual synchronization and cache
 inspection. Run `--help` for available subcommands. It respects the same
-configuration and environment variables as the GUI. The `search` command now
-supports filtering with `--start` and `--end` date parameters as well as the
-`--favorite` flag to only list starred items.
+configuration and environment variables as the GUI.
+
+### Subcommands
+
+- `sync` – perform a full synchronization
+- `status` – show last sync time and cached item count
+- `clear-cache` – remove all cached items
+- `cache-stats` – print album and item counts
+- `list-items [--limit N]` – list cached media items
+- `list-favorites [--limit N]` – list favorite items
+- `search QUERY [OPTIONS]` – search cached items with filters:
+  - `--start` and `--end` dates
+  - `--camera-model` / `--camera-make`
+  - `--mime-type`
+  - `--favorite`
+- `search-albums QUERY [--limit N]` – search albums by title
+- `show-item <ID>` – print metadata for a media item
+- `export-items --file PATH`
+- `export-albums --file PATH`
+- `export-faces --file PATH`
+- `import-items --file PATH`
+- `import-faces --file PATH`
+- `set-favorite <ID> <true|false>` – toggle favorite flag
+- `show-faces <ID>` – print stored face data for a media item
 
 
