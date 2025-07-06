@@ -63,6 +63,8 @@ pub enum SyncTaskError {
     RestartAttempt(u32),
     #[error("{code:?}: {message}")]
     Other { code: SyncErrorCode, message: String },
+    #[error("Status update ({last_synced}): {message}")]
+    Status { last_synced: DateTime<Utc>, message: String },
 }
 
 impl Syncer {
@@ -392,6 +394,10 @@ impl Syncer {
                                 code,
                                 message: msg.clone(),
                             });
+                            Self::forward(&ui_error_tx, SyncTaskError::Status {
+                                last_synced: last_success,
+                                message: msg.clone(),
+                            });
                             failures += 1;
                             if let Some(tx) = &status_tx {
                                 let _ = tx.send(failures);
@@ -430,6 +436,10 @@ impl Syncer {
                             if let Some(tx) = &status_tx {
                                 let _ = tx.send(0);
                             }
+                            Self::forward(&ui_error_tx, SyncTaskError::Status {
+                                last_synced: last_success,
+                                message: "Sync completed".into(),
+                            });
                             sleep(interval).await;
                         }
                         Ok::<(), SyncTaskError>(())
@@ -487,6 +497,10 @@ pub fn start_token_refresh_task(
                                 tracing::error!(error = ?send_err, "Failed to forward token refresh error");
                             }
                             Self::forward(&ui_error_tx, err_variant.clone());
+                            Self::forward(&ui_error_tx, SyncTaskError::Status {
+                                last_synced: last_success,
+                                message: msg.clone(),
+                            });
                             failures += 1;
                             if let Err(send_err) = error_tx.send(SyncTaskError::RestartAttempt(failures)) {
                                 tracing::error!(error = ?send_err, "Failed to forward restart attempt");
@@ -502,6 +516,10 @@ pub fn start_token_refresh_task(
                         } else {
                             last_success = Utc::now();
                             failures = 0;
+                            Self::forward(&ui_error_tx, SyncTaskError::Status {
+                                last_synced: last_success,
+                                message: "Token refreshed".into(),
+                            });
                         }
                         Ok::<(), SyncTaskError>(())
                     } => match result {
