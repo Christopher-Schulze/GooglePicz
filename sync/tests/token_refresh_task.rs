@@ -51,7 +51,7 @@ fn test_token_refresh_error_forwarded_to_ui() {
     let dir = tempdir().unwrap();
     std::env::set_var("HOME", dir.path());
     std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
-    let (mut ui, _) = GooglePiczUI::new((None, None, 0, dir.path().join(".googlepicz")));
+    let (mut ui, _) = GooglePiczUI::new((None, None, None, 0, dir.path().join(".googlepicz")));
     let _ = ui.update(Message::SyncError(err));
     assert!(ui.error_count() > 0);
     std::env::remove_var("MOCK_KEYRING");

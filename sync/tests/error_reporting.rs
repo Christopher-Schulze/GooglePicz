@@ -21,7 +21,7 @@ async fn test_periodic_sync_reports_error() {
             std::env::remove_var("MOCK_API_CLIENT");
             let (prog_tx, mut prog_rx) = mpsc::unbounded_channel();
             let (err_tx, mut err_rx) = mpsc::unbounded_channel::<SyncTaskError>();
-            let (handle, shutdown) = syncer.start_periodic_sync(Duration::from_millis(10), prog_tx, err_tx, None, None, None);
+            let (handle, shutdown) = syncer.start_periodic_sync(Duration::from_millis(10), prog_tx, err_tx, None, None, None, None);
             let start = timeout(Duration::from_secs(5), prog_rx.recv()).await.unwrap();
             assert!(matches!(start, Some(SyncProgress::Started)));
             let retry = timeout(Duration::from_secs(5), prog_rx.recv()).await.unwrap();
@@ -66,7 +66,7 @@ async fn test_periodic_sync_progress_send_failure_forwarded() {
             let (prog_tx, mut prog_rx) = mpsc::unbounded_channel();
             let (err_tx, mut err_rx) = mpsc::unbounded_channel::<SyncTaskError>();
             let (handle, shutdown) =
-                syncer.start_periodic_sync(Duration::from_millis(10), prog_tx, err_tx, None, None, None);
+                syncer.start_periodic_sync(Duration::from_millis(10), prog_tx, err_tx, None, None, None, None);
             // consume the Started event then drop receiver to cause send failure later
             let start = timeout(Duration::from_secs(5), prog_rx.recv()).await.unwrap();
             assert!(matches!(start, Some(SyncProgress::Started)));
