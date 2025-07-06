@@ -423,6 +423,7 @@ fn create_appimage_package() -> Result<(), PackagingError> {
 
 #[cfg_attr(feature = "trace-spans", tracing::instrument)]
 pub fn create_installer() -> Result<(), PackagingError> {
+    utils::verify_installer_tools()?;
     if cfg!(target_os = "macos") {
         create_macos_installer()?;
         let root = get_project_root();
