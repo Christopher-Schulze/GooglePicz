@@ -115,4 +115,9 @@ configuration and environment variables as the GUI. The `search` command now
 supports filtering with `--start` and `--end` date parameters as well as the
 `--favorite` flag to only list starred items.
 
+Further options include `--camera-model`, `--camera-make`, `--mime-type` and
+`--faces` to only return items with detected faces. Use `set-favorite <ID> true`
+or `false` to update the favorite state of a cached item. Face metadata can be
+exported and imported with the `export-faces` and `import-faces` subcommands.
+
 
