@@ -61,6 +61,10 @@ impl ImageLoader {
         media_id: &str,
         base_url: &str,
     ) -> Result<Handle, ImageLoaderError> {
+        #[cfg(feature = "trace-spans")]
+        let span = tracing::info_span!("load_thumbnail", id = %media_id);
+        #[cfg(feature = "trace-spans")]
+        let _enter = span.enter();
         let start = Instant::now();
         let _permit = self
             .semaphore
@@ -139,6 +143,10 @@ impl ImageLoader {
         media_id: &str,
         base_url: &str,
     ) -> Result<Handle, ImageLoaderError> {
+        #[cfg(feature = "trace-spans")]
+        let span = tracing::info_span!("load_full_image", id = %media_id);
+        #[cfg(feature = "trace-spans")]
+        let _enter = span.enter();
         let start = Instant::now();
         let _permit = self
             .semaphore

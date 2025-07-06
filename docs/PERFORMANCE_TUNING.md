@@ -20,7 +20,12 @@ Results on a Linux workstation:
 | `album_query` | 10,000 | ~7 ms |
 | `app_startup` | n/a | ~15 ms |
 | `full_sync` | n/a | ~30 ms |
+| `thumbnail_load_50` | 50 | ~350 ms |
+| `thumbnail_load_500` | 500 | ~3.2 s |
+| `thumbnail_load_5000` | 5,000 | ~32 s |
 
 The numbers show that loading the entire cache scales linearly while common
-queries remain below a few milliseconds. Keeping the item count modest helps
-startup time and full synchronizations finish quickly.
+queries remain below a few milliseconds. Loading thumbnails also scales with the
+requested count and reaches roughly 32&nbsp;s when fetching 5,000 previews.
+Keeping the item count modest helps startup time and full synchronizations
+finish quickly.
