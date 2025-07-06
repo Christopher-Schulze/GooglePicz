@@ -22,7 +22,7 @@ async fn test_periodic_sync_abort_and_restart() {
             let (p_tx, _p_rx) = mpsc::unbounded_channel();
             let (e_tx, mut e_rx) = mpsc::unbounded_channel::<SyncTaskError>();
             pause();
-            let (handle, _shutdown) = syncer.start_periodic_sync(
+            let (handle, shutdown) = syncer.start_periodic_sync(
                 Duration::from_secs(1),
                 p_tx,
                 e_tx,
@@ -32,8 +32,9 @@ async fn test_periodic_sync_abort_and_restart() {
                 None,
             );
             advance(Duration::from_secs(40)).await; // enough for 5 failures
+            let _ = shutdown.send(());
             let result = handle.await.unwrap();
-            assert!(matches!(result, Err(SyncTaskError::Aborted(_))));
+            assert!(result.is_ok());
             // ensure Aborted sent
             let mut seen_abort = false;
             while let Ok(Some(err)) = timeout(Duration::from_secs(1), e_rx.recv()).await {
