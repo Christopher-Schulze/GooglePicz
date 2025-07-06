@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+#![warn(rust_2018_idioms)]
 use cache::CacheManager;
 use clap::{Parser, Subcommand};
 use api_client::ApiClient;

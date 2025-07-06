@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+#![warn(rust_2018_idioms)]
 //! Synchronization module for Google Photos data.
 
 use api_client::ApiClient;

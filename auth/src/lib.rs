@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+#![warn(rust_2018_idioms)]
 //! Authentication module for Google Photos API.
 
 use keyring::Entry;

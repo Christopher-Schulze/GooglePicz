@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+#![warn(rust_2018_idioms)]
 //! Main application entry point for GooglePicz.
 
 use auth::{authenticate, ensure_access_token_valid};
