@@ -362,6 +362,14 @@ impl GooglePiczUI {
         self.settings_trace_spans
     }
 
+    pub fn sync_status(&self) -> String {
+        self.sync_status.clone()
+    }
+
+    pub fn syncing(&self) -> bool {
+        self.syncing
+    }
+
     pub fn face_count(&self) -> usize {
         match &self.state {
             ViewState::SelectedPhoto { faces, .. } => faces.len(),

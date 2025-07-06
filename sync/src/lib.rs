@@ -409,6 +409,9 @@ impl Syncer {
         ui_error_tx: Option<mpsc::UnboundedSender<SyncTaskError>>,
     ) -> (JoinHandle<Result<(), SyncTaskError>>, oneshot::Sender<()>) {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
+        let forward_err = error_tx.clone();
+        let forward_ui_err = ui_error_tx.clone();
+        let forward_status = status_tx.clone();
         let sync_task = spawn_local(async move {
             let mut syncer = self;
             let mut backoff = 1u64;
@@ -553,9 +556,6 @@ impl Syncer {
             Ok::<(), SyncTaskError>(())
         });
 
-        let forward_err = error_tx.clone();
-        let forward_ui_err = ui_error_tx.clone();
-        let forward_status = status_tx.clone();
         let handle = spawn_local(async move {
             match sync_task.await {
                 Ok(res) => {

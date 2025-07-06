@@ -29,7 +29,6 @@ async fn test_periodic_sync_abort_and_restart() {
                 None,
                 None,
                 None,
-                None,
             );
             advance(Duration::from_secs(40)).await; // enough for 5 failures
             let result = handle.await.unwrap();
@@ -52,7 +51,6 @@ async fn test_periodic_sync_abort_and_restart() {
                 Duration::from_secs(1),
                 p_tx2,
                 e_tx2,
-                None,
                 None,
                 None,
                 None,

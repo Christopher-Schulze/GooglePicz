@@ -6437,6 +6437,7 @@ dependencies = [
  "chrono",
  "criterion",
  "face_recognition",
+ "serde",
  "serde_json",
  "serial_test",
  "tempfile",
