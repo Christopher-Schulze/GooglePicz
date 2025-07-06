@@ -129,6 +129,12 @@ enum Commands {
         /// Filter by end date (YYYY-MM-DD)
         #[arg(long)]
         end: Option<String>,
+        /// Filter by camera model
+        #[arg(long)]
+        camera_model: Option<String>,
+        /// Filter by MIME type
+        #[arg(long)]
+        mime_type: Option<String>,
         /// Only show favorites
         #[arg(long)]
         favorite: bool,
@@ -335,7 +341,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cache.import_media_items(&file)?;
             println!("Imported from {:?}", file);
         }
-        Commands::Search { query, limit, start, end, favorite } => {
+        Commands::Search {
+            query,
+            limit,
+            start,
+            end,
+            camera_model,
+            mime_type,
+            favorite,
+        } => {
             if !db_path.exists() {
                 println!("No cache found at {:?}", db_path);
                 return Ok(());
@@ -347,13 +361,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let end_dt = end
                 .as_deref()
                 .and_then(|s| parse_date(s, true));
-            let items = cache.query_media_items(
-                None,
+            let base_items = if let Some(model) = camera_model.as_deref() {
+                cache.get_media_items_by_camera_model(model)?
+            } else if let Some(mime) = mime_type.as_deref() {
+                cache.get_media_items_by_mime_type(mime)?
+            } else if favorite {
+                cache.get_media_items_by_favorite(true)?
+            } else {
+                cache.get_media_items_by_text(&query)?
+            };
+
+            let mut items = cache.query_media_items(
+                camera_model.as_deref(),
                 start_dt,
                 end_dt,
                 if favorite { Some(true) } else { None },
                 Some(&query),
             )?;
+            if camera_model.is_some() || mime_type.is_some() || favorite {
+                items.retain(|i| base_items.iter().any(|b| b.id == i.id));
+            }
             let max = limit.unwrap_or(10);
             for item in items.iter().take(max) {
                 println!("{} - {}", item.id, item.filename);
