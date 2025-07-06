@@ -383,7 +383,10 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to query all media items: {}", e))
             })?;
 
-        let mut items = Vec::new();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM media_items", [], |row| row.get(0))
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to count items: {}", e)))?;
+        let mut items = Vec::with_capacity(count as usize);
         for item_result in media_item_iter {
             items.push(item_result.map_err(|e| {
                 CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))

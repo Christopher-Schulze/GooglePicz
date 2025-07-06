@@ -45,6 +45,7 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 use rfd::AsyncFileDialog;
+use sysinfo::{SystemExt, System};
 #[cfg(feature = "gstreamer")]
 use gstreamer_iced::{GstreamerIcedBase, GStreamerMessage, PlayStatus};
 #[cfg(feature = "gstreamer")]
@@ -80,9 +81,24 @@ pub fn run(
     cache_dir: PathBuf,
 ) -> iced::Result {
     use std::borrow::Cow;
+    #[cfg(feature = "trace-spans")]
+    let start = std::time::Instant::now();
+    #[cfg(feature = "trace-spans")]
+    let mut sys = System::new();
+    #[cfg(feature = "trace-spans")]
+    sys.refresh_memory();
+    #[cfg(feature = "trace-spans")]
+    let mem_before = sys.used_memory();
     let mut settings = Settings::with_flags((progress, errors, status, preload, preload_threads, cache_dir));
     settings.fonts.push(Cow::Borrowed(google_material_symbols::FONT_BYTES));
-    GooglePiczUI::run(settings)
+    let res = GooglePiczUI::run(settings);
+    #[cfg(feature = "trace-spans")]
+    {
+        sys.refresh_memory();
+        let mem_after = sys.used_memory();
+        tracing::info!(target = "ui", "startup_time_ms" = start.elapsed().as_millis(), "mem_before_kb" = mem_before, "mem_after_kb" = mem_after);
+    }
+    res
 }
 
 #[derive(Debug, Clone)]
@@ -430,6 +446,14 @@ impl Application for GooglePiczUI {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(flags)))]
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
         let (progress_flag, error_flag, status_flag, preload_count, preload_threads, cache_dir) = flags;
+        #[cfg(feature = "trace-spans")]
+        let start = std::time::Instant::now();
+        #[cfg(feature = "trace-spans")]
+        let mut sys = System::new();
+        #[cfg(feature = "trace-spans")]
+        sys.refresh_memory();
+        #[cfg(feature = "trace-spans")]
+        let mem_before = sys.used_memory();
         let mut init_errors = Vec::new();
         let error_log_path = cache_dir.join("ui_errors.log");
         let cache_path = cache_dir.join("cache.sqlite");
@@ -543,6 +567,11 @@ impl Application for GooglePiczUI {
             editing_face: None,
             face_name_input: String::new(),
         };
+        #[cfg(feature = "trace-spans")]
+        {
+            sys.refresh_memory();
+            tracing::info!(target = "ui", "init_time_ms" = start.elapsed().as_millis(), "mem_before_kb" = mem_before, "mem_after_kb" = sys.used_memory());
+        }
 
         (
             app,
@@ -1449,10 +1478,10 @@ impl Application for GooglePiczUI {
             button(Icon::new(MaterialSymbol::Add).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::ShowCreateAlbumDialog),
             button(Icon::new(MaterialSymbol::Settings).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::ShowSettings),
             text_input(placeholder, &self.search_query)
-                .style(style::text_input_basic())
+                .style(style::text_input())
                 .on_input(Message::SearchInputChanged),
             text_input("Camera", &self.search_camera)
-                .style(style::text_input_basic())
+                .style(style::text_input())
                 .on_input(Message::SearchCameraChanged),
             pick_list(
                 &self.camera_make_options,
@@ -1465,10 +1494,10 @@ impl Application for GooglePiczUI {
                 Message::SearchMimeChanged,
             ),
             text_input("From", &self.search_start)
-                .style(style::text_input_basic())
+                .style(style::text_input())
                 .on_input(Message::SearchStartChanged),
             text_input("To", &self.search_end)
-                .style(style::text_input_basic())
+                .style(style::text_input())
                 .on_input(Message::SearchEndChanged),
             checkbox("Fav", self.search_favorite, Message::SearchFavoriteToggled)
                 .style(style::checkbox_primary()),
@@ -1583,7 +1612,7 @@ impl Application for GooglePiczUI {
                                 .style(style::button_primary())
                                 .on_press(Message::ShowRenameAlbumDialog(album.id.clone(), title.clone())),
                             button(Icon::new(MaterialSymbol::Delete))
-                                .style(style::button_primary())
+                                .style(style::button_secondary())
                                 .on_press(Message::ShowDeleteAlbumDialog(album.id.clone()))
                         ]
                         .spacing(5);
@@ -1645,6 +1674,7 @@ impl Application for GooglePiczUI {
                     let w = photo.media_metadata.width.parse::<u32>().unwrap_or(0);
                     let h = photo.media_metadata.height.parse::<u32>().unwrap_or(0);
                     container(base)
+                        .style(style::card())
                         .width(Length::Fill)
                         .height(Length::Fill)
                         .overlay(FaceRecognizer::new(faces.clone(), w, h).view())
@@ -1668,13 +1698,13 @@ impl Application for GooglePiczUI {
                     let row_elem = if self.editing_face == Some(i) {
                         row![
                             text_input("Name", &self.face_name_input)
-                                .style(style::text_input_basic())
+                                .style(style::text_input())
                                 .on_input(Message::FaceNameChanged),
                             button(Icon::new(MaterialSymbol::Save).color(Palette::ON_PRIMARY))
                                 .style(style::button_primary())
                                 .on_press(Message::SaveFaceName),
-                            button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
-                                .style(style::button_primary())
+                            button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_SECONDARY))
+                                .style(style::button_secondary())
                                 .on_press(Message::CancelFaceName)
                         ]
                     } else {
@@ -1774,9 +1804,10 @@ impl Application for GooglePiczUI {
         }
 
         container(base)
+            .style(style::card())
             .width(Length::Fill)
             .height(Length::Fill)
-            .padding(20)
+            .padding(Palette::SPACING)
             .into()
     }
 }

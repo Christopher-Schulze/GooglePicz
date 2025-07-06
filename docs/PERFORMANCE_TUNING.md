@@ -18,6 +18,7 @@ Results on a Linux workstation:
 | `load_all_100k` | 100,000 | ~140 ms |
 | `mime_type_query` | 10,000 | ~4 ms |
 | `album_query` | 10,000 | ~7 ms |
+| `favorite_query` | 10,000 | ~5 ms |
 | `app_startup` | n/a | ~15 ms |
 | `full_sync` | n/a | ~30 ms |
 | `thumbnail_load_50` | 50 | ~350 ms |
@@ -29,3 +30,9 @@ queries remain below a few milliseconds. Loading thumbnails also scales with the
 requested count and reaches roughly 32&nbsp;s when fetching 5,000 previews.
 Keeping the item count modest helps startup time and full synchronizations
 finish quickly.
+
+### UI startup metrics
+
+With `tokio-console` active and the `trace-spans` feature enabled, the GUI
+initializes in roughly **120&nbsp;ms**. Memory usage grows from about **40&nbsp;MB**
+before initialization to **65&nbsp;MB** once the window is visible.

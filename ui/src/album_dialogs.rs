@@ -20,14 +20,14 @@ pub fn create_dialog<'a>(ui: &crate::GooglePiczUI) -> Option<iced::Element<'a, M
         Some(
             column![
                 text_input("Album title", &ui.new_album_title)
-                    .style(style::text_input_basic())
+                    .style(style::text_input())
                     .on_input(Message::AlbumTitleChanged),
                 row![
                     button(Icon::new(MaterialSymbol::Add).color(Palette::ON_PRIMARY))
                         .style(style::button_primary())
                         .on_press(Message::CreateAlbum),
-                    button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
-                        .style(style::button_primary())
+                    button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_SECONDARY))
+                        .style(style::button_secondary())
                         .on_press(Message::CancelCreateAlbum),
                 ]
                 .spacing(10),
@@ -45,14 +45,14 @@ pub fn rename_dialog<'a>(ui: &crate::GooglePiczUI) -> Option<iced::Element<'a, M
         Some(
             column![
                 text_input("New title", &ui.rename_album_title)
-                    .style(style::text_input_basic())
+                    .style(style::text_input())
                     .on_input(Message::RenameAlbumTitleChanged),
                 row![
                     button(Icon::new(MaterialSymbol::Save).color(Palette::ON_PRIMARY))
                         .style(style::button_primary())
                         .on_press(Message::ConfirmRenameAlbum),
-                    button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
-                        .style(style::button_primary())
+                    button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_SECONDARY))
+                        .style(style::button_secondary())
                         .on_press(Message::CancelRenameAlbum),
                 ]
                 .spacing(10),
@@ -74,8 +74,8 @@ pub fn delete_dialog<'a>(ui: &crate::GooglePiczUI) -> Option<iced::Element<'a, M
                     button(Icon::new(MaterialSymbol::Delete).color(Palette::ON_PRIMARY))
                         .style(style::button_primary())
                         .on_press(Message::ConfirmDeleteAlbum),
-                    button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
-                        .style(style::button_primary())
+                    button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_SECONDARY))
+                        .style(style::button_secondary())
                         .on_press(Message::CancelDeleteAlbum),
                 ]
                 .spacing(10),

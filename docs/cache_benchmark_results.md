@@ -40,6 +40,11 @@ The `album_query` benchmark retrieves items belonging to a single album from a d
 
 Benchmark result (`album_query`): ~7 ms per query.
 
+The `favorite_query` benchmark retrieves all favorite items from 10,000
+stored entries.
+
+Benchmark result (`favorite_query`): ~5 ms per query.
+
 The `get_text_10k` benchmark checks searching by filename or description for 10,000 entries. With the new FTS index this now completes in ~2 ms per query.
 
 For large text searches the `query_text_200k` benchmark simulates 200,000 entries.

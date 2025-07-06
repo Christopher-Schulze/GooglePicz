@@ -412,6 +412,7 @@ impl Syncer {
         let forward_err = error_tx.clone();
         let forward_ui_err = ui_error_tx.clone();
         let forward_status = status_tx.clone();
+
         let sync_task = spawn_local(async move {
             let mut syncer = self;
             let mut backoff = 1u64;
@@ -482,7 +483,7 @@ impl Syncer {
                                 Self::forward(&ui_error_tx, status);
                             }
                             failures += 1;
-                            if let Some(tx) = &status_tx {
+                            if let Some(tx) = &sync_status_tx {
                                 let _ = tx.send(SyncTaskError::RestartAttempt(failures));
                             }
                             let wait = backoff.min(300);
@@ -510,7 +511,7 @@ impl Syncer {
                                 let abort_err = SyncTaskError::Aborted(abort_msg.clone());
                                 let _ = error_tx.send(abort_err.clone());
                                 Self::forward(&ui_error_tx, abort_err.clone());
-                                if let Some(tx) = &status_tx {
+                                if let Some(tx) = &sync_status_tx {
                                     let _ = tx.send(abort_err.clone());
                                 }
                                 failures = 0;
@@ -523,7 +524,7 @@ impl Syncer {
                             last_success = Utc::now();
                             backoff = 1;
                             failures = 0;
-                            if let Some(tx) = &status_tx {
+                            if let Some(tx) = &sync_status_tx {
                                 let _ = tx.send(SyncTaskError::Status {
                                     last_synced: last_success,
                                     message: "Sync completed".into(),
@@ -604,7 +605,7 @@ pub fn start_token_refresh_task(
                     result = async {
                         sleep(interval).await;
                         if let Err(e) = ensure_access_token_valid().await {
-                            let code = match &e {
+                            let _code = match &e {
                                 auth::AuthError::Keyring(_) => "keyring",
                                 auth::AuthError::OAuth(_) => "oauth",
                                 auth::AuthError::Other(_) => "other",

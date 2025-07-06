@@ -1,8 +1,8 @@
 # TODO and Next Steps for GooglePicz
 
 ## High Priority Tasks
-- **Verify Build:** Run `cargo check --all` and `cargo build` to ensure the project compiles successfully after the configuration and path fixes.
-- **Address Compiler Warnings:** Review and fix all current compiler warnings.
+- ~~**Verify Build:** Run `cargo check --all` and `cargo build` to ensure the project compiles successfully after the configuration and path fixes.~~
+- ~~**Address Compiler Warnings:** Review and fix all current compiler warnings.~~
 
 ## Medium Priority Tasks
 - **Optimize Caching:**
