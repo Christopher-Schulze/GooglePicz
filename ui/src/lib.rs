@@ -509,6 +509,8 @@ impl Application for GooglePiczUI {
         };
 
         let cfg = AppConfig::load_from(Some(config_path.clone()));
+        let open_settings = std::env::var("OPEN_SETTINGS").unwrap_or_default() == "1";
+
         let app = Self {
             photos: Vec::new(),
             albums: Vec::new(),
@@ -546,7 +548,7 @@ impl Application for GooglePiczUI {
             search_end: String::new(),
             search_favorite: false,
             error_log_path,
-            settings_open: false,
+            settings_open: open_settings,
             config_path,
             settings_log_level: cfg.log_level.clone(),
             settings_cache_path: cfg.cache_path.to_string_lossy().to_string(),
