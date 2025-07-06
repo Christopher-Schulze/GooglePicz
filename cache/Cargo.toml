@@ -25,3 +25,7 @@ trace-spans = []
 [[bench]]
 name = "cache_bench"
 harness = false
+
+[[bench]]
+name = "real_queries"
+harness = false
