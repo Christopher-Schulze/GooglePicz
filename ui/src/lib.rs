@@ -45,6 +45,7 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 use rfd::AsyncFileDialog;
+use sysinfo::{SystemExt, System};
 #[cfg(feature = "gstreamer")]
 use gstreamer_iced::{GstreamerIcedBase, GStreamerMessage, PlayStatus};
 #[cfg(feature = "gstreamer")]
@@ -80,9 +81,24 @@ pub fn run(
     cache_dir: PathBuf,
 ) -> iced::Result {
     use std::borrow::Cow;
+    #[cfg(feature = "trace-spans")]
+    let start = std::time::Instant::now();
+    #[cfg(feature = "trace-spans")]
+    let mut sys = System::new();
+    #[cfg(feature = "trace-spans")]
+    sys.refresh_memory();
+    #[cfg(feature = "trace-spans")]
+    let mem_before = sys.used_memory();
     let mut settings = Settings::with_flags((progress, errors, status, preload, preload_threads, cache_dir));
     settings.fonts.push(Cow::Borrowed(google_material_symbols::FONT_BYTES));
-    GooglePiczUI::run(settings)
+    let res = GooglePiczUI::run(settings);
+    #[cfg(feature = "trace-spans")]
+    {
+        sys.refresh_memory();
+        let mem_after = sys.used_memory();
+        tracing::info!(target = "ui", "startup_time_ms" = start.elapsed().as_millis(), "mem_before_kb" = mem_before, "mem_after_kb" = mem_after);
+    }
+    res
 }
 
 #[derive(Debug, Clone)]
@@ -422,6 +438,14 @@ impl Application for GooglePiczUI {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(flags)))]
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
         let (progress_flag, error_flag, status_flag, preload_count, preload_threads, cache_dir) = flags;
+        #[cfg(feature = "trace-spans")]
+        let start = std::time::Instant::now();
+        #[cfg(feature = "trace-spans")]
+        let mut sys = System::new();
+        #[cfg(feature = "trace-spans")]
+        sys.refresh_memory();
+        #[cfg(feature = "trace-spans")]
+        let mem_before = sys.used_memory();
         let mut init_errors = Vec::new();
         let error_log_path = cache_dir.join("ui_errors.log");
         let cache_path = cache_dir.join("cache.sqlite");
@@ -535,6 +559,11 @@ impl Application for GooglePiczUI {
             editing_face: None,
             face_name_input: String::new(),
         };
+        #[cfg(feature = "trace-spans")]
+        {
+            sys.refresh_memory();
+            tracing::info!(target = "ui", "init_time_ms" = start.elapsed().as_millis(), "mem_before_kb" = mem_before, "mem_after_kb" = sys.used_memory());
+        }
 
         (
             app,
