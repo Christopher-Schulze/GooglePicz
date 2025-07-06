@@ -167,6 +167,9 @@ enum Commands {
         /// Only show favorites
         #[arg(long)]
         favorite: bool,
+        /// Only include items with detected faces
+        #[arg(long)]
+        faces: bool,
     },
     /// Search cached albums by title
     SearchAlbums {
@@ -425,6 +428,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             camera_make,
             mime_type,
             favorite,
+            faces,
         } => {
             if !db_path.exists() {
                 println!("No cache found at {:?}", db_path);
@@ -437,7 +441,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let end_dt = end
                 .as_deref()
                 .and_then(|s| parse_date(s, true));
-            let items = cache.query_media_items(
+            let mut items = cache.query_media_items(
                 camera_model.as_deref(),
                 camera_make.as_deref(),
                 start_dt,
@@ -446,6 +450,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 mime_type.as_deref(),
                 Some(&query),
             )?;
+            if faces {
+                items.retain(|it| cache.get_faces(&it.id).ok().flatten().is_some());
+            }
             let max = limit.unwrap_or(10);
             for item in items.iter().take(max) {
                 println!("{} - {}", item.id, item.filename);
