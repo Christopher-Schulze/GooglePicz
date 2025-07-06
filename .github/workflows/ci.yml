@@ -88,6 +88,18 @@ jobs:
         run: cargo test -p packaging
       - name: Run CI checks
         run: cargo run --package packaging --bin ci_checks
+      - name: Install screenshot tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y imagemagick xvfb
+      - name: Generate UI screenshots
+        if: runner.os == 'Linux'
+        run: ./tests/e2e/generate_screenshots.sh
+      - name: Upload screenshots
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: docs/screenshots
       - name: Upload checksums
         if: always()
         uses: actions/upload-artifact@v4

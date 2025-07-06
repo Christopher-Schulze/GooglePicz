@@ -309,6 +309,20 @@ docker push ghcr.io/christopher-schulze/googlepicz-ci:latest
 
 The GitHub Actions workflow references this image to ensure consistent dependencies across CI runs.
 
+## 📸 Generating UI Screenshots
+
+Sample screenshots of the application are stored in `docs/screenshots`. You can
+regenerate them locally using the helper script:
+
+```bash
+cd tests/e2e
+./generate_screenshots.sh
+```
+
+The script builds the `googlepicz` binary, launches it under `xvfb-run` and
+saves images of the main window and the settings dialog into
+`docs/screenshots`.
+
 ## ⚠️ Note
 This project is under active development. Features and APIs are subject to change. Documentation will be updated as the project evolves.
 The `Changelog.md` file tracks changes over time.
