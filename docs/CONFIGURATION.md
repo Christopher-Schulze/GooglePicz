@@ -44,6 +44,17 @@ Several environment variables influence how GooglePicz and the packaging scripts
 - `USE_FILE_STORE` – Write tokens to `~/.googlepicz/tokens.json` when set to `1` and the optional `file-store` feature is enabled.
 - `MOCK_API_CLIENT` and `MOCK_KEYRING` – together with `MOCK_ACCESS_TOKEN` and `MOCK_REFRESH_TOKEN` allow running the test suite without network access.
 
+### Background Sync Messages
+
+Synchronization tasks send `SyncTaskError` events over an error channel. Relevant variants are:
+
+- `PeriodicSyncFailed` – a sync run failed and will retry.
+- `TokenRefreshFailed` – refreshing the OAuth token failed.
+- `RestartAttempt(u32)` – retry counter during exponential backoff.
+- `Aborted(String)` – task stopped after repeated errors.
+- `Status { last_synced, message }` – informational updates.
+
+
 ### Video Playback Dependencies
 
 Video playback relies on the GStreamer multimedia framework. On most Linux
