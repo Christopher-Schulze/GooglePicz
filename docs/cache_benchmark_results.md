@@ -59,3 +59,11 @@ The `full_sync` benchmark performs a complete synchronization with mocked API re
 
 Benchmark result (`full_sync`): ~30 ms per run.
 
+The `sequential_insert_10k` benchmark measures inserting 10,000 items one by one.
+
+Benchmark result (`sequential_insert_10k`): ~160 ms per run.
+
+The `batch_insert_10k` benchmark performs the same insertion using the new batched API.
+
+Benchmark result (`batch_insert_10k`): ~35 ms per run.
+

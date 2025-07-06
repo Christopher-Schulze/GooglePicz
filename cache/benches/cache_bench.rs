@@ -388,6 +388,34 @@ fn bench_text_query_general_200k(c: &mut Criterion) {
     });
 }
 
+fn bench_sequential_insert_10k(c: &mut Criterion) {
+    let items: Vec<_> = (0..10_000u32)
+        .map(|i| sample_media_item(&i.to_string()))
+        .collect();
+    c.bench_function("sequential_insert_10k", |b| {
+        b.iter(|| {
+            let tmp = NamedTempFile::new().unwrap();
+            let cache = CacheManager::new(tmp.path()).unwrap();
+            for item in &items {
+                cache.insert_media_item(item).unwrap();
+            }
+        })
+    });
+}
+
+fn bench_batch_insert_10k(c: &mut Criterion) {
+    let items: Vec<_> = (0..10_000u32)
+        .map(|i| sample_media_item(&i.to_string()))
+        .collect();
+    c.bench_function("batch_insert_10k", |b| {
+        b.iter(|| {
+            let tmp = NamedTempFile::new().unwrap();
+            let cache = CacheManager::new(tmp.path()).unwrap();
+            cache.insert_media_items_batch(&items).unwrap();
+        })
+    });
+}
+
 criterion_group!(
     benches,
     bench_load_all,
@@ -406,7 +434,9 @@ criterion_group!(
     bench_text_query_general_200k,
     bench_mime_type_query,
     bench_album_query,
-    bench_favorite_query
+    bench_favorite_query,
+    bench_sequential_insert_10k,
+    bench_batch_insert_10k
 );
 criterion_main!(benches);
 
