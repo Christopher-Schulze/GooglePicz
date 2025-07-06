@@ -19,6 +19,8 @@ impl Palette {
     pub const ERROR: Color = Color { r: 0.80, g: 0.0, b: 0.0, a: 1.0 };
 
     pub const SPACING: u16 = 16;
+    pub const ICON_COLOR: Color = Self::ON_SURFACE;
+    pub const ICON_SIZE: u16 = 20;
 }
 
 /// Style for primary action buttons.
