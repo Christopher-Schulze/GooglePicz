@@ -162,6 +162,23 @@ fn bench_album_query(c: &mut Criterion) {
     });
 }
 
+fn bench_favorite_query(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..10_000u32 {
+        let item = sample_media_item(&i.to_string());
+        cache.insert_media_item(&item).unwrap();
+        if i % 2 == 0 {
+            cache.set_favorite(&item.id, true).unwrap();
+        }
+    }
+    c.bench_function("favorite_query", |b| {
+        b.iter(|| {
+            let _ = cache.get_favorite_media_items().unwrap();
+        })
+    });
+}
+
 fn bench_camera_model_query(c: &mut Criterion) {
     let tmp = NamedTempFile::new().unwrap();
     let cache = CacheManager::new(tmp.path()).unwrap();
@@ -388,7 +405,8 @@ criterion_group!(
     bench_text_query_general_100k,
     bench_text_query_general_200k,
     bench_mime_type_query,
-    bench_album_query
+    bench_album_query,
+    bench_favorite_query
 );
 criterion_main!(benches);
 
