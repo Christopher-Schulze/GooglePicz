@@ -302,7 +302,15 @@ fn test_query_media_items_combined() {
     let start = Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
     let end = Utc.with_ymd_and_hms(2023, 1, 31, 23, 59, 59).unwrap();
     let results = cm
-        .query_media_items(Some("EOS"), Some(start), Some(end), Some(true), None)
+        .query_media_items(
+            Some("EOS"),
+            None,
+            Some(start),
+            Some(end),
+            Some(true),
+            None,
+            None,
+        )
         .unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].id, item1.id);
@@ -331,7 +339,15 @@ fn test_query_media_items_text_date_fav() {
     let start = Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
     let end = Utc.with_ymd_and_hms(2023, 1, 31, 23, 59, 59).unwrap();
     let results = cm
-        .query_media_items(None, Some(start), Some(end), Some(true), Some("holiday"))
+        .query_media_items(
+            None,
+            None,
+            Some(start),
+            Some(end),
+            Some(true),
+            None,
+            Some("holiday"),
+        )
         .unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].id, item1.id);

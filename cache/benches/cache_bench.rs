@@ -276,7 +276,15 @@ fn bench_text_query_general_1k(c: &mut Criterion) {
     c.bench_function("query_text_1k", |b| {
         b.iter(|| {
             let _ = cache
-                .query_media_items(None, None, None, None, Some("foo"))
+                .query_media_items(
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some("foo"),
+                )
                 .unwrap();
         })
     });
@@ -295,7 +303,15 @@ fn bench_text_query_general_10k(c: &mut Criterion) {
     c.bench_function("query_text_10k", |b| {
         b.iter(|| {
             let _ = cache
-                .query_media_items(None, None, None, None, Some("foo"))
+                .query_media_items(
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some("foo"),
+                )
                 .unwrap();
         })
     });
@@ -314,7 +330,15 @@ fn bench_text_query_general_100k(c: &mut Criterion) {
     c.bench_function("query_text_100k", |b| {
         b.iter(|| {
             let _ = cache
-                .query_media_items(None, None, None, None, Some("foo"))
+                .query_media_items(
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some("foo"),
+                )
                 .unwrap();
         })
     });
@@ -333,7 +357,15 @@ fn bench_text_query_general_200k(c: &mut Criterion) {
     c.bench_function("query_text_200k", |b| {
         b.iter(|| {
             let _ = cache
-                .query_media_items(None, None, None, None, Some("foo"))
+                .query_media_items(
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some("foo"),
+                )
                 .unwrap();
         })
     });

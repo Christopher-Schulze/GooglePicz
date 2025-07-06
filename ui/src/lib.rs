@@ -128,6 +128,8 @@ pub enum Message {
     SearchInputChanged(String),
     SearchModeChanged(SearchMode),
     SearchCameraChanged(String),
+    SearchCameraMakeChanged(Option<String>),
+    SearchMimeChanged(Option<String>),
     SearchStartChanged(String),
     SearchEndChanged(String),
     SearchFavoriteToggled(bool),
@@ -263,6 +265,10 @@ pub struct GooglePiczUI {
     search_mode: SearchMode,
     search_query: String,
     search_camera: String,
+    search_camera_make: Option<String>,
+    search_mime: Option<String>,
+    camera_make_options: Vec<String>,
+    mime_options: Vec<String>,
     search_start: String,
     search_end: String,
     search_favorite: bool,
@@ -508,6 +514,10 @@ impl Application for GooglePiczUI {
             search_mode: SearchMode::Filename,
             search_query: String::new(),
             search_camera: String::new(),
+            search_camera_make: None,
+            search_mime: None,
+            camera_make_options: Vec::new(),
+            mime_options: Vec::new(),
             search_start: String::new(),
             search_end: String::new(),
             search_favorite: false,
@@ -582,6 +592,24 @@ impl Application for GooglePiczUI {
                 match result {
                     Ok(photos) => {
                         self.photos = photos;
+                        use std::collections::HashSet;
+                        let mut mimes: HashSet<String> = HashSet::new();
+                        let mut makes: HashSet<String> = HashSet::new();
+                        for photo in &self.photos {
+                            mimes.insert(photo.mime_type.clone());
+                            if let Some(make) = photo
+                                .media_metadata
+                                .video
+                                .as_ref()
+                                .and_then(|v| v.camera_make.clone())
+                            {
+                                makes.insert(make);
+                            }
+                        }
+                        self.mime_options = mimes.into_iter().collect();
+                        self.mime_options.sort();
+                        self.camera_make_options = makes.into_iter().collect();
+                        self.camera_make_options.sort();
                         self.display_limit = PAGE_SIZE.min(self.photos.len());
                         // Start loading thumbnails for configured number of photos
                         let mut commands = Vec::new();
@@ -1142,6 +1170,12 @@ impl Application for GooglePiczUI {
             Message::SearchCameraChanged(v) => {
                 self.search_camera = v;
             }
+            Message::SearchCameraMakeChanged(v) => {
+                self.search_camera_make = v;
+            }
+            Message::SearchMimeChanged(v) => {
+                self.search_mime = v;
+            }
             Message::SearchStartChanged(v) => {
                 self.search_start = v;
             }
@@ -1160,6 +1194,8 @@ impl Application for GooglePiczUI {
                     let start = self.search_start.clone();
                     let end = self.search_end.clone();
                     let fav = self.search_favorite;
+                    let make_sel = self.search_camera_make.clone();
+                    let mime_sel = self.search_mime.clone();
                     return Command::perform(
                         async move {
                             let cache = {
@@ -1167,6 +1203,48 @@ impl Application for GooglePiczUI {
                                 guard.clone()
                             };
                             let base = match mode {
+                                SearchMode::Filename => Some(
+                                    cache
+                                        .get_media_items_by_filename(&query)
+                                        .map_err(|e| e.to_string())?,
+                                ),
+                                SearchMode::Description => Some(
+                                    cache
+                                        .get_media_items_by_description(&query)
+                                        .map_err(|e| e.to_string())?,
+                                ),
+                                SearchMode::Text => Some(
+                                    cache
+                                        .get_media_items_by_text(&query)
+                                        .map_err(|e| e.to_string())?,
+                                ),
+                                _ => None,
+                            };
+
+                            let start_dt = parse_single_date(&start, false);
+                            let end_dt = parse_single_date(&end, true);
+                            let camera_model_param = if mode == SearchMode::CameraModel {
+                                Some(query.clone())
+                            } else if camera.is_empty() {
+                                None
+                            } else {
+                                Some(camera)
+                            };
+                            let camera_make_param = if mode == SearchMode::CameraMake {
+                                Some(query.clone())
+                            } else {
+                                make_sel.clone()
+                            };
+                            let mime_param = if mode == SearchMode::MimeType {
+                                Some(query.clone())
+                            } else {
+                                mime_sel.clone()
+                            };
+                            let fav_param = if mode == SearchMode::Favoriten || fav {
+                                Some(true)
+                            } else {
+                                None
+                            };
                                 SearchMode::DateRange => {
                                     if let Some((s, e)) = search::parse_date_query(&query) {
                                         cache
@@ -1203,17 +1281,18 @@ impl Application for GooglePiczUI {
                             let end_dt = search::parse_single_date(&end, true);
                             cache
                                 .query_media_items_async(
-                                    if camera.is_empty() { None } else { Some(camera) },
+                                    camera_model_param,
+                                    camera_make_param,
                                     start_dt,
                                     end_dt,
-                                    if fav { Some(true) } else { None },
-                                    if mode == SearchMode::Text { Some(query) } else { None },
+                                    fav_param,
+                                    mime_param,
+                                    if mode == SearchMode::Text { Some(query.clone()) } else { None },
                                 )
                                 .await
                                 .map_err(|e| e.to_string())
                                 .map(|mut extra| {
-                                    if mode != SearchMode::Text {
-                                        // Intersect results with base
+                                    if let Some(base) = &base {
                                         extra.retain(|i| base.iter().any(|b| b.id == i.id));
                                     }
                                     extra
@@ -1361,6 +1440,39 @@ impl Application for GooglePiczUI {
             button(Icon::new(MaterialSymbol::Refresh).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::RefreshPhotos),
             button(Icon::new(MaterialSymbol::Add).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::ShowCreateAlbumDialog),
             button(Icon::new(MaterialSymbol::Settings).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::ShowSettings),
+            text_input(placeholder, &self.search_query)
+                .style(style::text_input_basic())
+                .on_input(Message::SearchInputChanged),
+            text_input("Camera", &self.search_camera)
+                .style(style::text_input_basic())
+                .on_input(Message::SearchCameraChanged),
+            pick_list(
+                &self.camera_make_options,
+                self.search_camera_make.clone(),
+                Message::SearchCameraMakeChanged,
+            ),
+            pick_list(
+                &self.mime_options,
+                self.search_mime.clone(),
+                Message::SearchMimeChanged,
+            ),
+            text_input("From", &self.search_start)
+                .style(style::text_input_basic())
+                .on_input(Message::SearchStartChanged),
+            text_input("To", &self.search_end)
+                .style(style::text_input_basic())
+                .on_input(Message::SearchEndChanged),
+            checkbox("Fav", self.search_favorite, Message::SearchFavoriteToggled)
+                .style(style::checkbox_primary()),
+            pick_list(
+                &SearchMode::ALL[..],
+                Some(self.search_mode),
+                Message::SearchModeChanged,
+            ),
+            button("Search")
+                .style(style::button_primary())
+                .on_press(Message::PerformSearch)
+        ];
         ]
             .push(search::view(self));
 

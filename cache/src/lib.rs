@@ -446,9 +446,11 @@ impl CacheManager {
     pub fn query_media_items(
         &self,
         camera_model: Option<&str>,
+        camera_make: Option<&str>,
         start: Option<DateTime<Utc>>,
         end: Option<DateTime<Utc>>,
         favorite: Option<bool>,
+        mime_type: Option<&str>,
         text: Option<&str>,
     ) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
@@ -457,10 +459,12 @@ impl CacheManager {
             "FROM media_items m ",
             "JOIN media_metadata md ON m.id = md.media_item_id ",
             "WHERE (?1 IS NULL OR md.camera_model = ?1) ",
-            "AND (?2 IS NULL OR md.creation_time >= ?2) ",
-            "AND (?3 IS NULL OR md.creation_time <= ?3) ",
-            "AND (?4 IS NULL OR m.is_favorite = ?4) ",
-            "AND (?5 IS NULL OR m.filename LIKE ?5 OR m.description LIKE ?5)"
+            "AND (?2 IS NULL OR md.camera_make = ?2) ",
+            "AND (?3 IS NULL OR md.creation_time >= ?3) ",
+            "AND (?4 IS NULL OR md.creation_time <= ?4) ",
+            "AND (?5 IS NULL OR m.is_favorite = ?5) ",
+            "AND (?6 IS NULL OR m.mime_type = ?6) ",
+            "AND (?7 IS NULL OR m.filename LIKE ?7 OR m.description LIKE ?7)"
         );
         let mut stmt = conn
             .prepare_cached(sql)
@@ -473,9 +477,11 @@ impl CacheManager {
             .query_map(
                 params![
                     camera_model,
+                    camera_make,
                     start.map(|s| s.timestamp()),
                     end.map(|e| e.timestamp()),
                     fav_val,
+                    mime_type,
                     like_pattern.as_deref()
                 ],
                 |row| {
@@ -1475,18 +1481,22 @@ impl CacheManager {
     pub async fn query_media_items_async(
         &self,
         camera_model: Option<String>,
+        camera_make: Option<String>,
         start: Option<DateTime<Utc>>,
         end: Option<DateTime<Utc>>,
         favorite: Option<bool>,
+        mime_type: Option<String>,
         text: Option<String>,
     ) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || {
             this.query_media_items(
                 camera_model.as_deref(),
+                camera_make.as_deref(),
                 start,
                 end,
                 favorite,
+                mime_type.as_deref(),
                 text.as_deref(),
             )
         })
@@ -1736,7 +1746,15 @@ mod tests {
         let start = Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
         let end = Utc.with_ymd_and_hms(2023, 1, 31, 23, 59, 59).unwrap();
         let items = cache
-            .query_media_items(Some("EOS"), Some(start), Some(end), Some(true), None)
+            .query_media_items(
+                Some("EOS"),
+                None,
+                Some(start),
+                Some(end),
+                Some(true),
+                None,
+                None,
+            )
             .expect("query");
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, item1.id);
