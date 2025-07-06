@@ -293,6 +293,19 @@ cargo run --package googlepicz --features googlepicz/tokio-console,sync/trace-sp
 The console will display asynchronous task metrics while span timings are
 written to `~/.googlepicz/googlepicz.log`.
 
+## 📸 Generating UI Screenshots
+
+Use the helper script `tests/e2e/capture_screenshots.sh` to run the
+application in a headless X11 environment and capture a screenshot of the main
+view. The script stores images in `docs/screenshots/`.
+
+```bash
+./tests/e2e/capture_screenshots.sh
+```
+
+`xvfb-run` and `imagemagick` (for the `import` command) need to be available on
+your system.
+
 ## 🐳 CI Docker Image
 
 The repository includes a `Dockerfile.ci` used to build a container image with stable Rust and the packaging tools required for CI. To build and publish the image:
