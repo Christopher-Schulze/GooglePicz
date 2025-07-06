@@ -19,6 +19,9 @@ Setting `trace_spans = true` enables tracing instrumentation across all crates. 
 
 All settings can also be overridden at runtime using command line options. Run `googlepicz --help` or `sync_cli --help` to see the available flags. The `debug_console` option can be enabled with the `--debug-console` flag.
 Use `--trace-spans` to enable `trace_spans` from the command line.
+The `search` subcommand of `sync_cli` supports additional filters: use `--start`
+and `--end` to specify a date range and `--favorite` to only display starred
+items.
 
 If the application is built with the optional `file-store` feature, authentication
 tokens may be written to `~/.googlepicz/tokens.json` instead of the system
@@ -72,3 +75,7 @@ You can also build individual crates without their optional features:
 cargo build -p ui --no-default-features
 cargo build -p face_recognition --no-default-features
 ```
+
+When built with the `face_recognition` crate and its `cache` feature, the sync
+process will detect faces during downloads and store the results in the local
+database. Enable these features to keep face data available for the UI.

@@ -54,7 +54,11 @@ cargo build -p ui --no-default-features
 Without GStreamer the application still runs but cannot play videos.
 
 ### Face Recognition
-The `face_recognition` crate can detect faces in a `MediaItem`. Building with the `cache` feature stores the results in the local database, and the `ui` feature displays bounding boxes. This module is experimental and disabled by default.
+The `face_recognition` crate can detect faces in a `MediaItem`. Building with
+the `cache` feature stores the results in the local database, and the `ui`
+feature displays bounding boxes. When these features are enabled the sync
+process automatically runs face detection and persists the bounding boxes. This
+module is experimental and disabled by default.
 
 ### Building Without Extras
 Compile the workspace without the video and face recognition crates:
@@ -99,6 +103,10 @@ To create installers:
 Artifacts appear in `target/` (e.g. `GooglePicz-<version>-Setup.exe` or `.deb`).
 
 ## Command Line Interface
-The workspace provides `sync_cli` for manual synchronization and cache inspection. Run `--help` for available subcommands. It respects the same configuration and environment variables as the GUI.
+The workspace provides `sync_cli` for manual synchronization and cache
+inspection. Run `--help` for available subcommands. It respects the same
+configuration and environment variables as the GUI. The `search` command now
+supports filtering with `--start` and `--end` date parameters as well as the
+`--favorite` flag to only list starred items.
 
 
