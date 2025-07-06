@@ -426,10 +426,20 @@ impl Syncer {
                                 code,
                                 message: msg.clone(),
                             });
-                            Self::forward(&ui_error_tx, SyncTaskError::Status {
+                            let status = SyncTaskError::Status {
                                 last_synced: last_success,
                                 message: msg.clone(),
-                            });
+                            };
+                            if ui_error_tx
+                                .as_ref()
+                                .map(|u| u.same_channel(&error_tx))
+                                .unwrap_or(false)
+                            {
+                                let _ = error_tx.send(status.clone());
+                            } else {
+                                let _ = error_tx.send(status.clone());
+                                Self::forward(&ui_error_tx, status);
+                            }
                             failures += 1;
                             if let Some(tx) = &status_tx {
                                 let _ = tx.send(failures);
@@ -468,10 +478,20 @@ impl Syncer {
                             if let Some(tx) = &status_tx {
                                 let _ = tx.send(0);
                             }
-                            Self::forward(&ui_error_tx, SyncTaskError::Status {
+                            let status = SyncTaskError::Status {
                                 last_synced: last_success,
                                 message: "Sync completed".into(),
-                            });
+                            };
+                            if ui_error_tx
+                                .as_ref()
+                                .map(|u| u.same_channel(&error_tx))
+                                .unwrap_or(false)
+                            {
+                                let _ = error_tx.send(status.clone());
+                            } else {
+                                let _ = error_tx.send(status.clone());
+                                Self::forward(&ui_error_tx, status);
+                            }
                             sleep(interval).await;
                         }
                         Ok::<(), SyncTaskError>(())
@@ -529,10 +549,20 @@ pub fn start_token_refresh_task(
                                 tracing::error!(error = ?send_err, "Failed to forward token refresh error");
                             }
                             Self::forward(&ui_error_tx, err_variant.clone());
-                            Self::forward(&ui_error_tx, SyncTaskError::Status {
+                            let status = SyncTaskError::Status {
                                 last_synced: last_success,
                                 message: msg.clone(),
-                            });
+                            };
+                            let _ = error_tx.send(status.clone());
+                            if ui_error_tx
+                                .as_ref()
+                                .map(|u| u.same_channel(&error_tx))
+                                .unwrap_or(false)
+                            {
+                                // already sent via error_tx
+                            } else {
+                                Self::forward(&ui_error_tx, status);
+                            }
                             failures += 1;
                             if let Err(send_err) = error_tx.send(SyncTaskError::RestartAttempt(failures)) {
                                 tracing::error!(error = ?send_err, "Failed to forward restart attempt");
@@ -548,10 +578,20 @@ pub fn start_token_refresh_task(
                         } else {
                             last_success = Utc::now();
                             failures = 0;
-                            Self::forward(&ui_error_tx, SyncTaskError::Status {
+                            let status = SyncTaskError::Status {
                                 last_synced: last_success,
                                 message: "Token refreshed".into(),
-                            });
+                            };
+                            let _ = error_tx.send(status.clone());
+                            if ui_error_tx
+                                .as_ref()
+                                .map(|u| u.same_channel(&error_tx))
+                                .unwrap_or(false)
+                            {
+                                // already sent via error_tx
+                            } else {
+                                Self::forward(&ui_error_tx, status);
+                            }
                         }
                         Ok::<(), SyncTaskError>(())
                     } => match result {
