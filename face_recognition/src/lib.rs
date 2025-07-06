@@ -94,6 +94,19 @@ impl FaceRecognizer {
         Ok(faces)
     }
 
+    /// Detect faces and persist the bounding boxes in the cache.
+    #[cfg(feature = "cache")]
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, cache, item)))]
+    pub fn detect_and_cache_faces(
+        &self,
+        cache: &CacheManager,
+        item: &MediaItem,
+    ) -> Result<Vec<Face>, FaceRecognitionError> {
+        let faces = self.detect_faces(item)?;
+        self.assign_to_cache(cache, item, &faces)?;
+        Ok(faces)
+    }
+
     /// Associate detected faces with a `MediaItem` in the cache.
     #[cfg(feature = "cache")]
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, cache, item, faces)))]

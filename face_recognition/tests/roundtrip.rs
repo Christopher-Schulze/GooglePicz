@@ -38,11 +38,10 @@ fn test_detect_and_cache_roundtrip() {
     cache.insert_media_item(&item).expect("insert item");
 
     let rec = FaceRecognizer::new();
-    let faces = rec.detect_faces(&item).expect("detect");
+    let faces = rec
+        .detect_and_cache_faces(&cache, &item)
+        .expect("detect");
     assert!(!faces.is_empty());
-
-    rec.assign_to_cache(&cache, &item, &faces)
-        .expect("cache faces");
 
     let stored = cache.get_faces(&item.id).expect("get").unwrap();
     assert_eq!(stored.len(), faces.len());
