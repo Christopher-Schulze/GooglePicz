@@ -735,9 +735,17 @@ impl Application for GooglePiczUI {
                         match result {
                             Ok(v) => *faces = v,
                             Err(e) => {
-                                let msg = format!("Failed to load faces: {}", e);
-                                self.errors.push(msg.clone());
-                                self.log_error(&msg);
+                                #[cfg(feature = "face_recognition")]
+                                {
+                                    self.errors.push(e.clone());
+                                    self.log_error(&e);
+                                }
+                                #[cfg(not(feature = "face_recognition"))]
+                                {
+                                    let msg = format!("Failed to load faces: {}", e);
+                                    self.errors.push(msg.clone());
+                                    self.log_error(&msg);
+                                }
                                 return GooglePiczUI::error_timeout();
                             }
                         }

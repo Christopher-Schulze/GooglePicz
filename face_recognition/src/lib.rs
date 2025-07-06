@@ -25,6 +25,8 @@ pub struct Face {
 pub enum FaceRecognitionError {
     #[error("Cache Error: {0}")]
     CacheError(String),
+    #[error("Cascade model not found: {0}")]
+    ModelNotFound(String),
     #[error("Other Error: {0}")]
     Other(String),
 }
@@ -62,8 +64,12 @@ impl FaceRecognizer {
         imgproc::cvt_color(&img, &mut gray, imgproc::COLOR_BGR2GRAY, 0)
             .map_err(|e| FaceRecognitionError::Other(e.to_string()))?;
 
-        let cascade_path = "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml";
-        let mut classifier = objdetect::CascadeClassifier::new(cascade_path)
+        let cascade_path = std::env::var("OPENCV_HAARCASCADE_PATH")
+            .unwrap_or_else(|_| "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml".into());
+        if !std::path::Path::new(&cascade_path).exists() {
+            return Err(FaceRecognitionError::ModelNotFound(cascade_path));
+        }
+        let mut classifier = objdetect::CascadeClassifier::new(&cascade_path)
             .map_err(|e| FaceRecognitionError::Other(e.to_string()))?;
         let mut rects = core::Vector::<core::Rect>::new();
         classifier
