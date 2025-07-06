@@ -680,6 +680,54 @@ mod tests {
         std::env::remove_var("LINUX_SIGN_KEY");
     }
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[serial]
+    fn test_create_linux_package_function_rpm() {
+        use crate::utils::{get_project_root, workspace_version};
+        std::env::set_var("MOCK_COMMANDS", "1");
+        std::env::set_var("LINUX_PACKAGE_FORMAT", "rpm");
+        let root = get_project_root();
+        let rpm_dir = root.join("target/rpmbuild/RPMS");
+        fs::create_dir_all(&rpm_dir).unwrap();
+        fs::write(rpm_dir.join("dummy.rpm"), b"test").unwrap();
+
+        let result = create_linux_package();
+        assert!(result.is_ok());
+
+        let version = workspace_version().unwrap();
+        let rpm = artifact_path(&version);
+        assert!(rpm.exists());
+        fs::remove_file(rpm).unwrap();
+
+        std::env::remove_var("MOCK_COMMANDS");
+        std::env::remove_var("LINUX_PACKAGE_FORMAT");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[serial]
+    fn test_create_linux_package_function_appimage() {
+        use crate::utils::{get_project_root, workspace_version};
+        std::env::set_var("MOCK_COMMANDS", "1");
+        std::env::set_var("LINUX_PACKAGE_FORMAT", "appimage");
+        let root = get_project_root();
+        let img_dir = root.join("target/appimage");
+        fs::create_dir_all(&img_dir).unwrap();
+        fs::write(img_dir.join("dummy.AppImage"), b"test").unwrap();
+
+        let result = create_linux_package();
+        assert!(result.is_ok());
+
+        let version = workspace_version().unwrap();
+        let img = artifact_path(&version);
+        assert!(img.exists());
+        fs::remove_file(img).unwrap();
+
+        std::env::remove_var("MOCK_COMMANDS");
+        std::env::remove_var("LINUX_PACKAGE_FORMAT");
+    }
+
     #[cfg(target_os = "windows")]
     #[test]
     #[serial]
