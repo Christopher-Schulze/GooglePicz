@@ -1,6 +1,6 @@
-use iced::widget::{button, checkbox, column, pick_list, row, text, text_input};
+use iced::widget::{button, checkbox, column, container, pick_list, row, text, text_input};
 
-use crate::{style, Message};
+use crate::{style, Icon, MaterialSymbol, Message};
 use crate::style::Palette;
 
 pub const LOG_LEVELS: [&str; 5] = ["trace", "debug", "info", "warn", "error"];
@@ -8,7 +8,8 @@ pub const LOG_LEVELS: [&str; 5] = ["trace", "debug", "info", "warn", "error"];
 pub fn dialog<'a>(ui: &crate::GooglePiczUI) -> Option<iced::Element<'a, Message>> {
     if ui.settings_open {
         Some(
-            column![
+            container(
+                column![
                 text("Settings").size(16),
                 pick_list(
                     &LOG_LEVELS[..],
@@ -43,17 +44,19 @@ pub fn dialog<'a>(ui: &crate::GooglePiczUI) -> Option<iced::Element<'a, Message>
                     .style(style::text_input())
                     .on_input(Message::SettingsCachePathChanged),
                 row![
-                    button("Save")
+                    button(Icon::new(MaterialSymbol::Save).color(Palette::ON_PRIMARY))
                         .style(style::button_primary())
                         .on_press(Message::SaveSettings),
-                    button("Cancel")
+                    button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_SECONDARY))
                         .style(style::button_secondary())
                         .on_press(Message::CloseSettings),
                 ]
-                .spacing(10),
+                .spacing(Palette::SPACING),
             ]
-            .spacing(10)
-            .into(),
+            .spacing(Palette::SPACING))
+                .style(style::dialog())
+                .padding(Palette::SPACING)
+                .into(),
         )
     } else {
         None
