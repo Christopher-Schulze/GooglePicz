@@ -11,6 +11,7 @@ The application reads `AppConfig` from `~/.googlepicz/config`. Available keys ar
 | `log_level` | `String` | `"info"` | Verbosity of application logging. |
 | `oauth_redirect_port` | `u16` | `8080` | Port used during the OAuth flow. |
 | `thumbnails_preload` | `usize` | `20` | Number of thumbnails to preload. |
+| `preload_threads` | `usize` | `4` | Number of worker threads for preloading thumbnails. |
 | `sync_interval_minutes` | `u64` | `5` | Minutes between automatic sync runs. |
 | `cache_path` | `String` | `"~/.googlepicz"` | Location for cache and logs. |
 | `debug_console` | `bool` | `false` | Enable the Tokio console subscriber. |
@@ -24,6 +25,7 @@ Create `~/.googlepicz/config` and adjust the values as needed:
 log_level = "debug"
 oauth_redirect_port = 9000
 thumbnails_preload = 30
+preload_threads = 4
 sync_interval_minutes = 15
 cache_path = "/tmp/googlepicz"
 debug_console = false
