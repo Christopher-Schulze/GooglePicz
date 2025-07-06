@@ -36,6 +36,7 @@ pub struct Syncer {
 struct SyncState {
     page_token: Option<String>,
     total_synced: u64,
+    last_success: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone)]
@@ -358,8 +359,11 @@ impl Syncer {
             }
         }
         Self::forward(&ui_progress, SyncProgress::Finished(total_synced));
-        if let Err(e) = std::fs::remove_file(&self.state_path) {
-            tracing::warn!(error = ?e, "Failed to remove state file");
+        state.page_token = None;
+        state.total_synced = total_synced;
+        state.last_success = Some(Utc::now());
+        if let Err(e) = self.save_state(&state) {
+            tracing::warn!(error = ?e, "Failed to update state file");
         }
         self.cache_manager
             .update_last_sync_async(Utc::now())
@@ -411,16 +415,13 @@ impl Syncer {
             let mut backoff = 1u64;
             let mut failures: u32 = 0;
             const MAX_FAILURES: u32 = 5;
-            let mut last_success = match syncer.cache_manager.get_last_sync_async().await {
-                Ok(ts) => ts,
-                Err(e) => {
-                    let msg = format!("Failed to get last sync time: {}", e);
-                    tracing::error!(error = ?e, "{}", msg);
-                    if let Err(send_err) = error_tx.send(SyncTaskError::Other { code: SyncErrorCode::Cache, message: msg.clone() }) {
-                        tracing::error!(error = ?send_err, "Failed to forward error");
-                    }
-                    Self::forward(&ui_error_tx, SyncTaskError::Other { code: SyncErrorCode::Cache, message: msg.clone() });
-                    DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH)
+            let mut state = syncer.load_state().unwrap_or_default();
+            let mut last_success = if let Some(ts) = state.last_success {
+                ts
+            } else {
+                match syncer.cache_manager.get_last_sync_async().await {
+                    Ok(ts) => ts,
+                    Err(_) => DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH),
                 }
             };
             loop {
@@ -515,6 +516,8 @@ impl Syncer {
                             }
                         } else {
                             last_success = Utc::now();
+                            state.last_success = Some(last_success);
+                            let _ = syncer.save_state(&state);
                             backoff = 1;
                             failures = 0;
                             if let Some(tx) = &sync_status_tx {

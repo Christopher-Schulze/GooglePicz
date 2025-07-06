@@ -11,6 +11,12 @@ use tracing::{error, info};
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use tracing_subscriber::EnvFilter;
+#[derive(serde::Deserialize)]
+struct PrevSyncState {
+    page_token: Option<String>,
+    total_synced: u64,
+    last_success: Option<chrono::DateTime<chrono::Utc>>,
+}
 #[cfg(feature = "tokio-console")]
 use console_subscriber;
 use ui;
@@ -104,6 +110,19 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
     let cache_dir = cfg.cache_path.clone();
 
     let db_path = cache_dir.join("cache.sqlite");
+
+    let state_path = db_path.with_extension("state.json");
+    if let Ok(data) = fs::read_to_string(&state_path).await {
+        if let Ok(state) = serde_json::from_str::<PrevSyncState>(&data) {
+            if state.page_token.is_some() {
+                let last = state
+                    .last_success
+                    .map(|d| d.to_rfc3339())
+                    .unwrap_or_else(|| "unknown".into());
+                info!("⚠️ Previous sync interrupted after {} items. Last success at {}", state.total_synced, last);
+            }
+        }
+    }
 
     // Ensure the directory exists
     if let Some(parent) = db_path.parent() {
