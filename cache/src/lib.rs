@@ -249,30 +249,100 @@ impl CacheManager {
             .map_err(|e| CacheError::SerializationError(e.to_string()))?;
 
         let conn = self.lock_conn()?;
-        conn
-            .execute(
+        let mut item_stmt = conn
+            .prepare_cached(
                 "INSERT OR REPLACE INTO media_items (
                     id, description, product_url, base_url, mime_type, filename
                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        item_stmt
+            .execute(params![
+                item.id,
+                item.description,
+                item.product_url,
+                item.base_url,
+                item.mime_type,
+                item.filename
+            ])
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to insert media item: {}", e))
+            })?;
+
+        let mut meta_stmt = conn
+            .prepare_cached(
+                "INSERT OR REPLACE INTO media_metadata (
+                    media_item_id, creation_time, width, height, camera_make, camera_model, fps, status
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        meta_stmt
+            .execute(params![
+                item.id,
+                creation_ts,
+                width,
+                height,
+                item.media_metadata.video.as_ref().and_then(|v| v.camera_make.clone()),
+                item.media_metadata.video.as_ref().and_then(|v| v.camera_model.clone()),
+                item.media_metadata.video.as_ref().and_then(|v| v.fps),
+                item.media_metadata.video.as_ref().and_then(|v| v.status.clone()),
+            ])
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to insert metadata: {}", e)))?;
+
+        Ok(())
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, items)))]
+    pub fn insert_media_items_batch(&self, items: &[api_client::MediaItem]) -> Result<(), CacheError> {
+        let mut conn = self.lock_conn()?;
+        let tx = conn
+            .transaction()
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to start transaction: {}", e)))?;
+
+        let mut item_stmt = tx
+            .prepare_cached(
+                "INSERT OR REPLACE INTO media_items (
+                    id, description, product_url, base_url, mime_type, filename
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        let mut meta_stmt = tx
+            .prepare_cached(
+                "INSERT OR REPLACE INTO media_metadata (
+                    media_item_id, creation_time, width, height, camera_make, camera_model, fps, status
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+
+        for item in items {
+            let creation_ts = DateTime::parse_from_rfc3339(&item.media_metadata.creation_time)
+                .map_err(|e| CacheError::SerializationError(e.to_string()))?
+                .timestamp();
+            let width: i64 = item
+                .media_metadata
+                .width
+                .parse::<i64>()
+                .map_err(|e| CacheError::SerializationError(e.to_string()))?;
+            let height: i64 = item
+                .media_metadata
+                .height
+                .parse::<i64>()
+                .map_err(|e| CacheError::SerializationError(e.to_string()))?;
+
+            item_stmt
+                .execute(params![
                     item.id,
                     item.description,
                     item.product_url,
                     item.base_url,
                     item.mime_type,
                     item.filename
-                ],
-            )
-            .map_err(|e| {
-                CacheError::DatabaseError(format!("Failed to insert media item: {}", e))
-            })?;
+                ])
+                .map_err(|e| CacheError::DatabaseError(format!("Failed to insert media item: {}", e)))?;
 
-        conn
-            .execute(
-                "INSERT OR REPLACE INTO media_metadata (
-                    media_item_id, creation_time, width, height, camera_make, camera_model, fps, status
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![
+            meta_stmt
+                .execute(params![
                     item.id,
                     creation_ts,
                     width,
@@ -281,10 +351,13 @@ impl CacheManager {
                     item.media_metadata.video.as_ref().and_then(|v| v.camera_model.clone()),
                     item.media_metadata.video.as_ref().and_then(|v| v.fps),
                     item.media_metadata.video.as_ref().and_then(|v| v.status.clone()),
-                ],
-            )
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to insert metadata: {}", e)))?;
+                ])
+                .map_err(|e| CacheError::DatabaseError(format!("Failed to insert metadata: {}", e)))?;
+        }
 
+        tx.commit()
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to commit transaction: {}", e)))?
+        ;
         Ok(())
     }
 
@@ -871,22 +944,23 @@ impl CacheManager {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, album)))]
     pub fn insert_album(&self, album: &api_client::Album) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
-        conn
-            .execute(
+        let mut stmt = conn
+            .prepare_cached(
                 "INSERT OR REPLACE INTO albums (
                     id, title, product_url, is_writeable, media_items_count, cover_photo_base_url, cover_photo_media_item_id
                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![
-                    album.id,
-                    album.title,
-                    album.product_url,
-                    album.is_writeable.map(|b| if b { 1 } else { 0 }),
-                    album.media_items_count,
-                    album.cover_photo_base_url,
-                    album.cover_photo_media_item_id
-                ],
             )
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to insert album: {}", e)))?;
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute(params![
+            album.id,
+            album.title,
+            album.product_url,
+            album.is_writeable.map(|b| if b { 1 } else { 0 }),
+            album.media_items_count,
+            album.cover_photo_base_url,
+            album.cover_photo_media_item_id
+        ])
+        .map_err(|e| CacheError::DatabaseError(format!("Failed to insert album: {}", e)))?;
 
         Ok(())
     }
@@ -894,8 +968,10 @@ impl CacheManager {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn delete_album(&self, album_id: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
-        conn
-            .execute("DELETE FROM albums WHERE id = ?1", params![album_id])
+        let mut stmt = conn
+            .prepare_cached("DELETE FROM albums WHERE id = ?1")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute(params![album_id])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to delete album: {}", e)))?;
         Ok(())
     }
@@ -903,11 +979,10 @@ impl CacheManager {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn rename_album(&self, album_id: &str, new_title: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
-        conn
-            .execute(
-                "UPDATE albums SET title = ?1 WHERE id = ?2",
-                params![new_title, album_id],
-            )
+        let mut stmt = conn
+            .prepare_cached("UPDATE albums SET title = ?1 WHERE id = ?2")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute(params![new_title, album_id])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to rename album: {}", e)))?;
         Ok(())
     }
@@ -947,11 +1022,12 @@ impl CacheManager {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn associate_media_item_with_album(&self, media_item_id: &str, album_id: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
-        conn
-            .execute(
+        let mut stmt = conn
+            .prepare_cached(
                 "INSERT OR REPLACE INTO album_media_items (album_id, media_item_id) VALUES (?1, ?2)",
-                params![album_id, media_item_id],
             )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute(params![album_id, media_item_id])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to associate media item with album: {}", e)))?;
         Ok(())
     }
@@ -959,14 +1035,13 @@ impl CacheManager {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn remove_media_item_from_album(&self, media_item_id: &str, album_id: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
-        conn
-            .execute(
+        let mut stmt = conn
+            .prepare_cached(
                 "DELETE FROM album_media_items WHERE album_id = ?1 AND media_item_id = ?2",
-                params![album_id, media_item_id],
             )
-            .map_err(|e| {
-                CacheError::DatabaseError(format!("Failed to remove media item from album: {}", e))
-            })?;
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute(params![album_id, media_item_id])
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to remove media item from album: {}", e)))?;
         Ok(())
     }
 
@@ -1070,8 +1145,10 @@ impl CacheManager {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn delete_media_item(&self, id: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
-        conn
-            .execute("DELETE FROM media_items WHERE id = ?1", params![id])
+        let mut stmt = conn
+            .prepare_cached("DELETE FROM media_items WHERE id = ?1")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute(params![id])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to delete media item: {}", e)))?;
         Ok(())
     }
@@ -1079,11 +1156,10 @@ impl CacheManager {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn set_favorite(&self, id: &str, fav: bool) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
-        conn
-            .execute(
-                "UPDATE media_items SET is_favorite = ?1 WHERE id = ?2",
-                params![if fav { 1 } else { 0 }, id],
-            )
+        let mut stmt = conn
+            .prepare_cached("UPDATE media_items SET is_favorite = ?1 WHERE id = ?2")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute(params![if fav { 1 } else { 0 }, id])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to update favorite: {}", e)))?;
         Ok(())
     }
@@ -1091,23 +1167,30 @@ impl CacheManager {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn clear_cache(&self) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
-        conn
-            .execute("DELETE FROM album_media_items", [])
+        let mut stmt = conn
+            .prepare_cached("DELETE FROM album_media_items")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute([])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear album_media_items: {}", e)))?;
-        conn
-            .execute("DELETE FROM albums", [])
+        let mut stmt = conn
+            .prepare_cached("DELETE FROM albums")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute([])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear albums: {}", e)))?;
-        conn
-            .execute("DELETE FROM media_metadata", [])
+        let mut stmt = conn
+            .prepare_cached("DELETE FROM media_metadata")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute([])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear media_metadata: {}", e)))?;
-        conn
-            .execute("DELETE FROM media_items", [])
+        let mut stmt = conn
+            .prepare_cached("DELETE FROM media_items")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute([])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to clear cache: {}", e)))?;
-        conn
-            .execute(
-                "UPDATE last_sync SET timestamp = '1970-01-01T00:00:00Z' WHERE id = 1",
-                [],
-            )
+        let mut stmt = conn
+            .prepare_cached("UPDATE last_sync SET timestamp = '1970-01-01T00:00:00Z' WHERE id = 1")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute([])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to reset last_sync: {}", e)))?;
         Ok(())
     }
@@ -1129,11 +1212,10 @@ impl CacheManager {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn update_last_sync(&self, ts: DateTime<Utc>) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
-        conn
-            .execute(
-                "UPDATE last_sync SET timestamp = ?1 WHERE id = 1",
-                params![ts.to_rfc3339()],
-            )
+        let mut stmt = conn
+            .prepare_cached("UPDATE last_sync SET timestamp = ?1 WHERE id = 1")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute(params![ts.to_rfc3339()])
             .map_err(|e| CacheError::DatabaseError(format!("Failed to update last sync: {}", e)))?;
         Ok(())
     }
@@ -1207,11 +1289,11 @@ impl CacheManager {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn insert_faces(&self, media_item_id: &str, faces_json: &str) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
-        conn.execute(
-            "INSERT OR REPLACE INTO faces (media_item_id, faces_json) VALUES (?1, ?2)",
-            params![media_item_id, faces_json],
-        )
-        .map_err(|e| CacheError::DatabaseError(format!("Failed to insert faces: {}", e)))?;
+        let mut stmt = conn
+            .prepare_cached("INSERT OR REPLACE INTO faces (media_item_id, faces_json) VALUES (?1, ?2)")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        stmt.execute(params![media_item_id, faces_json])
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to insert faces: {}", e)))?;
         Ok(())
     }
 
@@ -1251,6 +1333,14 @@ impl CacheManager {
     pub async fn insert_media_item_async(&self, item: api_client::MediaItem) -> Result<(), CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.insert_media_item(&item))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, items)))]
+    pub async fn insert_media_items_batch_async(&self, items: Vec<api_client::MediaItem>) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.insert_media_items_batch(&items))
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
