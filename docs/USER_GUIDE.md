@@ -15,6 +15,7 @@ The application reads `AppConfig` from `~/.googlepicz/config`. Available keys ar
 | `cache_path` | `String` | `"~/.googlepicz"` | Location for cache and logs. |
 | `debug_console` | `bool` | `false` | Enable the Tokio console subscriber. |
 | `trace_spans` | `bool` | `false` | Record tracing spans when built with the `trace-spans` features. |
+| `detect_faces` | `bool` | `false` | Run face detection after downloads when built with `sync/face-recognition`. |
 
 ### Example Config
 Create `~/.googlepicz/config` and adjust the values as needed:
@@ -27,6 +28,7 @@ sync_interval_minutes = 15
 cache_path = "/tmp/googlepicz"
 debug_console = false
 trace_spans = false
+detect_faces = false
 ```
 
 ### Environment Variables

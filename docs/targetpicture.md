@@ -52,6 +52,6 @@ The project is structured as a Rust workspace with the following modules (crates
 ## Configuration Highlights
 The application reads `AppConfig` from `~/.googlepicz/config`. Important options
 include `cache_path` for the data directory, `debug_console` to enable Tokio's
-console subscriber and `trace_spans` for detailed profiling. OAuth tokens can be
+console subscriber, `trace_spans` for detailed profiling and `detect_faces` to run face detection. OAuth tokens can be
 stored in the file system by compiling with the `auth/file-store` feature and
 starting the tools with `--use-file-store` or `USE_FILE_STORE=1`.

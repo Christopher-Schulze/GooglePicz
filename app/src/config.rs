@@ -10,6 +10,7 @@ pub struct AppConfig {
     pub sync_interval_minutes: u64,
     pub debug_console: bool,
     pub trace_spans: bool,
+    pub detect_faces: bool,
     pub cache_path: PathBuf,
 }
 
@@ -21,6 +22,7 @@ pub struct AppConfigOverrides {
     pub sync_interval_minutes: Option<u64>,
     pub debug_console: bool,
     pub trace_spans: bool,
+    pub detect_faces: bool,
 }
 
 impl AppConfig {
@@ -45,6 +47,7 @@ impl AppConfig {
         let sync_interval_minutes = cfg.get_int("sync_interval_minutes").unwrap_or(5) as u64;
         let debug_console = cfg.get_bool("debug_console").unwrap_or(false);
         let trace_spans = cfg.get_bool("trace_spans").unwrap_or(false);
+        let detect_faces = cfg.get_bool("detect_faces").unwrap_or(false);
         let cache_path = cfg
             .get_string("cache_path")
             .map(PathBuf::from)
@@ -62,6 +65,7 @@ impl AppConfig {
             sync_interval_minutes,
             debug_console,
             trace_spans,
+            detect_faces,
             cache_path,
         }
     }
@@ -87,6 +91,9 @@ impl AppConfig {
         }
         if ov.trace_spans {
             self.trace_spans = true;
+        }
+        if ov.detect_faces {
+            self.detect_faces = true;
         }
         self
     }

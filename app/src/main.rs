@@ -43,6 +43,9 @@ struct Cli {
     /// Enable tracing spans instrumentation
     #[arg(long)]
     trace_spans: bool,
+    /// Detect faces after downloading images
+    #[arg(long)]
+    detect_faces: bool,
 }
 
 #[cfg_attr(feature = "trace-spans", tracing::instrument)]
@@ -57,6 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sync_interval_minutes: cli.sync_interval_minutes,
         debug_console: cli.debug_console,
         trace_spans: cli.trace_spans,
+        detect_faces: cli.detect_faces,
     };
     let cfg = config::AppConfig::load_from(cli.config.clone()).apply_overrides(&overrides);
     let log_dir = cfg.cache_path.clone();
@@ -141,6 +145,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
     info!("🔄 Initializing synchronization...");
     match Syncer::new(&db_path).await {
         Ok(mut syncer) => {
+            syncer.set_face_detection(cfg.detect_faces);
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             let (err_tx, err_rx) = tokio::sync::mpsc::unbounded_channel::<SyncTaskError>();
             let preload = cfg.thumbnails_preload;

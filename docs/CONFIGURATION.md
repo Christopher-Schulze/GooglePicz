@@ -12,6 +12,7 @@ Values can be placed in `~/.googlepicz/config` and are loaded via the [config](h
 | `cache_path` | `String` | `"~/.googlepicz"` | Directory where cache and logs are stored. |
 | `debug_console` | `bool` | `false` | Enable the tokio console subscriber for debugging asynchronous tasks. |
 | `trace_spans` | `bool` | `false` | Record detailed tracing spans when compiled with the `trace-spans` features. |
+| `detect_faces` | `bool` | `false` | Run face detection after downloading images when built with `sync/face-recognition`. |
 
 Create or edit `~/.googlepicz/config` and provide any of these keys to customize the application. Setting `debug_console = true` turns on Tokio's debugging console.
 
