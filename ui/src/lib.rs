@@ -1337,7 +1337,8 @@ impl Application for GooglePiczUI {
             text_input("To", &self.search_end)
                 .style(style::text_input_basic())
                 .on_input(Message::SearchEndChanged),
-            checkbox("Fav", self.search_favorite, Message::SearchFavoriteToggled),
+            checkbox("Fav", self.search_favorite, Message::SearchFavoriteToggled)
+                .style(style::checkbox_primary()),
             pick_list(
                 &SearchMode::ALL[..],
                 Some(self.search_mode),
@@ -1504,12 +1505,14 @@ impl Application for GooglePiczUI {
                         "Debug console",
                         self.settings_debug_console,
                         Message::SettingsDebugConsoleToggled,
-                    ),
+                    )
+                    .style(style::checkbox_primary()),
                     checkbox(
                         "Trace spans",
                         self.settings_trace_spans,
                         Message::SettingsTraceSpansToggled,
-                    ),
+                    )
+                    .style(style::checkbox_primary()),
                     text_input("Cache path", &self.settings_cache_path)
                         .style(style::text_input_basic())
                         .on_input(Message::SettingsCachePathChanged),
