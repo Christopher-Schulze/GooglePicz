@@ -1124,6 +1124,9 @@ impl Application for GooglePiczUI {
                 if self.deleting_album.is_some() {
                     return self.update(Message::CancelDeleteAlbum);
                 }
+                if self.editing_face.is_some() {
+                    return self.update(Message::CancelFaceName);
+                }
                 if let ViewState::SelectedPhoto { .. } = &self.state {
                     self.state = ViewState::Grid;
                 }

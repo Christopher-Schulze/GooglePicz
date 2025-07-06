@@ -281,7 +281,7 @@ impl Syncer {
                         let rec = face_recognition::FaceRecognizer::new();
                         #[cfg(feature = "face_recognition/cache")]
                         {
-                            if let Err(e) = rec.detect_and_cache_faces(&cache, &item_clone) {
+                            if let Err(e) = rec.detect_and_cache_faces(&cache, &item_clone, true) {
                                 if let Some(tx) = &ui_err {
                                     let _ = tx.send(SyncTaskError::Other {
                                         code: SyncErrorCode::Other,
