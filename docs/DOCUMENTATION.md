@@ -258,6 +258,10 @@ After five consecutive failures the task emits `SyncTaskError::Aborted` and
 terminates. The join handle now resolves to `Result<(), SyncTaskError>` so callers
 can check why the loop ended.
 
+A dedicated status channel (`mpsc::UnboundedSender<SyncTaskError>`) can be passed
+to `start_periodic_sync` so the UI receives `RestartAttempt`, `Aborted` and other
+`SyncTaskError` variants reliably.
+
 `start_token_refresh_task` behaves the same but only refreshes the OAuth token.
 
 | Variant | Meaning |

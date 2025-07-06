@@ -100,12 +100,13 @@ fn error_container_style() -> iced::theme::Container {
 pub fn run(
     progress: Option<mpsc::UnboundedReceiver<SyncProgress>>,
     errors: Option<mpsc::UnboundedReceiver<SyncTaskError>>,
+    status: Option<mpsc::UnboundedReceiver<SyncTaskError>>,
     preload: usize,
     preload_threads: usize,
     cache_dir: PathBuf,
 ) -> iced::Result {
     use std::borrow::Cow;
-    let mut settings = Settings::with_flags((progress, errors, preload, preload_threads, cache_dir));
+    let mut settings = Settings::with_flags((progress, errors, status, preload, preload_threads, cache_dir));
     settings.fonts.push(Cow::Borrowed(google_material_symbols::FONT_BYTES));
     GooglePiczUI::run(settings)
 }
@@ -264,6 +265,7 @@ pub struct GooglePiczUI {
     full_images: std::collections::HashMap<String, Handle>,
     progress_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<SyncProgress>>>>,
     error_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<SyncTaskError>>>>,
+    status_receiver: Option<Arc<Mutex<mpsc::UnboundedReceiver<SyncTaskError>>>>,
     synced: u64,
     syncing: bool,
     last_synced: Option<DateTime<Utc>>,
@@ -426,6 +428,7 @@ impl Application for GooglePiczUI {
     type Flags = (
         Option<mpsc::UnboundedReceiver<SyncProgress>>,
         Option<mpsc::UnboundedReceiver<SyncTaskError>>,
+        Option<mpsc::UnboundedReceiver<SyncTaskError>>,
         usize,
         usize,
         PathBuf,
@@ -433,7 +436,7 @@ impl Application for GooglePiczUI {
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(flags)))]
     fn new(flags: Self::Flags) -> (Self, Command<Message>) {
-        let (progress_flag, error_flag, preload_count, preload_threads, cache_dir) = flags;
+        let (progress_flag, error_flag, status_flag, preload_count, preload_threads, cache_dir) = flags;
         let mut init_errors = Vec::new();
         let error_log_path = cache_dir.join("ui_errors.log");
         let cache_path = cache_dir.join("cache.sqlite");
@@ -489,6 +492,7 @@ impl Application for GooglePiczUI {
 
         let progress_receiver = progress_flag.map(|rx| Arc::new(Mutex::new(rx)));
         let error_receiver = error_flag.map(|rx| Arc::new(Mutex::new(rx)));
+        let status_receiver = status_flag.map(|rx| Arc::new(Mutex::new(rx)));
 
         let status = match last_synced {
             Some(ts) => format!("Last synced {}", ts.to_rfc3339()),
@@ -506,6 +510,7 @@ impl Application for GooglePiczUI {
             full_images: std::collections::HashMap::new(),
             progress_receiver,
             error_receiver,
+            status_receiver,
             synced: 0,
             syncing: false,
             last_synced,
@@ -1285,6 +1290,22 @@ impl Application for GooglePiczUI {
         if let Some(error_rx) = &self.error_receiver {
             let error_rx = error_rx.clone();
             subs.push(subscription::unfold("errors", error_rx, |rx| async move {
+                let mut lock = rx.lock().await;
+                let msg = match lock.recv().await {
+                    Some(SyncTaskError::Status { last_synced, message }) => {
+                        Message::SyncStatusUpdated(last_synced, message)
+                    }
+                    Some(e) => Message::SyncError(e),
+                    None => Message::SyncProgress(SyncProgress::Finished(0)),
+                };
+                drop(lock);
+                (msg, rx)
+            }));
+        }
+
+        if let Some(status_rx) = &self.status_receiver {
+            let status_rx = status_rx.clone();
+            subs.push(subscription::unfold("status", status_rx, |rx| async move {
                 let mut lock = rx.lock().await;
                 let msg = match lock.recv().await {
                     Some(SyncTaskError::Status { last_synced, message }) => {

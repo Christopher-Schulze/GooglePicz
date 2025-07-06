@@ -378,7 +378,7 @@ impl Syncer {
         interval: Duration,
         progress_tx: mpsc::UnboundedSender<SyncProgress>,
         error_tx: mpsc::UnboundedSender<SyncTaskError>,
-        status_tx: Option<mpsc::UnboundedSender<u32>>,
+        status_tx: Option<mpsc::UnboundedSender<SyncTaskError>>,
         ui_progress_tx: Option<mpsc::UnboundedSender<SyncProgress>>,
         ui_error_tx: Option<mpsc::UnboundedSender<SyncTaskError>>,
     ) -> (JoinHandle<Result<(), SyncTaskError>>, oneshot::Sender<()>) {
@@ -454,7 +454,7 @@ impl Syncer {
                             }
                             failures += 1;
                             if let Some(tx) = &status_tx {
-                                let _ = tx.send(failures);
+                                let _ = tx.send(SyncTaskError::RestartAttempt(failures));
                             }
                             let wait = backoff.min(300);
                             if let Err(send_err) = error_tx.send(SyncTaskError::RestartAttempt(failures)) {
@@ -478,9 +478,13 @@ impl Syncer {
                             if failures >= MAX_FAILURES {
                                 let abort_msg = format!("periodic sync aborted after {} failures", failures);
                                 tracing::error!("{}", abort_msg);
-                                let _ = error_tx.send(SyncTaskError::Aborted(abort_msg.clone()));
-                                Self::forward(&ui_error_tx, SyncTaskError::Aborted(abort_msg.clone()));
-                                return Err(SyncTaskError::Aborted(abort_msg));
+                                let abort_err = SyncTaskError::Aborted(abort_msg.clone());
+                                let _ = error_tx.send(abort_err.clone());
+                                Self::forward(&ui_error_tx, abort_err.clone());
+                                if let Some(tx) = &status_tx {
+                                    let _ = tx.send(abort_err.clone());
+                                }
+                                return Err(abort_err);
                             }
                             sleep(Duration::from_secs(wait)).await;
                         } else {
@@ -488,7 +492,10 @@ impl Syncer {
                             backoff = 1;
                             failures = 0;
                             if let Some(tx) = &status_tx {
-                                let _ = tx.send(0);
+                                let _ = tx.send(SyncTaskError::Status {
+                                    last_synced: last_success,
+                                    message: "Sync completed".into(),
+                                });
                             }
                             let status = SyncTaskError::Status {
                                 last_synced: last_success,
@@ -519,12 +526,16 @@ impl Syncer {
 
         let forward_err = error_tx.clone();
         let forward_ui_err = ui_error_tx.clone();
+        let forward_status = status_tx.clone();
         let handle = spawn_local(async move {
             match sync_task.await {
                 Ok(res) => {
                     if let Err(ref e) = res {
                         let _ = forward_err.send(e.clone());
                         Syncer::forward(&forward_ui_err, e.clone());
+                        if let Some(tx) = &forward_status {
+                            let _ = tx.send(e.clone());
+                        }
                     }
                     res
                 }
@@ -533,6 +544,9 @@ impl Syncer {
                     let err = SyncTaskError::Other { code: SyncErrorCode::Other, message: msg };
                     let _ = forward_err.send(err.clone());
                     Syncer::forward(&forward_ui_err, err.clone());
+                    if let Some(tx) = &forward_status {
+                        let _ = tx.send(err.clone());
+                    }
                     Err(err)
                 }
             }

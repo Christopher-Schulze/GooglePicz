@@ -148,6 +148,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
             syncer.set_face_detection(cfg.detect_faces);
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             let (err_tx, err_rx) = tokio::sync::mpsc::unbounded_channel::<SyncTaskError>();
+            let (status_tx, status_rx) = tokio::sync::mpsc::unbounded_channel::<SyncTaskError>();
             let preload = cfg.thumbnails_preload;
 
             let interval = Duration::from_secs(cfg.sync_interval_minutes * 60);
@@ -174,7 +175,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                     interval,
                     tx.clone(),
                     err_tx.clone(),
-                    None,
+                    Some(status_tx.clone()),
                     Some(tx.clone()),
                     Some(err_tx.clone()),
                 )
@@ -184,7 +185,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                     interval,
                     tx.clone(),
                     err_tx.clone(),
-                    None,
+                    Some(status_tx.clone()),
                     Some(tx.clone()),
                     Some(err_tx.clone()),
                 )
@@ -199,7 +200,14 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
 
 
             let ui_thread = std::thread::spawn(move || {
-                if let Err(e) = ui::run(Some(rx), Some(err_rx), preload, cfg.preload_threads, cache_dir) {
+                if let Err(e) = ui::run(
+                    Some(rx),
+                    Some(err_rx),
+                    Some(status_rx),
+                    preload,
+                    cfg.preload_threads,
+                    cache_dir,
+                ) {
                     error!("UI error: {}", e);
                 }
             });
@@ -215,7 +223,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
         Err(e) => {
             error!("❌ Failed to initialize syncer: {}", e);
             error!("💡 The UI will still start, but photos may not be available until sync is working.");
-            ui::run(None, None, cfg.thumbnails_preload, cfg.preload_threads, cfg.cache_path.clone())?;
+            ui::run(None, None, None, cfg.thumbnails_preload, cfg.preload_threads, cfg.cache_path.clone())?;
         }
     }
 
