@@ -56,3 +56,17 @@ fn sync_cli_cache_stats_no_cache() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[test]
+fn sync_cli_search_no_cache() -> Result<(), Box<dyn std::error::Error>> {
+    let tmp_home = TempDir::new()?;
+    let mut cmd = Command::cargo_bin("sync_cli")?;
+    cmd.args(["search", "test"]);
+    cmd.env("MOCK_API_CLIENT", "1");
+    cmd.env("MOCK_KEYRING", "1");
+    cmd.env("HOME", tmp_home.path());
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("No cache found"));
+    Ok(())
+}
+
