@@ -212,19 +212,20 @@ fn create_macos_installer() -> Result<(), PackagingError> {
 
     tracing::info!("Signing macOS app...");
     let identity = std::env::var("MAC_SIGN_ID").unwrap_or_default();
-    let app_path = "target/release/bundle/osx/GooglePicz.app";
+    let root = get_project_root();
+    let app_path = root.join("target/release/bundle/osx/GooglePicz.app");
     if !identity.is_empty() {
         run_command(
             "codesign",
-            &["--deep", "--force", "-s", &identity, app_path],
+            &["--deep", "--force", "-s", &identity, app_path.to_str().unwrap()],
         )?;
         run_command(
             "codesign",
-            &["--verify", "--deep", "--strict", app_path],
+            &["--verify", "--deep", "--strict", app_path.to_str().unwrap()],
         )?;
     }
 
-    let dmg_path = "target/release/GooglePicz.dmg";
+    let dmg_path = root.join("target/release/GooglePicz.dmg");
     run_command(
         "hdiutil",
         &[
@@ -232,16 +233,16 @@ fn create_macos_installer() -> Result<(), PackagingError> {
             "-volname",
             "GooglePicz",
             "-srcfolder",
-            app_path,
+            app_path.to_str().unwrap(),
             "-ov",
             "-format",
             "UDZO",
-            dmg_path,
+            dmg_path.to_str().unwrap(),
         ],
     )?;
     if !identity.is_empty() {
-        run_command("codesign", &["--force", "-s", &identity, dmg_path])?;
-        run_command("codesign", &["--verify", dmg_path])?;
+        run_command("codesign", &["--force", "-s", &identity, dmg_path.to_str().unwrap()])?;
+        run_command("codesign", &["--verify", dmg_path.to_str().unwrap()])?;
     }
 
     if let Ok(apple_id) = std::env::var("APPLE_ID") {
@@ -251,7 +252,7 @@ fn create_macos_installer() -> Result<(), PackagingError> {
             &[
                 "notarytool",
                 "submit",
-                dmg_path,
+                dmg_path.to_str().unwrap(),
                 "--apple-id",
                 &apple_id,
                 "--password",
@@ -259,14 +260,18 @@ fn create_macos_installer() -> Result<(), PackagingError> {
                 "--wait",
             ],
         )?;
-        run_command("xcrun", &["stapler", "staple", dmg_path])?;
-        run_command("xcrun", &["stapler", "validate", dmg_path])?;
+        let dmg_str = dmg_path.to_str().unwrap();
+        run_command("xcrun", &["stapler", "staple", dmg_str])?;
+        run_command("xcrun", &["stapler", "validate", dmg_str])?;
     }
 
     let version = workspace_version()?;
     let versioned = artifact_path(&version);
-    fs::rename(dmg_path, &versioned)
-        .map_err(|e| PackagingError::Other(format!("Failed to rename dmg: {}", e)))?;
+    fs::rename(&dmg_path, &versioned)
+        .map_err(|e| PackagingError::Other(format!(
+            "Failed to move {:?} to {:?}: {}",
+            dmg_path, versioned, e
+        )))?;
 
     Ok(())
 }
@@ -274,7 +279,8 @@ fn create_macos_installer() -> Result<(), PackagingError> {
 #[cfg_attr(feature = "trace-spans", tracing::instrument)]
 fn create_windows_installer() -> Result<(), PackagingError> {
     tracing::info!("Creating Windows installer...");
-    let release_exe = "target\\release\\googlepicz.exe";
+    let root = get_project_root();
+    let release_exe = root.join("target").join("release").join("googlepicz.exe");
 
     // Determine the version from the workspace Cargo.toml
     let version = workspace_version()?;
@@ -297,11 +303,15 @@ fn create_windows_installer() -> Result<(), PackagingError> {
         ],
     )?;
 
-    let exe_path = format!("target/windows/GooglePicz-{}-Setup.exe", version);
+    let exe_path = root
+        .join("target/windows")
+        .join(format!("GooglePicz-{}-Setup.exe", version));
     if let Ok(cert_path) = std::env::var("WINDOWS_CERT") {
         if !cert_path.is_empty() {
             let password = std::env::var("WINDOWS_CERT_PASSWORD").unwrap_or_default();
-            let targets = [release_exe, exe_path.as_str()];
+            let exe_path_str = exe_path.to_str().unwrap();
+            let release_exe_str = release_exe.to_str().unwrap();
+            let targets = [release_exe_str, exe_path_str];
             for target in &targets {
                 run_command(
                     "signtool",
@@ -317,17 +327,20 @@ fn create_windows_installer() -> Result<(), PackagingError> {
                         "http://timestamp.digicert.com",
                         "/td",
                         "sha256",
-                        target,
+                        *target,
                     ],
                 )?;
-                run_command("signtool", &["verify", "/pa", target])?;
+                run_command("signtool", &["verify", "/pa", *target])?;
             }
         }
     }
 
     let final_path = artifact_path(&version);
     fs::rename(&exe_path, &final_path)
-        .map_err(|e| PackagingError::Other(format!("Failed to rename exe: {}", e)))?;
+        .map_err(|e| PackagingError::Other(format!(
+            "Failed to move {:?} to {:?}: {}",
+            exe_path, final_path, e
+        )))?;
 
     Ok(())
 }
@@ -379,7 +392,10 @@ fn create_deb_package() -> Result<(), PackagingError> {
 
     let versioned = artifact_path(&version);
     fs::rename(&deb_path, &versioned)
-        .map_err(|e| PackagingError::Other(format!("Failed to rename .deb: {}", e)))?;
+        .map_err(|e| PackagingError::Other(format!(
+            "Failed to move {:?} to {:?}: {}",
+            deb_path, versioned, e
+        )))?;
 
     Ok(())
 }
@@ -400,7 +416,10 @@ fn create_rpm_package() -> Result<(), PackagingError> {
 
     let versioned = artifact_path(&version);
     fs::rename(&rpm_path, &versioned)
-        .map_err(|e| PackagingError::Other(format!("Failed to rename .rpm: {}", e)))?;
+        .map_err(|e| PackagingError::Other(format!(
+            "Failed to move {:?} to {:?}: {}",
+            rpm_path, versioned, e
+        )))?;
     Ok(())
 }
 
@@ -420,7 +439,10 @@ fn create_appimage_package() -> Result<(), PackagingError> {
 
     let versioned = artifact_path(&version);
     fs::rename(&app_path, &versioned)
-        .map_err(|e| PackagingError::Other(format!("Failed to rename AppImage: {}", e)))?;
+        .map_err(|e| PackagingError::Other(format!(
+            "Failed to move {:?} to {:?}: {}",
+            app_path, versioned, e
+        )))?;
     Ok(())
 }
 
