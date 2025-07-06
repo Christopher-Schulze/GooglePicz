@@ -910,8 +910,12 @@ impl Application for GooglePiczUI {
             },
             Message::SyncStatusUpdated(ts, message) => {
                 self.last_synced = Some(ts);
-                self.sync_status = message;
-                self.syncing = false;
+                self.sync_status = message.clone();
+                if message.contains("Sync started") || message.contains("Syncing") {
+                    self.syncing = true;
+                } else if message.contains("Sync completed") {
+                    self.syncing = false;
+                }
             },
             Message::SyncError(err_msg) => {
                 match err_msg {
