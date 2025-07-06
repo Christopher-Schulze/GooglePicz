@@ -18,7 +18,8 @@ mod config;
     name = "sync_cli",
     author,
     version,
-    about = "GooglePicz synchronization CLI"
+    about = "GooglePicz synchronization CLI",
+    after_help = "EXAMPLES:\n  sync_cli export-faces --file faces.json\n  sync_cli import-faces --file faces.json\n  sync_cli set-favorite <ID> true"
 )]
 struct Cli {
     /// Override log level (e.g. info, debug)
@@ -116,11 +117,30 @@ enum Commands {
         #[arg(long)]
         file: PathBuf,
     },
+    /// Export all detected faces to a JSON file
+    ExportFaces {
+        /// Path to the export file
+        #[arg(long)]
+        file: PathBuf,
+    },
     /// Import media items from a JSON file
     ImportItems {
         /// Path to the JSON file
         #[arg(long)]
         file: PathBuf,
+    },
+    /// Import faces from a JSON file
+    ImportFaces {
+        /// Path to the JSON file
+        #[arg(long)]
+        file: PathBuf,
+    },
+    /// Mark or unmark a media item as favorite
+    SetFavorite {
+        /// ID of the media item
+        id: String,
+        /// Set favorite (true/false)
+        fav: bool,
     },
     /// Search cached media items
     Search {
@@ -359,6 +379,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cache.export_albums(&file)?;
             println!("Exported albums to {:?}", file);
         }
+        Commands::ExportFaces { file } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            cache.export_faces(&file)?;
+            println!("Exported faces to {:?}", file);
+        }
         Commands::ImportItems { file } => {
             if !db_path.exists() {
                 std::fs::create_dir_all(&base_dir)?;
@@ -366,6 +395,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cache = CacheManager::new(&db_path)?;
             cache.import_media_items(&file)?;
             println!("Imported from {:?}", file);
+        }
+        Commands::ImportFaces { file } => {
+            if !db_path.exists() {
+                std::fs::create_dir_all(&base_dir)?;
+            }
+            let cache = CacheManager::new(&db_path)?;
+            cache.import_faces(&file)?;
+            println!("Imported faces from {:?}", file);
+        }
+        Commands::SetFavorite { id, fav } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            cache.set_favorite(&id, fav)?;
+            println!("Favorite for {} set to {}", id, fav);
         }
         Commands::Search {
             query,
