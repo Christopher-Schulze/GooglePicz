@@ -276,17 +276,30 @@ impl Syncer {
                 if self.detect_faces {
                     let cache = self.cache_manager.clone();
                     let item_clone = item.clone();
+                    let ui_err = ui_error.clone();
                     tokio::task::spawn_blocking(move || {
                         let rec = face_recognition::FaceRecognizer::new();
                         #[cfg(feature = "face_recognition/cache")]
                         {
                             if let Err(e) = rec.detect_and_cache_faces(&cache, &item_clone) {
+                                if let Some(tx) = &ui_err {
+                                    let _ = tx.send(SyncTaskError::Other {
+                                        code: SyncErrorCode::Other,
+                                        message: format!("Face detection failed: {}", e),
+                                    });
+                                }
                                 tracing::error!(error = ?e, "Face detection failed");
                             }
                         }
                         #[cfg(not(feature = "face_recognition/cache"))]
                         {
                             if let Err(e) = rec.detect_faces(&item_clone) {
+                                if let Some(tx) = &ui_err {
+                                    let _ = tx.send(SyncTaskError::Other {
+                                        code: SyncErrorCode::Other,
+                                        message: format!("Face detection failed: {}", e),
+                                    });
+                                }
                                 tracing::error!(error = ?e, "Face detection failed");
                             }
                         }
