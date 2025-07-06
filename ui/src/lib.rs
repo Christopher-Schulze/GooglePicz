@@ -1334,13 +1334,14 @@ impl Application for GooglePiczUI {
             text_input("To", &self.search_end)
                 .style(style::text_input_basic())
                 .on_input(Message::SearchEndChanged),
-            checkbox("Fav", self.search_favorite, Message::SearchFavoriteToggled),
+            checkbox("Fav", self.search_favorite, Message::SearchFavoriteToggled)
+                .style(style::checkbox_primary()),
             pick_list(
                 &SearchMode::ALL[..],
                 Some(self.search_mode),
                 Message::SearchModeChanged,
             ),
-            button("Search")
+            button(Icon::new(MaterialSymbol::Search).color(Palette::ON_PRIMARY))
                 .style(style::button_primary())
                 .on_press(Message::PerformSearch)
         ];
@@ -1389,7 +1390,7 @@ impl Application for GooglePiczUI {
             for (i, msg) in self.errors.iter().enumerate() {
                 let row = row![
                     text(msg.clone()).size(16),
-                    button("Dismiss")
+                    button(Icon::new(MaterialSymbol::Close).color(Palette::ON_PRIMARY))
                         .style(style::button_primary())
                         .on_press(Message::DismissError(i))
                 ]
@@ -1400,7 +1401,7 @@ impl Application for GooglePiczUI {
             let banner = column![
                 row![
                     text("Operation failed").size(16),
-                    button("Dismiss All")
+                    button(Icon::new(MaterialSymbol::Close).color(Palette::ON_PRIMARY))
                         .style(style::button_primary())
                         .on_press(Message::ClearErrors)
                 ]
@@ -1501,20 +1502,22 @@ impl Application for GooglePiczUI {
                         "Debug console",
                         self.settings_debug_console,
                         Message::SettingsDebugConsoleToggled,
-                    ),
+                    )
+                        .style(style::checkbox_primary()),
                     checkbox(
                         "Trace spans",
                         self.settings_trace_spans,
                         Message::SettingsTraceSpansToggled,
-                    ),
+                    )
+                        .style(style::checkbox_primary()),
                     text_input("Cache path", &self.settings_cache_path)
                         .style(style::text_input_basic())
                         .on_input(Message::SettingsCachePathChanged),
                     row![
-                        button("Save")
+                        button(Icon::new(MaterialSymbol::Save).color(Palette::ON_PRIMARY))
                             .style(style::button_primary())
                             .on_press(Message::SaveSettings),
-                        button("Cancel")
+                        button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
                             .style(style::button_primary())
                             .on_press(Message::CloseSettings)
                     ]
@@ -1593,7 +1596,7 @@ impl Application for GooglePiczUI {
                     let mut grid = column![].spacing(10);
                     if self.display_limit < self.photos.len() {
                         grid = grid.push(
-                            button("Load more")
+                            button(Icon::new(MaterialSymbol::ExpandMore).color(Palette::ON_PRIMARY))
                                 .style(style::button_primary())
                                 .on_press(Message::LoadMorePhotos),
                         );
@@ -1651,7 +1654,7 @@ impl Application for GooglePiczUI {
                                 face.bbox[3],
                                 face.name.clone().unwrap_or_else(|| "?".into())
                             )),
-                            button("Rename")
+                            button(Icon::new(MaterialSymbol::Edit).color(Palette::ON_PRIMARY))
                                 .style(style::button_primary())
                                 .on_press(Message::StartRenameFace(i))
                         ]

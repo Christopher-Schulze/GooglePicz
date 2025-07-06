@@ -5,7 +5,14 @@
 //! application keeps a consistent Material look.
 
 use iced::{Color, Border};
-use iced::widget::{self, button, container, text_input};
+use iced::widget::{
+    self,
+    button,
+    checkbox,
+    container,
+    slider::{self, Handle, HandleShape, Rail},
+    text_input,
+};
 use iced::theme;
 
 /// Material color palette
@@ -58,6 +65,43 @@ pub fn card() -> theme::Container {
             radius: 4.0.into(),
         },
         shadow: Default::default(),
+    }))
+}
+
+/// Style for checkboxes using the primary color.
+pub fn checkbox_primary() -> theme::Checkbox {
+    theme::Checkbox::Custom(Box::new(|_theme: &iced::Theme, is_checked: bool| {
+        checkbox::Appearance {
+            background: if is_checked {
+                Palette::PRIMARY.into()
+            } else {
+                Palette::SURFACE.into()
+            },
+            icon_color: Palette::ON_PRIMARY,
+            border: Border {
+                color: Palette::PRIMARY,
+                width: 1.0,
+                radius: 2.0.into(),
+            },
+            text_color: None,
+        }
+    }))
+}
+
+/// Style for sliders matching the primary color palette.
+pub fn slider_primary() -> theme::Slider {
+    theme::Slider::Custom(Box::new(|_theme: &iced::Theme| slider::Appearance {
+        rail: slider::Rail {
+            colors: (Palette::PRIMARY, Palette::SURFACE),
+            width: 4.0,
+            border_radius: 2.0.into(),
+        },
+        handle: slider::Handle {
+            shape: slider::HandleShape::Circle { radius: 6.0 },
+            color: Palette::PRIMARY,
+            border_width: 1.0,
+            border_color: Palette::ON_PRIMARY,
+        },
     }))
 }
 
