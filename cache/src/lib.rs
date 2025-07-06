@@ -185,6 +185,20 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
             "CREATE INDEX IF NOT EXISTS idx_media_metadata_camera_make ON media_metadata (camera_make);\
              UPDATE schema_version SET version = 15;"
         ),
+        M::up(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS media_items_fts USING fts5(media_item_id UNINDEXED, filename, description);\
+             INSERT INTO media_items_fts (media_item_id, filename, description) SELECT id, filename, coalesce(description, '') FROM media_items;\
+             CREATE TRIGGER IF NOT EXISTS media_items_ai AFTER INSERT ON media_items BEGIN\
+                 INSERT INTO media_items_fts (media_item_id, filename, description) VALUES (new.id, new.filename, coalesce(new.description, ''));\
+             END;\
+             CREATE TRIGGER IF NOT EXISTS media_items_ad AFTER DELETE ON media_items BEGIN\
+                 DELETE FROM media_items_fts WHERE media_item_id = old.id;\
+             END;\
+             CREATE TRIGGER IF NOT EXISTS media_items_au AFTER UPDATE OF filename, description ON media_items BEGIN\
+                 UPDATE media_items_fts SET filename = new.filename, description = coalesce(new.description, '') WHERE media_item_id = old.id;\
+             END;\
+             UPDATE schema_version SET version = 16;"
+        ),
     ]);
     migrations
         .to_latest(conn)
@@ -696,19 +710,19 @@ impl CacheManager {
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_text(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let like_pattern = format!("%{}%", pattern);
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
-                 FROM media_items m
+                 FROM media_items_fts f
+                 JOIN media_items m ON m.id = f.media_item_id
                  JOIN media_metadata md ON m.id = md.media_item_id
-                 WHERE m.filename LIKE ?1 OR m.description LIKE ?1",
+                 WHERE f MATCH ?1",
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
         let iter = stmt
-            .query_map(params![like_pattern], |row| {
+            .query_map(params![pattern], |row| {
                 let ts: i64 = row.get(5)?;
                 let w: i64 = row.get(6)?;
                 let h: i64 = row.get(7)?;
@@ -1386,6 +1400,7 @@ impl CacheManager {
         .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg(feature = "face-recognition")]
     pub async fn get_faces_for_media_item(&self, id: &str) -> Result<Vec<face_recognition::Face>, CacheError> {
         let this = self.clone();
         let id = id.to_string();
@@ -1411,6 +1426,7 @@ impl CacheManager {
         .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    #[cfg(feature = "face-recognition")]
     pub async fn update_face_name(&self, id: &str, idx: usize, name: &str) -> Result<(), CacheError> {
         let this = self.clone();
         let id = id.to_string();
