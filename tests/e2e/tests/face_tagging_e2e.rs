@@ -38,7 +38,7 @@ async fn main() {
     cache.insert_media_item(&item).expect("insert item");
     let recognizer = FaceRecognizer::new();
     let faces = recognizer
-        .detect_and_cache_faces(&cache, &item)
+        .detect_and_cache_faces(&cache, &item, true)
         .expect("detect faces");
 
     let stored = cache.get_faces(&item.id).expect("faces").unwrap();

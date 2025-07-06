@@ -107,9 +107,10 @@ impl FaceRecognizer {
         &self,
         cache: &CacheManager,
         item: &MediaItem,
+        preserve_names: bool,
     ) -> Result<Vec<Face>, FaceRecognitionError> {
         let faces = self.detect_faces(item)?;
-        self.assign_to_cache(cache, item, &faces)?;
+        self.assign_to_cache(cache, item, &faces, preserve_names)?;
         Ok(faces)
     }
 
@@ -121,8 +122,21 @@ impl FaceRecognizer {
         cache: &CacheManager,
         item: &MediaItem,
         faces: &[Face],
+        preserve_names: bool,
     ) -> Result<(), FaceRecognitionError> {
-        let json = serde_json::to_string(faces)
+        let mut to_store = faces.to_vec();
+        if preserve_names {
+            if let Ok(Some(existing)) = cache.get_faces(&item.id) {
+                for (i, old) in existing.into_iter().enumerate() {
+                    if let Some(f) = to_store.get_mut(i) {
+                        if f.name.is_none() {
+                            f.name = old.name;
+                        }
+                    }
+                }
+            }
+        }
+        let json = serde_json::to_string(&to_store)
             .map_err(|e| FaceRecognitionError::Other(e.to_string()))?;
         cache
             .insert_faces(&item.id, &json)
