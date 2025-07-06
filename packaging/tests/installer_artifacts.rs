@@ -1,5 +1,5 @@
 use packaging::create_installer;
-use packaging::utils::{get_project_root, workspace_version};
+use packaging::utils::{artifact_path, get_project_root, workspace_version};
 use serial_test::serial;
 use std::fs;
 
@@ -16,7 +16,7 @@ fn test_linux_installer_artifact_exists() -> Result<(), Box<dyn std::error::Erro
 
     create_installer()?;
     let version = workspace_version()?;
-    let deb = root.join(format!("GooglePicz-{}.deb", version));
+    let deb = artifact_path(&version);
     assert!(deb.exists());
     fs::remove_file(deb)?;
 
@@ -39,7 +39,7 @@ fn test_macos_installer_artifact_exists() -> Result<(), Box<dyn std::error::Erro
 
     create_installer()?;
     let version = workspace_version()?;
-    let dmg = release.join(format!("GooglePicz-{}.dmg", version));
+    let dmg = artifact_path(&version);
     assert!(dmg.exists());
     fs::remove_file(dmg)?;
 
@@ -56,13 +56,13 @@ fn test_windows_installer_artifact_exists() -> Result<(), Box<dyn std::error::Er
     let win_dir = root.join("target/windows");
     fs::create_dir_all(&win_dir)?;
     let version = workspace_version()?;
-    fs::write(win_dir.join(format!("GooglePicz-{}-Setup.exe", version)), b"test")?;
+    fs::write(win_dir.join(format!("GooglePicz-{}-Setup.exe", version)), b"test")?; // produced path
     let rel_dir = root.join("target/release");
     fs::create_dir_all(&rel_dir)?;
     fs::write(rel_dir.join("googlepicz.exe"), b"test")?;
 
     create_installer()?;
-    let exe = win_dir.join(format!("GooglePicz-{}-Setup.exe", version));
+    let exe = artifact_path(&version);
     assert!(exe.exists());
     fs::remove_file(exe)?;
     fs::remove_file(rel_dir.join("googlepicz.exe"))?;

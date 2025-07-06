@@ -1,5 +1,5 @@
 use assert_cmd::Command;
-use packaging::utils::{get_project_root, workspace_version};
+use packaging::utils::{artifact_path, get_project_root, workspace_version};
 use serial_test::serial;
 use std::fs;
 
@@ -26,7 +26,7 @@ fn test_packager_cli_format() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "linux")]
     {
         let version = workspace_version()?;
-        let rpm = root.join(format!("GooglePicz-{}.rpm", version));
+        let rpm = artifact_path(&version);
         assert!(rpm.exists());
         fs::remove_file(rpm)?;
     }

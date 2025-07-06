@@ -43,6 +43,40 @@ pub fn workspace_version() -> Result<String, PackagingError> {
         .ok_or_else(|| PackagingError::Other("workspace.package.version not found".into()))
 }
 
+/// Return a platform identifier string used in artifact names.
+pub fn platform_name() -> &'static str {
+    if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "unknown"
+    }
+}
+
+/// Determine the expected file extension for the generated package.
+pub fn package_extension() -> String {
+    if cfg!(target_os = "linux") {
+        std::env::var("LINUX_PACKAGE_FORMAT").unwrap_or_else(|_| "deb".into())
+    } else if cfg!(target_os = "macos") {
+        "dmg".into()
+    } else if cfg!(target_os = "windows") {
+        "exe".into()
+    } else {
+        String::new()
+    }
+}
+
+/// Construct the full path to the final installer artifact.
+pub fn artifact_path(version: &str) -> PathBuf {
+    let root = get_project_root();
+    let ext = package_extension();
+    let platform = platform_name();
+    root.join("target").join(format!("GooglePicz-{}-{}.{}", version, platform, ext))
+}
+
 /// Verify that `cargo metadata` lists the expected package name.
 pub fn verify_metadata_package_name(expected: &str) -> Result<(), PackagingError> {
     let output = Command::new("cargo")
@@ -69,29 +103,10 @@ pub fn verify_metadata_package_name(expected: &str) -> Result<(), PackagingError
 
 /// Check that the built installer artifacts include the workspace version in their name.
 pub fn verify_artifact_names() -> Result<(), PackagingError> {
-    let root = get_project_root();
     let version = workspace_version()?;
-
-    if cfg!(target_os = "linux") {
-        let format = std::env::var("LINUX_PACKAGE_FORMAT").unwrap_or_else(|_| "deb".into());
-        let path = match format.as_str() {
-            "rpm" => root.join(format!("GooglePicz-{}.rpm", version)),
-            "appimage" => root.join(format!("GooglePicz-{}.AppImage", version)),
-            _ => root.join(format!("GooglePicz-{}.deb", version)),
-        };
-        if !path.exists() {
-            return Err(PackagingError::Other(format!("Missing artifact: {:?}", path)));
-        }
-    } else if cfg!(target_os = "macos") {
-        let path = root.join(format!("target/release/GooglePicz-{}.dmg", version));
-        if !path.exists() {
-            return Err(PackagingError::Other(format!("Missing artifact: {:?}", path)));
-        }
-    } else if cfg!(target_os = "windows") {
-        let path = root.join(format!("target/windows/GooglePicz-{}-Setup.exe", version));
-        if !path.exists() {
-            return Err(PackagingError::Other(format!("Missing artifact: {:?}", path)));
-        }
+    let path = artifact_path(&version);
+    if !path.exists() {
+        return Err(PackagingError::Other(format!("Missing artifact: {:?}", path)));
     }
 
     Ok(())
@@ -103,18 +118,7 @@ pub fn write_checksums() -> Result<(), PackagingError> {
     let version = workspace_version()?;
 
     let mut artifacts = Vec::new();
-    if cfg!(target_os = "linux") {
-        let format = std::env::var("LINUX_PACKAGE_FORMAT").unwrap_or_else(|_| "deb".into());
-        artifacts.push(match format.as_str() {
-            "rpm" => root.join(format!("GooglePicz-{}.rpm", version)),
-            "appimage" => root.join(format!("GooglePicz-{}.AppImage", version)),
-            _ => root.join(format!("GooglePicz-{}.deb", version)),
-        });
-    } else if cfg!(target_os = "macos") {
-        artifacts.push(root.join(format!("target/release/GooglePicz-{}.dmg", version)));
-    } else if cfg!(target_os = "windows") {
-        artifacts.push(root.join(format!("target/windows/GooglePicz-{}-Setup.exe", version)));
-    }
+    artifacts.push(artifact_path(&version));
 
     let mut lines = Vec::new();
     for artifact in artifacts {
