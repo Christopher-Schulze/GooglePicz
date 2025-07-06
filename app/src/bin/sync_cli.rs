@@ -93,6 +93,12 @@ enum Commands {
         #[arg(long)]
         limit: Option<usize>,
     },
+    /// List favorite media items
+    ListFavorites {
+        /// Maximum number of items to display
+        #[arg(long)]
+        limit: Option<usize>,
+    },
     /// Show metadata for a cached media item
     ShowItem {
         /// ID of the media item
@@ -138,6 +144,14 @@ enum Commands {
         /// Only show favorites
         #[arg(long)]
         favorite: bool,
+    },
+    /// Search cached albums by title
+    SearchAlbums {
+        /// Query string to match album title
+        query: String,
+        /// Maximum number of albums to display
+        #[arg(long)]
+        limit: Option<usize>,
     },
     /// Rename an album
     RenameAlbum {
@@ -303,6 +317,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("{} - {}", item.id, item.filename);
             }
         }
+        Commands::ListFavorites { limit } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            let items = cache.get_favorite_media_items()?;
+            let max = limit.unwrap_or(10);
+            for item in items.iter().take(max) {
+                println!("{} - {}", item.id, item.filename);
+            }
+        }
         Commands::ShowItem { id } => {
             if !db_path.exists() {
                 println!("No cache found at {:?}", db_path);
@@ -384,6 +410,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let max = limit.unwrap_or(10);
             for item in items.iter().take(max) {
                 println!("{} - {}", item.id, item.filename);
+            }
+        }
+        Commands::SearchAlbums { query, limit } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let cache = CacheManager::new(&db_path)?;
+            let albums = cache.get_all_albums()?;
+            let q = query.to_lowercase();
+            let max = limit.unwrap_or(10);
+            for album in albums
+                .into_iter()
+                .filter(|a| a
+                    .title
+                    .as_deref()
+                    .unwrap_or("Untitled")
+                    .to_lowercase()
+                    .contains(&q))
+                .take(max)
+            {
+                let title = album
+                    .title
+                    .clone()
+                    .unwrap_or_else(|| "Untitled".to_string());
+                println!("{} (id: {})", title, album.id);
             }
         }
         Commands::RenameAlbum { id, title } => {
