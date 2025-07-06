@@ -39,7 +39,7 @@ fn test_detect_and_cache_roundtrip() {
 
     let rec = FaceRecognizer::new();
     let faces = rec
-        .detect_and_cache_faces(&cache, &item)
+        .detect_and_cache_faces(&cache, &item, true)
         .expect("detect");
     assert!(!faces.is_empty());
 

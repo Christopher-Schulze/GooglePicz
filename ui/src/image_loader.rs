@@ -31,6 +31,7 @@ pub struct ImageLoader {
     cache_dir: PathBuf,
     client: reqwest::Client,
     semaphore: Arc<Semaphore>,
+    threads: usize,
 }
 
 impl ImageLoader {
@@ -47,6 +48,7 @@ impl ImageLoader {
             cache_dir,
             client,
             semaphore: Arc::new(Semaphore::new(threads)),
+            threads,
         }
     }
 
@@ -220,7 +222,7 @@ impl ImageLoader {
         let start = Instant::now();
         let stream = futures::stream::iter(media_items.iter().take(count));
         stream
-            .for_each_concurrent(None, |item| {
+            .for_each_concurrent(Some(self.threads), |item| {
                 let span = tracing::info_span!("preload_thumbnail", id = %item.id);
                 async move {
                     if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {

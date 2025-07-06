@@ -151,6 +151,14 @@ impl Syncer {
             }
         }
         Self::forward(&ui_progress, SyncProgress::Started);
+        let status = SyncTaskError::Status {
+            last_synced: Utc::now(),
+            message: "Sync started".into(),
+        };
+        if let Some(tx) = &error {
+            let _ = tx.send(status.clone());
+        }
+        Self::forward(&ui_error, status.clone());
         let mut state = self.load_state().map_err(|e| {
             let msg = format!("Failed to load state: {}", e);
             if let Some(tx) = &error {
@@ -271,6 +279,16 @@ impl Syncer {
                     }
                 }
                 Self::forward(&ui_progress, SyncProgress::ItemSynced(total_synced));
+                if total_synced % 50 == 0 {
+                    let status = SyncTaskError::Status {
+                        last_synced: Utc::now(),
+                        message: format!("Synced {total_synced} items"),
+                    };
+                    if let Some(tx) = &error {
+                        let _ = tx.send(status.clone());
+                    }
+                    Self::forward(&ui_error, status);
+                }
 
                 #[cfg(feature = "face-recognition")]
                 if self.detect_faces {
@@ -281,7 +299,7 @@ impl Syncer {
                         let rec = face_recognition::FaceRecognizer::new();
                         #[cfg(feature = "face_recognition/cache")]
                         {
-                            if let Err(e) = rec.detect_and_cache_faces(&cache, &item_clone) {
+                            if let Err(e) = rec.detect_and_cache_faces(&cache, &item_clone, true) {
                                 if let Some(tx) = &ui_err {
                                     let _ = tx.send(SyncTaskError::Other {
                                         code: SyncErrorCode::Other,
@@ -369,6 +387,14 @@ impl Syncer {
                 });
                 SyncError::CacheError(msg)
             })?;
+        let status = SyncTaskError::Status {
+            last_synced: Utc::now(),
+            message: format!("Sync completed: {total_synced} items"),
+        };
+        if let Some(tx) = &error {
+            let _ = tx.send(status.clone());
+        }
+        Self::forward(&ui_error, status);
         Ok(())
     }
 
@@ -484,9 +510,12 @@ impl Syncer {
                                 if let Some(tx) = &status_tx {
                                     let _ = tx.send(abort_err.clone());
                                 }
-                                return Err(abort_err);
+                                failures = 0;
+                                backoff = (backoff * 2).min(300);
+                                sleep(Duration::from_secs(backoff)).await;
+                            } else {
+                                sleep(Duration::from_secs(wait)).await;
                             }
-                            sleep(Duration::from_secs(wait)).await;
                         } else {
                             last_success = Utc::now();
                             backoff = 1;
@@ -562,6 +591,7 @@ pub fn start_token_refresh_task(
     ) -> (JoinHandle<Result<(), SyncTaskError>>, oneshot::Sender<()>) {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
         let handle = spawn_local(async move {
+            let mut interval = interval;
             let mut last_success = Utc::now();
             let mut failures: u32 = 0;
             const MAX_FAILURES: u32 = 5;
@@ -620,7 +650,9 @@ pub fn start_token_refresh_task(
                                 tracing::error!("{}", abort_msg);
                                 let _ = error_tx.send(SyncTaskError::Aborted(abort_msg.clone()));
                                 Self::forward(&ui_error_tx, SyncTaskError::Aborted(abort_msg.clone()));
-                                return Err(SyncTaskError::Aborted(abort_msg));
+                                failures = 0;
+                                interval = Duration::from_secs((interval.as_secs() * 2).min(300));
+                                sleep(interval).await;
                             }
                         } else {
                             last_success = Utc::now();

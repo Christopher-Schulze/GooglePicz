@@ -1,4 +1,4 @@
-use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Program, Stroke};
+use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Program, Stroke, Text};
 use iced::{Color, Rectangle, Size, Point};
 
 #[derive(Debug, Clone)]
@@ -31,6 +31,15 @@ impl<Message> Program<Message> for FaceRecognizer {
                 Size::new(face.bbox[2] as f32 * sx, face.bbox[3] as f32 * sy),
             );
             frame.stroke(&path, Stroke { color: Color::from_rgb(1.0, 0.0, 0.0), width: 2.0, ..Stroke::default() });
+            if let Some(name) = &face.name {
+                frame.fill_text(Text {
+                    content: name.clone(),
+                    position: Point::new(face.bbox[0] as f32 * sx, (face.bbox[1] as f32 * sy - 14.0).max(0.0)),
+                    color: Color::from_rgb(1.0, 0.0, 0.0),
+                    size: 16.0,
+                    ..Default::default()
+                });
+            }
         }
         vec![frame.into_geometry()]
     }

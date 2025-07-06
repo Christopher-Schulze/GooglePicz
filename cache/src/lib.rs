@@ -31,6 +31,12 @@ pub struct FaceData {
     pub name: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FaceExport {
+    pub media_item_id: String,
+    pub faces: Vec<FaceData>,
+}
+
 fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
     let migrations = Migrations::new(vec![
         M::up(
@@ -1068,6 +1074,18 @@ impl CacheManager {
     }
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub fn set_favorite(&self, id: &str, fav: bool) -> Result<(), CacheError> {
+        let conn = self.lock_conn()?;
+        conn
+            .execute(
+                "UPDATE media_items SET is_favorite = ?1 WHERE id = ?2",
+                params![if fav { 1 } else { 0 }, id],
+            )
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to update favorite: {}", e)))?;
+        Ok(())
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn clear_cache(&self) -> Result<(), CacheError> {
         let conn = self.lock_conn()?;
         conn
@@ -1136,6 +1154,28 @@ impl CacheManager {
     }
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub fn export_faces<P: AsRef<Path>>(&self, path: P) -> Result<(), CacheError> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn
+            .prepare_cached("SELECT media_item_id, faces_json FROM faces")
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
+        let iter = stmt
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to query faces: {}", e)))?;
+        let mut data = Vec::new();
+        for entry in iter {
+            let (id, json) = entry.map_err(|e| CacheError::DatabaseError(format!("Failed to retrieve faces: {}", e)))?;
+            let faces: Vec<FaceData> = serde_json::from_str(&json)
+                .map_err(|e| CacheError::DeserializationError(e.to_string()))?;
+            data.push(FaceExport { media_item_id: id, faces });
+        }
+        let file = std::fs::File::create(path.as_ref())
+            .map_err(|e| CacheError::Other(format!("Failed to create export file: {}", e)))?;
+        serde_json::to_writer(file, &data)
+            .map_err(|e| CacheError::SerializationError(e.to_string()))
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn import_media_items<P: AsRef<Path>>(&self, path: P) -> Result<(), CacheError> {
         let file = std::fs::File::open(path.as_ref())
             .map_err(|e| CacheError::Other(format!("Failed to open import file: {}", e)))?;
@@ -1143,6 +1183,20 @@ impl CacheManager {
             .map_err(|e| CacheError::DeserializationError(e.to_string()))?;
         for item in &items {
             self.insert_media_item(item)?;
+        }
+        Ok(())
+    }
+
+    #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
+    pub fn import_faces<P: AsRef<Path>>(&self, path: P) -> Result<(), CacheError> {
+        let file = std::fs::File::open(path.as_ref())
+            .map_err(|e| CacheError::Other(format!("Failed to open import file: {}", e)))?;
+        let entries: Vec<FaceExport> = serde_json::from_reader(file)
+            .map_err(|e| CacheError::DeserializationError(e.to_string()))?;
+        for entry in &entries {
+            let json = serde_json::to_string(&entry.faces)
+                .map_err(|e| CacheError::SerializationError(e.to_string()))?;
+            self.insert_faces(&entry.media_item_id, &json)?;
         }
         Ok(())
     }
@@ -1242,12 +1296,32 @@ impl CacheManager {
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
 
+    pub async fn export_faces_async<P>(&self, path: P) -> Result<(), CacheError>
+    where
+        P: AsRef<Path> + Send + 'static,
+    {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.export_faces(path))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
     pub async fn import_media_items_async<P>(&self, path: P) -> Result<(), CacheError>
     where
         P: AsRef<Path> + Send + 'static,
     {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.import_media_items(path))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn import_faces_async<P>(&self, path: P) -> Result<(), CacheError>
+    where
+        P: AsRef<Path> + Send + 'static,
+    {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.import_faces(path))
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }
@@ -1304,6 +1378,13 @@ impl CacheManager {
     pub async fn delete_media_item_async(&self, id: String) -> Result<(), CacheError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.delete_media_item(&id))
+            .await
+            .map_err(|e| CacheError::Other(e.to_string()))?
+    }
+
+    pub async fn set_favorite_async(&self, id: String, fav: bool) -> Result<(), CacheError> {
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || this.set_favorite(&id, fav))
             .await
             .map_err(|e| CacheError::Other(e.to_string()))?
     }

@@ -116,11 +116,18 @@ reproducible artifact names across Linux, macOS and Windows.
 ### GitHub Actions
 
 The workflow in `.github/workflows/packager.yml` runs the packager on
-Linux, macOS and Windows. It executes
-`cargo run --package packaging --bin packager` and uploads the resulting
-artifacts from the `target` directory via `upload-artifact`. You can
-download these packages from the workflow run page without building them
-locally.
+Linux, macOS and Windows.
+
+It performs the following steps on each runner:
+
+1. Checkout the repository.
+2. Install the stable Rust toolchain and platform specific utilities.
+3. Run `cargo run --package packaging --bin packager`.
+4. Run `cargo run --package packaging --bin ci_checks` to verify the artifacts.
+5. Upload the generated files from `target/` using `actions/upload-artifact`.
+
+You can download these packages from the workflow run page without building
+them locally.
 
 ## Release Process {#release-process}
 
