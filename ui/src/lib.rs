@@ -130,6 +130,7 @@ pub enum Message {
     ClosePhoto,
     SyncProgress(SyncProgress),
     SyncError(SyncTaskError),
+    SyncStatusUpdated(DateTime<Utc>, String),
     DismissError(usize),
     ShowCreateAlbumDialog,
     AlbumTitleChanged(String),
@@ -869,13 +870,13 @@ impl Application for GooglePiczUI {
                     self.sync_status = format!("Sync completed: {} items", total);
                 }
             },
+            Message::SyncStatusUpdated(ts, message) => {
+                self.last_synced = Some(ts);
+                self.sync_status = message;
+                self.syncing = false;
+            },
             Message::SyncError(err_msg) => {
                 match err_msg {
-                    SyncTaskError::Status { last_synced, message } => {
-                        self.last_synced = Some(last_synced);
-                        self.sync_status = message;
-                        self.syncing = false;
-                    }
                     other => {
                         tracing::error!("Sync error: {}", other);
                         let detail = match &other {
@@ -884,7 +885,6 @@ impl Application for GooglePiczUI {
                             | SyncTaskError::Other { message, .. }
                             | SyncTaskError::Aborted(message) => message.clone(),
                             SyncTaskError::RestartAttempt(attempt) => format!("Restart attempt {attempt}"),
-                            SyncTaskError::Status { .. } => unreachable!(),
                         };
                         if let Some(idx) = detail.find("last_success:") {
                             let ts_str = detail[idx + "last_success:".len()..].trim();
@@ -1277,6 +1277,9 @@ impl Application for GooglePiczUI {
             subs.push(subscription::unfold("errors", error_rx, |rx| async move {
                 let mut lock = rx.lock().await;
                 let msg = match lock.recv().await {
+                    Some(SyncTaskError::Status { last_synced, message }) => {
+                        Message::SyncStatusUpdated(last_synced, message)
+                    }
                     Some(e) => Message::SyncError(e),
                     None => Message::SyncProgress(SyncProgress::Finished(0)),
                 };
