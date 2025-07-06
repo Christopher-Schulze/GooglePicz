@@ -265,3 +265,17 @@ fn test_escape_closes_photo() {
     assert_eq!(ui.state_debug(), "Grid");
 }
 
+#[test]
+#[serial]
+fn test_sync_status_updated_progress() {
+    let dir = tempdir().unwrap();
+    std::env::set_var("HOME", dir.path());
+    std::fs::create_dir_all(dir.path().join(".googlepicz")).unwrap();
+
+    let (mut ui, _) = GooglePiczUI::new((None, None, None, 0, dir.path().join(".googlepicz")));
+    let now = Utc::now();
+    ui.update(Message::SyncStatusUpdated(now, "Synced 10 items".into()));
+    assert_eq!(ui.synced(), 10);
+    assert_eq!(ui.sync_status_text(), "Synced 10 items");
+}
+

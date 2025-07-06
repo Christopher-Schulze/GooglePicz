@@ -31,7 +31,7 @@ fn bench_sync(c: &mut Criterion) {
             std::env::set_var("GOOGLE_CLIENT_SECRET", "secret");
             let tmp = NamedTempFile::new().unwrap();
             let mut syncer = Syncer::new(tmp.path()).await.unwrap();
-            syncer.sync_media_items(None, None, None, None).await.unwrap();
+            syncer.sync_media_items(None, None, None, None, None).await.unwrap();
         })
     });
 }

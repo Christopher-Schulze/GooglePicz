@@ -306,6 +306,14 @@ impl GooglePiczUI {
         self.albums.len()
     }
 
+    pub fn synced(&self) -> u64 {
+        self.synced
+    }
+
+    pub fn sync_status_text(&self) -> String {
+        self.sync_status.clone()
+    }
+
     pub fn renaming_album(&self) -> Option<String> {
         self.renaming_album.clone()
     }
@@ -918,6 +926,12 @@ impl Application for GooglePiczUI {
                     self.syncing = true;
                 } else if message.contains("Sync completed") {
                     self.syncing = false;
+                } else if let Some(rest) = message.strip_prefix("Synced ") {
+                    if let Some(num_str) = rest.split_whitespace().next() {
+                        if let Ok(count) = num_str.parse::<u64>() {
+                            self.synced = count;
+                        }
+                    }
                 }
             },
             Message::SyncError(err_msg) => {

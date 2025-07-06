@@ -15,7 +15,7 @@ async fn test_sync_flow_mock() {
     let (tx, mut rx) = mpsc::unbounded_channel();
     let mut syncer = Syncer::new(file.path()).await.unwrap();
     syncer
-        .sync_media_items(Some(tx), None, None, None)
+        .sync_media_items(Some(tx), None, None, None, None)
         .await
         .unwrap();
     match rx.recv().await {

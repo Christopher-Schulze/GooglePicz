@@ -254,7 +254,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
             syncer
-                .sync_media_items(Some(tx), Some(err_tx), None, None)
+                .sync_media_items(Some(tx), Some(err_tx), None, None, None)
                 .await?;
         }
         Commands::Status => {

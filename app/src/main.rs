@@ -161,6 +161,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                         Some(err_tx.clone()),
                         Some(tx.clone()),
                         Some(err_tx.clone()),
+                        Some(status_tx.clone()),
                     )
                     .await
                 {
@@ -178,6 +179,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                     Some(status_tx.clone()),
                     Some(tx.clone()),
                     Some(err_tx.clone()),
+                    Some(status_tx.clone()),
                 )
             } else {
                 error!("❌ Cannot start periodic sync without a valid token");
@@ -188,6 +190,7 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                     Some(status_tx.clone()),
                     Some(tx.clone()),
                     Some(err_tx.clone()),
+                    Some(status_tx.clone()),
                 )
             };
 

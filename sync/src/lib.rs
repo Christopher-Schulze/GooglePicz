@@ -134,6 +134,7 @@ impl Syncer {
         error: Option<mpsc::UnboundedSender<SyncTaskError>>,
         ui_progress: Option<mpsc::UnboundedSender<SyncProgress>>,
         ui_error: Option<mpsc::UnboundedSender<SyncTaskError>>,
+        ui_status: Option<mpsc::UnboundedSender<SyncTaskError>>,
     ) -> Result<(), SyncError> {
         tracing::info!("Starting media item synchronization...");
         if let Some(tx) = &progress {
@@ -148,6 +149,10 @@ impl Syncer {
                     code: SyncErrorCode::Other,
                     message: format!("Failed to send progress: {}", e),
                 });
+                Self::forward(&ui_status, SyncTaskError::Other {
+                    code: SyncErrorCode::Other,
+                    message: format!("Failed to send progress: {}", e),
+                });
             }
         }
         Self::forward(&ui_progress, SyncProgress::Started);
@@ -159,12 +164,14 @@ impl Syncer {
             let _ = tx.send(status.clone());
         }
         Self::forward(&ui_error, status.clone());
+        Self::forward(&ui_status, status.clone());
         let mut state = self.load_state().map_err(|e| {
             let msg = format!("Failed to load state: {}", e);
             if let Some(tx) = &error {
                 let _ = tx.send(SyncTaskError::Other { code: SyncErrorCode::Other, message: msg.clone() });
             }
             Self::forward(&ui_error, SyncTaskError::Other { code: SyncErrorCode::Other, message: msg.clone() });
+            Self::forward(&ui_status, SyncTaskError::Other { code: SyncErrorCode::Other, message: msg.clone() });
             SyncError::Other(msg)
         })?;
         let mut page_token: Option<String> = state.page_token.clone();
@@ -183,6 +190,10 @@ impl Syncer {
                     }
                 }
                 Self::forward(&ui_error, SyncTaskError::Other {
+                    code: SyncErrorCode::Cache,
+                    message: msg.clone(),
+                });
+                Self::forward(&ui_status, SyncTaskError::Other {
                     code: SyncErrorCode::Cache,
                     message: msg.clone(),
                 });
@@ -216,6 +227,10 @@ impl Syncer {
                     code: SyncErrorCode::Auth,
                     message: msg.clone(),
                 });
+                Self::forward(&ui_status, SyncTaskError::Other {
+                    code: SyncErrorCode::Auth,
+                    message: msg.clone(),
+                });
                 SyncError::AuthenticationError(msg)
             })?;
             self.api_client.set_access_token(token);
@@ -235,6 +250,10 @@ impl Syncer {
                         }
                     }
                     Self::forward(&ui_error, SyncTaskError::Other {
+                        code: SyncErrorCode::Network,
+                        message: msg.clone(),
+                    });
+                    Self::forward(&ui_status, SyncTaskError::Other {
                         code: SyncErrorCode::Network,
                         message: msg.clone(),
                     });
@@ -263,6 +282,10 @@ impl Syncer {
                             code: SyncErrorCode::Cache,
                             message: msg.clone(),
                         });
+                        Self::forward(&ui_status, SyncTaskError::Other {
+                            code: SyncErrorCode::Cache,
+                            message: msg.clone(),
+                        });
                         SyncError::CacheError(msg)
                     })?;
                 total_synced += 1;
@@ -287,7 +310,8 @@ impl Syncer {
                     if let Some(tx) = &error {
                         let _ = tx.send(status.clone());
                     }
-                    Self::forward(&ui_error, status);
+                    Self::forward(&ui_error, status.clone());
+                    Self::forward(&ui_status, status);
                 }
 
                 #[cfg(feature = "face-recognition")]
@@ -337,6 +361,7 @@ impl Syncer {
                     let _ = tx.send(SyncTaskError::Other { code: SyncErrorCode::Other, message: e.to_string() });
                 }
                 Self::forward(&ui_error, SyncTaskError::Other { code: SyncErrorCode::Other, message: e.to_string() });
+                Self::forward(&ui_status, SyncTaskError::Other { code: SyncErrorCode::Other, message: e.to_string() });
             }
 
             if next_page_token.is_none() {
@@ -385,6 +410,10 @@ impl Syncer {
                     code: SyncErrorCode::Cache,
                     message: msg.clone(),
                 });
+                Self::forward(&ui_status, SyncTaskError::Other {
+                    code: SyncErrorCode::Cache,
+                    message: msg.clone(),
+                });
                 SyncError::CacheError(msg)
             })?;
         let status = SyncTaskError::Status {
@@ -394,7 +423,8 @@ impl Syncer {
         if let Some(tx) = &error {
             let _ = tx.send(status.clone());
         }
-        Self::forward(&ui_error, status);
+        Self::forward(&ui_error, status.clone());
+        Self::forward(&ui_status, status);
         Ok(())
     }
 
@@ -407,6 +437,7 @@ impl Syncer {
         status_tx: Option<mpsc::UnboundedSender<SyncTaskError>>,
         ui_progress_tx: Option<mpsc::UnboundedSender<SyncProgress>>,
         ui_error_tx: Option<mpsc::UnboundedSender<SyncTaskError>>,
+        ui_status_tx: Option<mpsc::UnboundedSender<SyncTaskError>>,
     ) -> (JoinHandle<Result<(), SyncTaskError>>, oneshot::Sender<()>) {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
         let sync_task = spawn_local(async move {
@@ -423,6 +454,7 @@ impl Syncer {
                         tracing::error!(error = ?send_err, "Failed to forward error");
                     }
                     Self::forward(&ui_error_tx, SyncTaskError::Other { code: SyncErrorCode::Cache, message: msg.clone() });
+                    Self::forward(&ui_status_tx, SyncTaskError::Other { code: SyncErrorCode::Cache, message: msg.clone() });
                     DateTime::<Utc>::from(std::time::SystemTime::UNIX_EPOCH)
                 }
             };
@@ -440,6 +472,7 @@ impl Syncer {
                                     Some(error_tx.clone()),
                                     ui_progress_tx.clone(),
                                     ui_error_tx.clone(),
+                                    ui_status_tx.clone(),
                                 )
                                 .await
                         {
@@ -464,6 +497,10 @@ impl Syncer {
                                 code,
                                 message: msg.clone(),
                             });
+                            Self::forward(&ui_status_tx, SyncTaskError::PeriodicSyncFailed {
+                                code,
+                                message: msg.clone(),
+                            });
                             let status = SyncTaskError::Status {
                                 last_synced: last_success,
                                 message: msg.clone(),
@@ -476,7 +513,8 @@ impl Syncer {
                                 let _ = error_tx.send(status.clone());
                             } else {
                                 let _ = error_tx.send(status.clone());
-                                Self::forward(&ui_error_tx, status);
+                                Self::forward(&ui_error_tx, status.clone());
+                                Self::forward(&ui_status_tx, status);
                             }
                             failures += 1;
                             if let Some(tx) = &status_tx {
@@ -487,6 +525,7 @@ impl Syncer {
                                 tracing::error!(error = ?send_err, "Failed to forward restart attempt");
                             }
                             Self::forward(&ui_error_tx, SyncTaskError::RestartAttempt(failures));
+                            Self::forward(&ui_status_tx, SyncTaskError::RestartAttempt(failures));
                             if failures > 3 {
                                 tracing::error!(?e, attempts = failures, backoff = wait, "Periodic sync failed");
                             } else {
@@ -507,6 +546,7 @@ impl Syncer {
                                 let abort_err = SyncTaskError::Aborted(abort_msg.clone());
                                 let _ = error_tx.send(abort_err.clone());
                                 Self::forward(&ui_error_tx, abort_err.clone());
+                                Self::forward(&ui_status_tx, abort_err.clone());
                                 if let Some(tx) = &status_tx {
                                     let _ = tx.send(abort_err.clone());
                                 }
@@ -538,7 +578,8 @@ impl Syncer {
                                 let _ = error_tx.send(status.clone());
                             } else {
                                 let _ = error_tx.send(status.clone());
-                                Self::forward(&ui_error_tx, status);
+                                Self::forward(&ui_error_tx, status.clone());
+                                Self::forward(&ui_status_tx, status);
                             }
                             sleep(interval).await;
                         }
@@ -716,7 +757,7 @@ mod tests {
         let db_path = temp_file.path();
 
         let mut syncer = Syncer::new(db_path).await.expect("Failed to create syncer");
-        let result = syncer.sync_media_items(None, None, None, None).await;
+        let result = syncer.sync_media_items(None, None, None, None, None).await;
         assert!(result.is_ok(), "Synchronization failed: {:?}", result.err());
 
         let all_cached_items = syncer
