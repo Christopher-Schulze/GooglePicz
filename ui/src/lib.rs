@@ -27,7 +27,7 @@ use iced::widget::container::Appearance;
 use iced::widget::image::Handle;
 use iced::widget::{
     button, checkbox, column, container, image, pick_list, progress_bar, row,
-    scrollable, text, text_input, Column,
+    scrollable, slider, text, text_input, Column,
 };
 use iced::Border;
 use iced::Color;
@@ -164,6 +164,10 @@ pub enum Message {
     VideoEvent(GStreamerMessage),
     #[cfg(feature = "gstreamer")]
     CloseVideo,
+    #[cfg(feature = "gstreamer")]
+    ToggleVideoPlay,
+    #[cfg(feature = "gstreamer")]
+    SeekVideo(f64),
     #[cfg(feature = "gstreamer")]
     VideoDownloaded(tempfile::TempPath),
     #[cfg(feature = "gstreamer")]
@@ -857,6 +861,25 @@ impl Application for GooglePiczUI {
                         return Command::none();
                     }
                     return player.update(msg).map(Message::VideoEvent);
+                }
+            }
+            #[cfg(feature = "gstreamer")]
+            Message::ToggleVideoPlay => {
+                if let ViewState::PlayingVideo { player, .. } = &mut self.state {
+                    let new_status = if matches!(player.play_status(), PlayStatus::Playing) {
+                        PlayStatus::Stop
+                    } else {
+                        PlayStatus::Playing
+                    };
+                    return player
+                        .update(GStreamerMessage::PlayStatusChanged(new_status))
+                        .map(Message::VideoEvent);
+                }
+            }
+            #[cfg(feature = "gstreamer")]
+            Message::SeekVideo(pos) => {
+                if let ViewState::PlayingVideo { player, .. } = &mut self.state {
+                    let _ = player.seek(std::time::Duration::from_secs_f64(pos));
                 }
             }
             #[cfg(feature = "gstreamer")]
@@ -1738,11 +1761,28 @@ impl Application for GooglePiczUI {
                 let frame = player
                     .frame_handle()
                     .unwrap_or_else(|| image::Handle::from_pixels(1, 1, vec![0, 0, 0, 0]));
+                let duration = player.duration_seconds();
+                let position = player.position_seconds();
+                let play_icon = if matches!(player.play_status(), PlayStatus::Playing) {
+                    MaterialSymbol::Pause
+                } else {
+                    MaterialSymbol::PlayArrow
+                };
                 column![
                     header,
-                    button(Icon::new(MaterialSymbol::Close).color(Palette::ON_PRIMARY))
-                        .style(style::button_primary())
-                        .on_press(Message::CloseVideo),
+                    row![
+                        button(Icon::new(play_icon).color(Palette::ON_PRIMARY))
+                            .style(style::button_primary())
+                            .on_press(Message::ToggleVideoPlay),
+                        slider(0.0..=duration, position, Message::SeekVideo)
+                            .style(style::slider_primary())
+                            .width(Length::Fill),
+                        button(Icon::new(MaterialSymbol::Close).color(Palette::ON_PRIMARY))
+                            .style(style::button_primary())
+                            .on_press(Message::CloseVideo)
+                    ]
+                    .spacing(Palette::SPACING)
+                    .align_items(iced::Alignment::Center),
                     image(frame).width(Length::Fill).height(Length::Fill)
                 ]
             }

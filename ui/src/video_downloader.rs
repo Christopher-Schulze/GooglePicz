@@ -57,6 +57,21 @@ impl VideoDownloader {
         url: &str,
         extension: &str,
     ) -> Result<TempPath, VideoDownloadError> {
+        self
+            .download_to_tempfile_with_progress(url, extension, None::<fn(u64, Option<u64>)>)
+            .await
+    }
+
+    /// Download a video to a temporary file with optional progress callback.
+    pub async fn download_to_tempfile_with_progress<F>(
+        &self,
+        url: &str,
+        extension: &str,
+        mut progress: Option<F>,
+    ) -> Result<TempPath, VideoDownloadError>
+    where
+        F: FnMut(u64, Option<u64>),
+    {
         let mut file = Builder::new()
             .suffix(extension)
             .tempfile()
@@ -68,13 +83,19 @@ impl VideoDownloader {
             .send()
             .await
             .map_err(|e| VideoDownloadError::Network(e.to_string()))?;
+        let total = resp.content_length();
+        let mut downloaded = 0u64;
         let mut stream = resp.bytes_stream();
         while let Some(chunk) = stream.next().await {
             let bytes = chunk.map_err(|e| VideoDownloadError::Network(e.to_string()))?;
+            downloaded += bytes.len() as u64;
             file.as_file_mut()
                 .write_all(&bytes)
                 .await
                 .map_err(|e| VideoDownloadError::Io(e.to_string()))?;
+            if let Some(cb) = progress.as_mut() {
+                cb(downloaded, total);
+            }
         }
         Ok(file.into_temp_path())
     }
@@ -122,6 +143,27 @@ mod tests {
         let path = temp.to_path_buf();
         drop(temp);
         assert!(!path.exists());
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_download_progress_callback() {
+        let server = MockServer::start();
+        let mock = server.mock(|when, then| {
+            when.method(GET).path("/video.mp4");
+            then.status(200).body("video-data");
+        });
+        let dl = VideoDownloader::new();
+        let mut progress_called = 0;
+        let _ = dl
+            .download_to_tempfile_with_progress(
+                &format!("{}/video.mp4", server.url("")),
+                ".mp4",
+                Some(|_d, _t| progress_called += 1),
+            )
+            .await
+            .unwrap();
+        assert!(progress_called > 0);
         mock.assert();
     }
 }
