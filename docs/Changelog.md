@@ -58,3 +58,7 @@
 - Consolidated configuration documentation. `docs/CONFIGURATION.md` now lists all environment variables and `AppConfig` options.
 - Removed duplicated setup instructions from `README.md` and `docs/DOCUMENTATION.md`.
 - Simplified goals section in `DOCUMENTATION.md` and referenced the README.
+
+## 2025-07-07
+- Documented the new `preload_threads` option in `docs/USER_GUIDE.md` and sample config.
+- Updated `docs/targetpicture.md` to mention UI screenshots and highlight `preload_threads`.
