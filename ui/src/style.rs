@@ -5,7 +5,7 @@
 //! application keeps a consistent Material look.
 
 use iced::{Color, Border};
-use iced::widget::{self, button, container, text_input};
+use iced::widget::{self, button, container, text_input, checkbox, slider};
 use iced::theme;
 
 /// Material color palette
@@ -82,3 +82,56 @@ pub fn card() -> theme::Container {
 /// ```
 ///
 /// Custom components should use these helpers to maintain a consistent style.
+
+/// Checkbox styled with the primary color palette.
+pub fn checkbox_primary() -> theme::Checkbox {
+    theme::Checkbox::Custom(Box::new(|_theme: &iced::Theme, is_checked: bool| {
+        checkbox::Appearance {
+            background: Palette::SURFACE.into(),
+            icon_color: if is_checked { Palette::PRIMARY } else { Palette::ON_SURFACE },
+            border: Border {
+                color: Palette::PRIMARY,
+                width: 1.0,
+                radius: 2.0.into(),
+            },
+            text_color: None,
+        }
+    }))
+}
+
+struct SliderPrimary;
+
+impl slider::StyleSheet for SliderPrimary {
+    type Style = ();
+
+    fn active(&self, _style: &Self::Style) -> slider::Appearance {
+        slider::Appearance {
+            rail: slider::Rail {
+                colors: (Palette::PRIMARY, Palette::PRIMARY),
+                width: 4.0,
+                border_radius: 2.0.into(),
+            },
+            handle: slider::Handle {
+                shape: slider::HandleShape::Circle { radius: 8.0 },
+                color: Palette::ON_PRIMARY,
+                border_width: 1.0,
+                border_color: Palette::PRIMARY,
+            },
+        }
+    }
+
+    fn hovered(&self, style: &Self::Style) -> slider::Appearance {
+        let mut a = self.active(style);
+        a.handle.color = Palette::PRIMARY;
+        a
+    }
+
+    fn dragging(&self, style: &Self::Style) -> slider::Appearance {
+        self.hovered(style)
+    }
+}
+
+/// Slider styled with the primary color palette.
+pub fn slider_primary() -> theme::Slider {
+    theme::Slider::Custom(Box::new(SliderPrimary))
+}
