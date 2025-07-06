@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use iced::widget::{button, checkbox, pick_list, row, text_input};
 
-use crate::{style, Message};
+use crate::{style, Icon, MaterialSymbol, Message};
 use crate::style::Palette;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,7 +105,7 @@ pub fn view<'a>(ui: &crate::GooglePiczUI) -> iced::Element<'a, Message> {
         checkbox("Fav", ui.search_favorite, Message::SearchFavoriteToggled)
             .style(style::checkbox_primary()),
         pick_list(&SearchMode::ALL[..], Some(ui.search_mode), Message::SearchModeChanged),
-        button("Search")
+        button(Icon::new(MaterialSymbol::Search).color(Palette::ON_PRIMARY))
             .style(style::button_primary())
             .on_press(Message::PerformSearch)
     ]

@@ -218,8 +218,7 @@ impl SearchMode {
         SearchMode::MimeType,
         SearchMode::CameraModel,
         SearchMode::CameraMake,
-        ]
-            .push(search::view(self));
+    ];
 }
 
 impl std::fmt::Display for SearchMode {
@@ -1508,11 +1507,11 @@ impl Application for GooglePiczUI {
                 Some(self.search_mode),
                 Message::SearchModeChanged,
             ),
-            button("Search")
+            button(Icon::new(MaterialSymbol::Search).color(Palette::ON_PRIMARY))
                 .style(style::button_primary())
                 .on_press(Message::PerformSearch)
         ];
-        ]
+        header = header
             .push(search::view(self));
 
         if let Some(album_id) = &self.selected_album {

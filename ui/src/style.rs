@@ -28,6 +28,20 @@ impl Palette {
     pub const ICON_SIZE: u16 = 20;
 }
 
+/// Container style used for dialogs and overlays.
+pub fn dialog() -> theme::Container {
+    theme::Container::Custom(Box::new(|_theme: &iced::Theme| container::Appearance {
+        background: Some(Palette::SURFACE.into()),
+        text_color: Some(Palette::ON_SURFACE),
+        border: Border {
+            color: Palette::PRIMARY,
+            width: 1.0,
+            radius: 8.0.into(),
+        },
+        shadow: widget::container::Shadow::default(),
+    }))
+}
+
 /// Style for primary action buttons.
 pub fn button_primary() -> theme::Button {
     theme::Button::Custom(Box::new(|_theme: &iced::Theme| button::Appearance {
