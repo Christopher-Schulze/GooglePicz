@@ -45,7 +45,15 @@ fn bench_real_query(c: &mut Criterion) {
     c.bench_function("real_query", |b| {
         b.iter(|| {
             let _ = cache
-                .query_media_items(Some("EOS"), Some(start), Some(end), None, Some("sample"))
+                .query_media_items(
+                    Some("EOS"),
+                    None,
+                    Some(start),
+                    Some(end),
+                    None,
+                    None,
+                    Some("sample"),
+                )
                 .unwrap();
         })
     });
