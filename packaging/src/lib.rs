@@ -155,7 +155,7 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<(), PackagingError> {
     }
 }
 
-use utils::{get_project_root, workspace_version};
+use utils::{artifact_path, get_project_root, workspace_version};
 
 #[cfg_attr(feature = "trace-spans", tracing::instrument)]
 pub fn bundle_licenses() -> Result<(), PackagingError> {
@@ -195,13 +195,12 @@ pub fn clean_artifacts() -> Result<(), PackagingError> {
         }
     };
 
-    if cfg!(target_os = "linux") {
-        remove_if_match(root.clone(), "GooglePicz-", "deb");
-    } else if cfg!(target_os = "macos") {
-        remove_if_match(root.join("target/release"), "GooglePicz-", "dmg");
-    } else if cfg!(target_os = "windows") {
-        remove_if_match(root.join("target/windows"), "GooglePicz-", "exe");
-    }
+    let target = root.join("target");
+    remove_if_match(target.clone(), "GooglePicz-", "deb");
+    remove_if_match(target.clone(), "GooglePicz-", "rpm");
+    remove_if_match(target.clone(), "GooglePicz-", "AppImage");
+    remove_if_match(target.clone(), "GooglePicz-", "dmg");
+    remove_if_match(target, "GooglePicz-", "exe");
 
     Ok(())
 }
@@ -265,7 +264,7 @@ fn create_macos_installer() -> Result<(), PackagingError> {
     }
 
     let version = workspace_version()?;
-    let versioned = format!("target/release/GooglePicz-{}.dmg", version);
+    let versioned = artifact_path(&version);
     fs::rename(dmg_path, &versioned)
         .map_err(|e| PackagingError::Other(format!("Failed to rename dmg: {}", e)))?;
 
@@ -326,6 +325,10 @@ fn create_windows_installer() -> Result<(), PackagingError> {
         }
     }
 
+    let final_path = artifact_path(&version);
+    fs::rename(&exe_path, &final_path)
+        .map_err(|e| PackagingError::Other(format!("Failed to rename exe: {}", e)))?;
+
     Ok(())
 }
 
@@ -374,7 +377,7 @@ fn create_deb_package() -> Result<(), PackagingError> {
         }
     }
 
-    let versioned = root.join(format!("GooglePicz-{}.deb", version));
+    let versioned = artifact_path(&version);
     fs::rename(&deb_path, &versioned)
         .map_err(|e| PackagingError::Other(format!("Failed to rename .deb: {}", e)))?;
 
@@ -395,7 +398,7 @@ fn create_rpm_package() -> Result<(), PackagingError> {
         }
     };
 
-    let versioned = root.join(format!("GooglePicz-{}.rpm", version));
+    let versioned = artifact_path(&version);
     fs::rename(&rpm_path, &versioned)
         .map_err(|e| PackagingError::Other(format!("Failed to rename .rpm: {}", e)))?;
     Ok(())
@@ -415,7 +418,7 @@ fn create_appimage_package() -> Result<(), PackagingError> {
         }
     };
 
-    let versioned = root.join(format!("GooglePicz-{}.AppImage", version));
+    let versioned = artifact_path(&version);
     fs::rename(&app_path, &versioned)
         .map_err(|e| PackagingError::Other(format!("Failed to rename AppImage: {}", e)))?;
     Ok(())
@@ -426,32 +429,24 @@ pub fn create_installer() -> Result<(), PackagingError> {
     utils::verify_installer_tools()?;
     if cfg!(target_os = "macos") {
         create_macos_installer()?;
-        let root = get_project_root();
         let version = workspace_version()?;
-        let dmg = root.join(format!("target/release/GooglePicz-{}.dmg", version));
+        let dmg = artifact_path(&version);
         if !dmg.exists() && std::env::var("MOCK_COMMANDS").is_err() {
             return Err(PackagingError::Other(format!("Expected installer {:?} not found", dmg)));
         }
         Ok(())
     } else if cfg!(target_os = "windows") {
         create_windows_installer()?;
-        let root = get_project_root();
         let version = workspace_version()?;
-        let exe = root.join(format!("target/windows/GooglePicz-{}-Setup.exe", version));
+        let exe = artifact_path(&version);
         if !exe.exists() && std::env::var("MOCK_COMMANDS").is_err() {
             return Err(PackagingError::Other(format!("Expected installer {:?} not found", exe)));
         }
         Ok(())
     } else if cfg!(target_os = "linux") {
         create_linux_package()?;
-        let root = get_project_root();
         let version = workspace_version()?;
-        let format = std::env::var("LINUX_PACKAGE_FORMAT").unwrap_or_else(|_| "deb".into());
-        let path = match format.as_str() {
-            "rpm" => root.join(format!("GooglePicz-{}.rpm", version)),
-            "appimage" => root.join(format!("GooglePicz-{}.AppImage", version)),
-            _ => root.join(format!("GooglePicz-{}.deb", version)),
-        };
+        let path = artifact_path(&version);
         if !path.exists() && std::env::var("MOCK_COMMANDS").is_err() {
             return Err(PackagingError::Other(format!("Expected installer {:?} not found", path)));
         }
@@ -566,7 +561,7 @@ mod tests {
         verify_artifact_names().unwrap();
 
         let version = workspace_version().unwrap();
-        let dmg = release.join(format!("GooglePicz-{}.dmg", version));
+        let dmg = artifact_path(&version);
         assert!(dmg.exists());
         fs::remove_file(dmg).unwrap();
 
@@ -594,7 +589,7 @@ mod tests {
         verify_artifact_names().unwrap();
 
         let version = workspace_version().unwrap();
-        let deb = root.join(format!("GooglePicz-{}.deb", version));
+        let deb = artifact_path(&version);
         assert!(deb.exists());
         fs::remove_file(deb).unwrap();
 
@@ -624,7 +619,7 @@ mod tests {
         assert!(result.is_ok());
         verify_artifact_names().unwrap();
 
-        let exe = win_dir.join(format!("GooglePicz-{}-Setup.exe", version));
+        let exe = artifact_path(&version);
         assert!(exe.exists());
         fs::remove_file(exe).unwrap();
         fs::remove_file(rel_dir.join("googlepicz.exe")).unwrap();
@@ -651,7 +646,7 @@ mod tests {
         assert!(result.is_ok());
 
         let version = workspace_version().unwrap();
-        let dmg = release.join(format!("GooglePicz-{}.dmg", version));
+        let dmg = artifact_path(&version);
         assert!(dmg.exists());
         fs::remove_file(dmg).unwrap();
 
@@ -676,7 +671,7 @@ mod tests {
         assert!(result.is_ok());
 
         let version = workspace_version().unwrap();
-        let deb = root.join(format!("GooglePicz-{}.deb", version));
+        let deb = artifact_path(&version);
         assert!(deb.exists());
         fs::remove_file(deb).unwrap();
 
@@ -704,7 +699,7 @@ mod tests {
         let result = create_windows_installer();
         assert!(result.is_ok());
 
-        let exe = win_dir.join(format!("GooglePicz-{}-Setup.exe", version));
+        let exe = artifact_path(&version);
         assert!(exe.exists());
         fs::remove_file(exe).unwrap();
         fs::remove_file(rel_dir.join("googlepicz.exe")).unwrap();

@@ -4,6 +4,7 @@ use packaging::utils::{
     verify_metadata_package_name,
     verify_artifact_names,
     write_checksums,
+    artifact_path,
 };
 use serial_test::serial;
 use toml::Value;
@@ -44,15 +45,7 @@ fn test_get_project_root() -> Result<(), Box<dyn std::error::Error>> {
 #[serial]
 fn test_verify_artifact_names() -> Result<(), Box<dyn std::error::Error>> {
     let version = workspace_version()?;
-    let root = get_project_root();
-
-    // create dummy artifact based on target OS
-    #[cfg(target_os = "linux")]
-    let path = root.join(format!("GooglePicz-{}.deb", version));
-    #[cfg(target_os = "macos")]
-    let path = root.join(format!("target/release/GooglePicz-{}.dmg", version));
-    #[cfg(target_os = "windows")]
-    let path = root.join(format!("target/windows/GooglePicz-{}-Setup.exe", version));
+    let path = artifact_path(&version);
 
     std::fs::create_dir_all(path.parent().unwrap())?;
     std::fs::write(&path, b"test")?;
@@ -67,14 +60,8 @@ fn test_verify_artifact_names() -> Result<(), Box<dyn std::error::Error>> {
 #[serial]
 fn test_write_checksums() -> Result<(), Box<dyn std::error::Error>> {
     let version = workspace_version()?;
+    let path = artifact_path(&version);
     let root = get_project_root();
-
-    #[cfg(target_os = "linux")]
-    let path = root.join(format!("GooglePicz-{}.deb", version));
-    #[cfg(target_os = "macos")]
-    let path = root.join(format!("target/release/GooglePicz-{}.dmg", version));
-    #[cfg(target_os = "windows")]
-    let path = root.join(format!("target/windows/GooglePicz-{}-Setup.exe", version));
 
     std::fs::create_dir_all(path.parent().unwrap())?;
     std::fs::write(&path, b"test")?;

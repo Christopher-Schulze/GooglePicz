@@ -9,11 +9,11 @@ fn test_clean_artifacts() -> Result<(), Box<dyn std::error::Error>> {
     let root = get_project_root();
 
     #[cfg(target_os = "linux")]
-    let path = root.join("GooglePicz-temp.deb");
+    let path = root.join("target/GooglePicz-temp.deb");
     #[cfg(target_os = "macos")]
-    let path = root.join("target/release/GooglePicz-temp.dmg");
+    let path = root.join("target/GooglePicz-temp.dmg");
     #[cfg(target_os = "windows")]
-    let path = root.join("target/windows/GooglePicz-temp-Setup.exe");
+    let path = root.join("target/GooglePicz-temp.exe");
 
     fs::create_dir_all(path.parent().unwrap())?;
     fs::write(&path, b"test")?;
