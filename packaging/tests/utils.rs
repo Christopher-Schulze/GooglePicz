@@ -6,16 +6,37 @@ use packaging::utils::{
     write_checksums,
 };
 use serial_test::serial;
+use toml::Value;
 
 #[test]
 #[serial]
 fn test_workspace_version_and_metadata() -> Result<(), Box<dyn std::error::Error>> {
-    // workspace_version should parse the version from the top-level Cargo.toml
+    // workspace_version should match the version from the top-level Cargo.toml
     let version = workspace_version()?;
-    assert!(!version.is_empty(), "version should not be empty");
+    let root = get_project_root();
+    let toml_str = std::fs::read_to_string(root.join("Cargo.toml"))?;
+    let value: Value = toml::from_str(&toml_str)?;
+    let expected = value
+        .get("workspace")
+        .and_then(|ws| ws.get("package"))
+        .and_then(|pkg| pkg.get("version"))
+        .and_then(|v| v.as_str())
+        .unwrap();
+    assert_eq!(version, expected);
 
     // verify_metadata_package_name should find the googlepicz package
     verify_metadata_package_name("googlepicz")?;
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn test_get_project_root() -> Result<(), Box<dyn std::error::Error>> {
+    let root = get_project_root();
+    let cargo = root.join("Cargo.toml");
+    assert!(cargo.exists());
+    let contents = std::fs::read_to_string(cargo)?;
+    assert!(contents.contains("[workspace]"));
     Ok(())
 }
 
