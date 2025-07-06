@@ -45,6 +45,7 @@ use tempfile::TempPath;
 
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
 const PAGE_SIZE: usize = 40;
+const LOG_LEVELS: [&str; 5] = ["trace", "debug", "info", "warn", "error"];
 
 fn parse_date_query(query: &str) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
     use chrono::{NaiveDate, TimeZone};
@@ -161,6 +162,12 @@ pub enum Message {
     CloseSettings,
     SettingsLogLevelChanged(String),
     SettingsCachePathChanged(String),
+    SettingsOauthPortChanged(String),
+    SettingsThumbsPreloadChanged(String),
+    SettingsPreloadThreadsChanged(String),
+    SettingsSyncIntervalChanged(String),
+    SettingsDebugConsoleToggled(bool),
+    SettingsTraceSpansToggled(bool),
     SaveSettings,
     ChooseCachePath,
     CachePathChosen(Option<String>),
@@ -273,6 +280,12 @@ pub struct GooglePiczUI {
     config_path: PathBuf,
     settings_log_level: String,
     settings_cache_path: String,
+    settings_oauth_port: String,
+    settings_thumbnails_preload: String,
+    settings_preload_threads: String,
+    settings_sync_interval: String,
+    settings_debug_console: bool,
+    settings_trace_spans: bool,
     editing_face: Option<usize>,
     face_name_input: String,
 }
@@ -326,6 +339,30 @@ impl GooglePiczUI {
 
     pub fn settings_cache_path(&self) -> String {
         self.settings_cache_path.clone()
+    }
+
+    pub fn settings_oauth_port(&self) -> String {
+        self.settings_oauth_port.clone()
+    }
+
+    pub fn settings_thumbnails_preload(&self) -> String {
+        self.settings_thumbnails_preload.clone()
+    }
+
+    pub fn settings_preload_threads(&self) -> String {
+        self.settings_preload_threads.clone()
+    }
+
+    pub fn settings_sync_interval(&self) -> String {
+        self.settings_sync_interval.clone()
+    }
+
+    pub fn settings_debug_console(&self) -> bool {
+        self.settings_debug_console
+    }
+
+    pub fn settings_trace_spans(&self) -> bool {
+        self.settings_trace_spans
     }
 
     pub fn face_count(&self) -> usize {
@@ -485,6 +522,12 @@ impl Application for GooglePiczUI {
             config_path,
             settings_log_level: cfg.log_level.clone(),
             settings_cache_path: cfg.cache_path.to_string_lossy().to_string(),
+            settings_oauth_port: cfg.oauth_redirect_port.to_string(),
+            settings_thumbnails_preload: cfg.thumbnails_preload.to_string(),
+            settings_preload_threads: cfg.preload_threads.to_string(),
+            settings_sync_interval: cfg.sync_interval_minutes.to_string(),
+            settings_debug_console: cfg.debug_console,
+            settings_trace_spans: cfg.trace_spans,
             editing_face: None,
             face_name_input: String::new(),
         };
@@ -855,6 +898,12 @@ impl Application for GooglePiczUI {
                 let cfg = AppConfig::load_from(Some(self.config_path.clone()));
                 self.settings_log_level = cfg.log_level;
                 self.settings_cache_path = cfg.cache_path.to_string_lossy().to_string();
+                self.settings_oauth_port = cfg.oauth_redirect_port.to_string();
+                self.settings_thumbnails_preload = cfg.thumbnails_preload.to_string();
+                self.settings_preload_threads = cfg.preload_threads.to_string();
+                self.settings_sync_interval = cfg.sync_interval_minutes.to_string();
+                self.settings_debug_console = cfg.debug_console;
+                self.settings_trace_spans = cfg.trace_spans;
             }
             Message::CloseSettings => {
                 self.settings_open = false;
@@ -864,6 +913,24 @@ impl Application for GooglePiczUI {
             }
             Message::SettingsCachePathChanged(val) => {
                 self.settings_cache_path = val;
+            }
+            Message::SettingsOauthPortChanged(val) => {
+                self.settings_oauth_port = val;
+            }
+            Message::SettingsThumbsPreloadChanged(val) => {
+                self.settings_thumbnails_preload = val;
+            }
+            Message::SettingsPreloadThreadsChanged(val) => {
+                self.settings_preload_threads = val;
+            }
+            Message::SettingsSyncIntervalChanged(val) => {
+                self.settings_sync_interval = val;
+            }
+            Message::SettingsDebugConsoleToggled(val) => {
+                self.settings_debug_console = val;
+            }
+            Message::SettingsTraceSpansToggled(val) => {
+                self.settings_trace_spans = val;
             }
             Message::ChooseCachePath => {
                 return Command::perform(async {
@@ -882,6 +949,20 @@ impl Application for GooglePiczUI {
                 let mut cfg = AppConfig::load_from(Some(self.config_path.clone()));
                 cfg.log_level = self.settings_log_level.clone();
                 cfg.cache_path = PathBuf::from(self.settings_cache_path.clone());
+                if let Ok(p) = self.settings_oauth_port.parse() {
+                    cfg.oauth_redirect_port = p;
+                }
+                if let Ok(t) = self.settings_thumbnails_preload.parse() {
+                    cfg.thumbnails_preload = t;
+                }
+                if let Ok(t) = self.settings_preload_threads.parse() {
+                    cfg.preload_threads = t;
+                }
+                if let Ok(s) = self.settings_sync_interval.parse() {
+                    cfg.sync_interval_minutes = s;
+                }
+                cfg.debug_console = self.settings_debug_console;
+                cfg.trace_spans = self.settings_trace_spans;
                 if let Err(e) = cfg.save_to(Some(self.config_path.clone())) {
                     let msg = format!("Failed to save settings: {}", e);
                     self.errors.push(msg.clone());
@@ -1382,9 +1463,33 @@ impl Application for GooglePiczUI {
             Some(
                 column![
                     text("Settings").size(16),
-                    text_input("Log level", &self.settings_log_level)
+                    pick_list(
+                        &LOG_LEVELS[..],
+                        Some(self.settings_log_level.as_str()),
+                        |v| Message::SettingsLogLevelChanged(v.to_string()),
+                    ),
+                    text_input("OAuth port", &self.settings_oauth_port)
                         .style(style::text_input_basic())
-                        .on_input(Message::SettingsLogLevelChanged),
+                        .on_input(Message::SettingsOauthPortChanged),
+                    text_input("Thumbs preload", &self.settings_thumbnails_preload)
+                        .style(style::text_input_basic())
+                        .on_input(Message::SettingsThumbsPreloadChanged),
+                    text_input("Preload threads", &self.settings_preload_threads)
+                        .style(style::text_input_basic())
+                        .on_input(Message::SettingsPreloadThreadsChanged),
+                    text_input("Sync interval", &self.settings_sync_interval)
+                        .style(style::text_input_basic())
+                        .on_input(Message::SettingsSyncIntervalChanged),
+                    checkbox(
+                        "Debug console",
+                        self.settings_debug_console,
+                        Message::SettingsDebugConsoleToggled,
+                    ),
+                    checkbox(
+                        "Trace spans",
+                        self.settings_trace_spans,
+                        Message::SettingsTraceSpansToggled,
+                    ),
                     text_input("Cache path", &self.settings_cache_path)
                         .style(style::text_input_basic())
                         .on_input(Message::SettingsCachePathChanged),

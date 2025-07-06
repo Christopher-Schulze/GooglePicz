@@ -176,6 +176,7 @@ fn test_save_settings() {
         log_level: "info".into(),
         oauth_redirect_port: 8080,
         thumbnails_preload: 20,
+        preload_threads: 4,
         sync_interval_minutes: 5,
         debug_console: false,
         trace_spans: false,
@@ -189,11 +190,13 @@ fn test_save_settings() {
     let new_cache = gp_dir.join("new_cache");
     let new_cache_str = new_cache.to_string_lossy().to_string();
     ui.update(Message::SettingsCachePathChanged(new_cache_str.clone()));
+    ui.update(Message::SettingsDebugConsoleToggled(true));
     let _ = ui.update(Message::SaveSettings);
 
     let saved = AppConfig::load_from(Some(gp_dir.join("config")));
     assert_eq!(saved.log_level, "debug");
     assert_eq!(saved.cache_path, PathBuf::from(new_cache_str));
+    assert!(saved.debug_console);
     assert!(!ui.settings_open());
 }
 
