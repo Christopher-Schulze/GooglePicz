@@ -278,16 +278,15 @@ impl Syncer {
                     let item_clone = item.clone();
                     tokio::task::spawn_blocking(move || {
                         let rec = face_recognition::FaceRecognizer::new();
-                        match rec.detect_faces(&item_clone) {
-                            Ok(faces) => {
-                                #[cfg(feature = "face_recognition/cache")]
-                                if let Ok(json) = serde_json::to_string(&faces) {
-                                    if let Err(e) = cache.insert_faces(&item_clone.id, &json) {
-                                        tracing::error!(error = ?e, "Failed to insert faces");
-                                    }
-                                }
+                        #[cfg(feature = "face_recognition/cache")]
+                        {
+                            if let Err(e) = rec.detect_and_cache_faces(&cache, &item_clone) {
+                                tracing::error!(error = ?e, "Face detection failed");
                             }
-                            Err(e) => {
+                        }
+                        #[cfg(not(feature = "face_recognition/cache"))]
+                        {
+                            if let Err(e) = rec.detect_faces(&item_clone) {
                                 tracing::error!(error = ?e, "Face detection failed");
                             }
                         }

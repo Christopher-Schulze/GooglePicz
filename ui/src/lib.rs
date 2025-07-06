@@ -1645,15 +1645,17 @@ impl Application for GooglePiczUI {
                                 .on_press(Message::CancelFaceName)
                         ]
                     } else {
+                        let label = format!(
+                            "Face {} ({},{},{},{}): {}",
+                            i + 1,
+                            face.bbox[0],
+                            face.bbox[1],
+                            face.bbox[2],
+                            face.bbox[3],
+                            face.name.clone().unwrap_or_else(|| "Unknown".into())
+                        );
                         row![
-                            text(format!(
-                                "({},{},{},{}) {}",
-                                face.bbox[0],
-                                face.bbox[1],
-                                face.bbox[2],
-                                face.bbox[3],
-                                face.name.clone().unwrap_or_else(|| "?".into())
-                            )),
+                            text(label),
                             button("Rename")
                                 .style(style::button_primary())
                                 .on_press(Message::StartRenameFace(i))
