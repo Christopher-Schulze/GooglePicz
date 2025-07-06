@@ -412,7 +412,7 @@ impl Syncer {
         let forward_err = error_tx.clone();
         let forward_ui_err = ui_error_tx.clone();
         let forward_status = status_tx.clone();
-        let sync_status_tx = status_tx.clone();
+
         let sync_task = spawn_local(async move {
             let mut syncer = self;
             let mut backoff = 1u64;
