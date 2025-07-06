@@ -1,8 +1,8 @@
 use cache::{CacheManager, CacheError};
 use tempfile::NamedTempFile;
 use api_client::{MediaItem, MediaMetadata};
-use chrono::Utc;
-use rusqlite::Connection;
+use chrono::{Utc, TimeZone};
+use rusqlite::{Connection, params};
 use std::collections::HashSet;
 
 fn sample_item(id: &str) -> MediaItem {
