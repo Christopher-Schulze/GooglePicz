@@ -820,27 +820,37 @@ impl Application for GooglePiczUI {
                 }
             },
             Message::SyncError(err_msg) => {
-                tracing::error!("Sync error: {}", err_msg);
-                let detail = match &err_msg {
-                    SyncTaskError::TokenRefreshFailed { message, .. }
-                    | SyncTaskError::PeriodicSyncFailed { message, .. }
-                    | SyncTaskError::Other { message, .. }
-                    | SyncTaskError::Aborted(message) => message.clone(),
-                    SyncTaskError::RestartAttempt(attempt) => format!("Restart attempt {attempt}"),
-                };
-                if let Some(idx) = detail.find("last_success:") {
-                    let ts_str = detail[idx + "last_success:".len()..].trim();
-                    if let Some(end) = ts_str.split_whitespace().next() {
-                        if let Ok(dt) = DateTime::parse_from_rfc3339(end) {
-                            self.last_synced = Some(dt.with_timezone(&Utc));
+                match err_msg {
+                    SyncTaskError::Status { last_synced, message } => {
+                        self.last_synced = Some(last_synced);
+                        self.sync_status = message;
+                        self.syncing = false;
+                    }
+                    other => {
+                        tracing::error!("Sync error: {}", other);
+                        let detail = match &other {
+                            SyncTaskError::TokenRefreshFailed { message, .. }
+                            | SyncTaskError::PeriodicSyncFailed { message, .. }
+                            | SyncTaskError::Other { message, .. }
+                            | SyncTaskError::Aborted(message) => message.clone(),
+                            SyncTaskError::RestartAttempt(attempt) => format!("Restart attempt {attempt}"),
+                            SyncTaskError::Status { .. } => unreachable!(),
+                        };
+                        if let Some(idx) = detail.find("last_success:") {
+                            let ts_str = detail[idx + "last_success:".len()..].trim();
+                            if let Some(end) = ts_str.split_whitespace().next() {
+                                if let Ok(dt) = DateTime::parse_from_rfc3339(end) {
+                                    self.last_synced = Some(dt.with_timezone(&Utc));
+                                }
+                            }
                         }
+                        self.errors.push(other.to_string());
+                        self.log_error(&other.to_string());
+                        self.sync_status = "Sync error".into();
+                        self.syncing = false;
+                        return GooglePiczUI::error_timeout();
                     }
                 }
-                self.errors.push(err_msg.to_string());
-                self.log_error(&err_msg.to_string());
-                self.sync_status = "Sync error".into();
-                self.syncing = false;
-                return GooglePiczUI::error_timeout();
             }
             Message::DismissError(index) => {
                 if index < self.errors.len() {
