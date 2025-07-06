@@ -57,19 +57,6 @@ use tempfile::TempPath;
 const ERROR_DISPLAY_DURATION: Duration = Duration::from_secs(5);
 const PAGE_SIZE: usize = 40;
 
-fn error_container_style() -> iced::theme::Container {
-    iced::theme::Container::Custom(Box::new(|_theme: &Theme| Appearance {
-        text_color: Some(Palette::ERROR),
-        background: Some(Color { a: 1.0, ..Palette::ERROR }.into()),
-        border: Border {
-            color: Palette::ERROR,
-            width: 1.0,
-            radius: 2.0.into(),
-        },
-        shadow: Default::default(),
-    }))
-}
-
 #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(progress, errors)))]
 pub fn run(
     progress: Option<mpsc::UnboundedReceiver<SyncProgress>>,
@@ -547,6 +534,10 @@ impl Application for GooglePiczUI {
 
     fn title(&self) -> String {
         String::from("GooglePicz - Google Photos Manager")
+    }
+
+    fn theme(&self) -> Theme {
+        style::material_theme()
     }
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
@@ -1450,12 +1441,14 @@ impl Application for GooglePiczUI {
                 &self.camera_make_options,
                 self.search_camera_make.clone(),
                 Message::SearchCameraMakeChanged,
-            ),
+            )
+            .style(style::pick_list_primary()),
             pick_list(
                 &self.mime_options,
                 self.search_mime.clone(),
                 Message::SearchMimeChanged,
-            ),
+            )
+            .style(style::pick_list_primary()),
             text_input("From", &self.search_start)
                 .style(style::text_input_basic())
                 .on_input(Message::SearchStartChanged),
@@ -1468,7 +1461,8 @@ impl Application for GooglePiczUI {
                 &SearchMode::ALL[..],
                 Some(self.search_mode),
                 Message::SearchModeChanged,
-            ),
+            )
+            .style(style::pick_list_primary()),
             button("Search")
                 .style(style::button_primary())
                 .on_press(Message::PerformSearch)
@@ -1540,7 +1534,7 @@ impl Application for GooglePiczUI {
                 scrollable(list).height(Length::Fixed(100.0))
             ]
             .spacing(5);
-            Some(container(banner).style(error_container_style()).padding(10).width(Length::Fill))
+            Some(container(banner).style(style::error_container()).padding(10).width(Length::Fill))
         };
 
         let album_dialog = album_dialogs::create_dialog(self);
@@ -1700,6 +1694,7 @@ impl Application for GooglePiczUI {
                         self.assign_selection.clone(),
                         Message::AlbumPicked
                     )
+                    .style(style::pick_list_primary())
                 ];
                 #[cfg(feature = "gstreamer")]
                 if photo.mime_type.starts_with("video/") {

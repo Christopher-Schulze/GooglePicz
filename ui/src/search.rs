@@ -104,7 +104,8 @@ pub fn view<'a>(ui: &crate::GooglePiczUI) -> iced::Element<'a, Message> {
             .on_input(Message::SearchEndChanged),
         checkbox("Fav", ui.search_favorite, Message::SearchFavoriteToggled)
             .style(style::checkbox_primary()),
-        pick_list(&SearchMode::ALL[..], Some(ui.search_mode), Message::SearchModeChanged),
+        pick_list(&SearchMode::ALL[..], Some(ui.search_mode), Message::SearchModeChanged)
+            .style(style::pick_list_primary()),
         button("Search")
             .style(style::button_primary())
             .on_press(Message::PerformSearch)

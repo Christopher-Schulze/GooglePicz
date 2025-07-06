@@ -14,7 +14,8 @@ pub fn dialog<'a>(ui: &crate::GooglePiczUI) -> Option<iced::Element<'a, Message>
                     &LOG_LEVELS[..],
                     Some(ui.settings_log_level.as_str()),
                     |v| Message::SettingsLogLevelChanged(v.to_string()),
-                ),
+                )
+                .style(style::pick_list_primary()),
                 text_input("OAuth port", &ui.settings_oauth_port)
                     .style(style::text_input_basic())
                     .on_input(Message::SettingsOauthPortChanged),
