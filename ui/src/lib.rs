@@ -5,6 +5,9 @@ mod video_downloader;
 #[path = "../app/src/config.rs"]
 mod app_config;
 mod style;
+mod icon;
+
+pub use icon::{Icon, MaterialSymbol};
 
 pub use image_loader::{ImageLoader, ImageLoaderError};
 pub use video_downloader::{VideoDownloader, VideoDownloadError};
@@ -13,6 +16,7 @@ use api_client::{Album, ApiClient, MediaItem};
 use app_config::AppConfig;
 use auth;
 use cache::CacheManager;
+use google_material_symbols;
 use crate::style::{self, Palette};
 use face_recognition;
 use chrono::{DateTime, Utc};
@@ -97,7 +101,10 @@ pub fn run(
     preload_threads: usize,
     cache_dir: PathBuf,
 ) -> iced::Result {
-    GooglePiczUI::run(Settings::with_flags((progress, errors, preload, preload_threads, cache_dir)))
+    use std::borrow::Cow;
+    let mut settings = Settings::with_flags((progress, errors, preload, preload_threads, cache_dir));
+    settings.fonts.push(Cow::Borrowed(google_material_symbols::FONT_BYTES));
+    GooglePiczUI::run(settings)
 }
 
 #[derive(Debug, Clone)]
@@ -1221,9 +1228,9 @@ impl Application for GooglePiczUI {
 
         let mut header = row![
             text("GooglePicz").size(24),
-            button("Refresh").style(style::button_primary()).on_press(Message::RefreshPhotos),
-            button("New Album…").style(style::button_primary()).on_press(Message::ShowCreateAlbumDialog),
-            button("Settings").style(style::button_primary()).on_press(Message::ShowSettings),
+            button(Icon::new(MaterialSymbol::Refresh).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::RefreshPhotos),
+            button(Icon::new(MaterialSymbol::Add).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::ShowCreateAlbumDialog),
+            button(Icon::new(MaterialSymbol::Settings).color(Palette::ON_PRIMARY)).style(style::button_primary()).on_press(Message::ShowSettings),
             text_input(placeholder, &self.search_query)
                 .style(style::text_input_basic())
                 .on_input(Message::SearchInputChanged),
@@ -1250,7 +1257,7 @@ impl Application for GooglePiczUI {
         if let Some(album_id) = &self.selected_album {
             header = header
                 .push(
-                    button("Rename")
+                    button(Icon::new(MaterialSymbol::Edit).color(Palette::ON_PRIMARY))
                         .style(style::button_primary())
                         .on_press(Message::ShowRenameAlbumDialog(
                         album_id.clone(),
@@ -1262,7 +1269,7 @@ impl Application for GooglePiczUI {
                     )),
                 )
                 .push(
-                    button("Delete")
+                    button(Icon::new(MaterialSymbol::Delete).color(Palette::ON_PRIMARY))
                         .style(style::button_primary())
                         .on_press(Message::ShowDeleteAlbumDialog(album_id.clone()))
                 );
@@ -1321,10 +1328,10 @@ impl Application for GooglePiczUI {
                         .style(style::text_input_basic())
                         .on_input(Message::AlbumTitleChanged),
                     row![
-                        button("Create")
+                        button(Icon::new(MaterialSymbol::Add).color(Palette::ON_PRIMARY))
                             .style(style::button_primary())
                             .on_press(Message::CreateAlbum),
-                        button("Cancel")
+                        button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
                             .style(style::button_primary())
                             .on_press(Message::CancelCreateAlbum)
                     ]
@@ -1343,10 +1350,10 @@ impl Application for GooglePiczUI {
                         .style(style::text_input_basic())
                         .on_input(Message::RenameAlbumTitleChanged),
                     row![
-                        button("Rename")
+                        button(Icon::new(MaterialSymbol::Save).color(Palette::ON_PRIMARY))
                             .style(style::button_primary())
                             .on_press(Message::ConfirmRenameAlbum),
-                        button("Cancel")
+                        button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
                             .style(style::button_primary())
                             .on_press(Message::CancelRenameAlbum)
                     ]
@@ -1363,10 +1370,10 @@ impl Application for GooglePiczUI {
                 column![
                     text("Delete album?").size(16),
                     row![
-                        button("Delete")
+                        button(Icon::new(MaterialSymbol::Delete).color(Palette::ON_PRIMARY))
                             .style(style::button_primary())
                             .on_press(Message::ConfirmDeleteAlbum),
-                        button("Cancel")
+                        button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
                             .style(style::button_primary())
                             .on_press(Message::CancelDeleteAlbum)
                     ]
@@ -1427,10 +1434,10 @@ impl Application for GooglePiczUI {
                             button(text(title.clone()))
                                 .style(style::button_primary())
                                 .on_press(Message::SelectAlbum(Some(album.id.clone()))),
-                            button("Rename")
+                            button(Icon::new(MaterialSymbol::Edit))
                                 .style(style::button_primary())
                                 .on_press(Message::ShowRenameAlbumDialog(album.id.clone(), title.clone())),
-                            button("Delete")
+                            button(Icon::new(MaterialSymbol::Delete))
                                 .style(style::button_primary())
                                 .on_press(Message::ShowDeleteAlbumDialog(album.id.clone()))
                         ]
@@ -1512,10 +1519,10 @@ impl Application for GooglePiczUI {
                             text_input("Name", &self.face_name_input)
                                 .style(style::text_input_basic())
                                 .on_input(Message::FaceNameChanged),
-                            button("Save")
+                            button(Icon::new(MaterialSymbol::Save).color(Palette::ON_PRIMARY))
                                 .style(style::button_primary())
                                 .on_press(Message::SaveFaceName),
-                            button("Cancel")
+                            button(Icon::new(MaterialSymbol::Cancel).color(Palette::ON_PRIMARY))
                                 .style(style::button_primary())
                                 .on_press(Message::CancelFaceName)
                         ]
@@ -1538,7 +1545,7 @@ impl Application for GooglePiczUI {
                 }
                 let mut col = column![
                     header,
-                    button("Close")
+                    button(Icon::new(MaterialSymbol::Close).color(Palette::ON_PRIMARY))
                         .style(style::button_primary())
                         .on_press(Message::ClosePhoto),
                     img,
@@ -1552,7 +1559,7 @@ impl Application for GooglePiczUI {
                 #[cfg(feature = "gstreamer")]
                 if photo.mime_type.starts_with("video/") {
                     col = col.push(
-                        button("Play Video")
+                        button(Icon::new(MaterialSymbol::PlayArrow).color(Palette::ON_PRIMARY))
                             .style(style::button_primary())
                             .on_press(Message::PlayVideo(photo.clone())),
                     );
@@ -1570,7 +1577,7 @@ impl Application for GooglePiczUI {
                     .unwrap_or_else(|| image::Handle::from_pixels(1, 1, vec![0, 0, 0, 0]));
                 column![
                     header,
-                    button("Close")
+                    button(Icon::new(MaterialSymbol::Close).color(Palette::ON_PRIMARY))
                         .style(style::button_primary())
                         .on_press(Message::CloseVideo),
                     image(frame).width(Length::Fill).height(Length::Fill)
