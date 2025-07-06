@@ -136,3 +136,10 @@ pub fn write_checksums() -> Result<(), PackagingError> {
         PackagingError::Other(format!("Failed to write checksums.txt: {}", e))
     })
 }
+
+/// Verify that all external tools required for creating an installer are
+/// available on the system. This delegates to the crate level `verify_tools`
+/// function which performs the actual checks.
+pub fn verify_installer_tools() -> Result<(), PackagingError> {
+    crate::verify_tools()
+}
