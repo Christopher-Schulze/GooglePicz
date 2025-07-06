@@ -113,6 +113,20 @@ fn bench_load_all_100k(c: &mut Criterion) {
     });
 }
 
+fn bench_load_all_200k(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..200_000u32 {
+        let item = sample_media_item(&i.to_string());
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("load_all_200k", |b| {
+        b.iter(|| {
+            let _ = cache.get_all_media_items().unwrap();
+        })
+    });
+}
+
 fn bench_mime_type_query(c: &mut Criterion) {
     let tmp = NamedTempFile::new().unwrap();
     let cache = CacheManager::new(tmp.path()).unwrap();
@@ -306,11 +320,31 @@ fn bench_text_query_general_100k(c: &mut Criterion) {
     });
 }
 
+fn bench_text_query_general_200k(c: &mut Criterion) {
+    let tmp = NamedTempFile::new().unwrap();
+    let cache = CacheManager::new(tmp.path()).unwrap();
+    for i in 0..200_000u32 {
+        let mut item = sample_media_item(&i.to_string());
+        if i % 2 == 0 {
+            item.description = Some("foo".into());
+        }
+        cache.insert_media_item(&item).unwrap();
+    }
+    c.bench_function("query_text_200k", |b| {
+        b.iter(|| {
+            let _ = cache
+                .query_media_items(None, None, None, None, Some("foo"))
+                .unwrap();
+        })
+    });
+}
+
 criterion_group!(
     benches,
     bench_load_all,
     bench_load_all_10k,
     bench_load_all_100k,
+    bench_load_all_200k,
     bench_camera_model_query,
     bench_camera_make_query,
     bench_filename_query,
@@ -320,6 +354,7 @@ criterion_group!(
     bench_text_query_general_1k,
     bench_text_query_general_10k,
     bench_text_query_general_100k,
+    bench_text_query_general_200k,
     bench_mime_type_query,
     bench_album_query
 );

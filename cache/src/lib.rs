@@ -286,7 +286,7 @@ impl CacheManager {
     pub fn get_media_item(&self, id: &str) -> Result<Option<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
@@ -341,7 +341,7 @@ impl CacheManager {
         let start = std::time::Instant::now();
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id",
@@ -391,7 +391,7 @@ impl CacheManager {
     pub fn get_media_items_by_mime_type(&self, mime: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
@@ -457,7 +457,7 @@ impl CacheManager {
             "AND (?5 IS NULL OR m.filename LIKE ?5 OR m.description LIKE ?5)"
         );
         let mut stmt = conn
-            .prepare(sql)
+            .prepare_cached(sql)
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
 
         let fav_val: Option<i64> = favorite.map(|f| if f { 1 } else { 0 });
@@ -513,7 +513,7 @@ impl CacheManager {
         let start = std::time::Instant::now();
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
@@ -563,7 +563,7 @@ impl CacheManager {
         let start = std::time::Instant::now();
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
@@ -614,7 +614,7 @@ impl CacheManager {
         let like_pattern = format!("%{}%", pattern);
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
@@ -664,7 +664,7 @@ impl CacheManager {
         let like_pattern = format!("%{}%", pattern);
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
@@ -712,7 +712,7 @@ impl CacheManager {
     pub fn get_media_items_by_text(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items_fts f
                  JOIN media_items m ON m.id = f.media_item_id
@@ -761,7 +761,7 @@ impl CacheManager {
     pub fn get_favorite_media_items(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
@@ -809,7 +809,7 @@ impl CacheManager {
     pub fn get_media_items_by_favorite(&self, fav: bool) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
@@ -901,7 +901,7 @@ impl CacheManager {
     pub fn get_all_albums(&self) -> Result<Vec<api_client::Album>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT id, title, product_url, is_writeable, media_items_count, cover_photo_base_url, cover_photo_media_item_id FROM albums",
             )
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
@@ -959,7 +959,7 @@ impl CacheManager {
     pub fn get_media_items_by_album(&self, album_id: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN album_media_items ami ON m.id = ami.media_item_id
@@ -1008,7 +1008,7 @@ impl CacheManager {
     pub fn get_media_items_by_date_range(&self, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Vec<api_client::MediaItem>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare(
+            .prepare_cached(
                 "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename
                  FROM media_items m
                  JOIN media_metadata md ON m.id = md.media_item_id
@@ -1089,7 +1089,7 @@ impl CacheManager {
     pub fn get_last_sync(&self) -> Result<DateTime<Utc>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare("SELECT timestamp FROM last_sync WHERE id = 1")
+            .prepare_cached("SELECT timestamp FROM last_sync WHERE id = 1")
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
         let ts: String = stmt
             .query_row([], |row| row.get(0))
@@ -1156,7 +1156,7 @@ impl CacheManager {
     pub fn get_faces(&self, media_item_id: &str) -> Result<Option<Vec<FaceData>>, CacheError> {
         let conn = self.lock_conn()?;
         let mut stmt = conn
-            .prepare("SELECT faces_json FROM faces WHERE media_item_id = ?1")
+            .prepare_cached("SELECT faces_json FROM faces WHERE media_item_id = ?1")
             .map_err(|e| CacheError::DatabaseError(format!("Failed to prepare statement: {}", e)))?;
         let faces_json: Option<String> = stmt
             .query_row(params![media_item_id], |row| row.get(0))
@@ -1446,6 +1446,7 @@ impl CacheManager {
         .await
         .map_err(|e| CacheError::Other(e.to_string()))?
     }
+}
   
   
   
@@ -1648,4 +1649,3 @@ mod tests {
     }
 }
 
-}

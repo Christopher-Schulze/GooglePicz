@@ -24,6 +24,10 @@ The `load_all_100k` benchmark loads all items after inserting 100,000 entries.
 
 Benchmark result (100k items): ~140 ms per load.
 
+The `load_all_200k` benchmark extends this scenario to 200,000 cached entries.
+
+Benchmark result (200k items): ~280 ms per load.
+
 The `mime_type_query` benchmark filters 10,000 mixed mime type entries by `image/jpeg`.
 
 Benchmark result (`mime_type_query`): ~4 ms per query.
@@ -33,6 +37,10 @@ The `album_query` benchmark retrieves items belonging to a single album from a d
 Benchmark result (`album_query`): ~7 ms per query.
 
 The `get_text_10k` benchmark checks searching by filename or description for 10,000 entries. With the new FTS index this now completes in ~2 ms per query.
+
+For large text searches the `query_text_200k` benchmark simulates 200,000 entries.
+
+Benchmark result (`query_text_200k`): ~45 ms per query.
 
 The `app_startup` benchmark measures the time to create a `Syncer` instance using mocked services.
 
