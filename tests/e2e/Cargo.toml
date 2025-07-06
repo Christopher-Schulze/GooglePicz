@@ -42,5 +42,10 @@ name = "face_tagging_e2e"
 path = "tests/face_tagging_e2e.rs"
 harness = false
 
+[[test]]
+name = "face_model_missing_e2e"
+path = "tests/face_model_missing_e2e.rs"
+harness = false
+
 [features]
 trace-spans = []

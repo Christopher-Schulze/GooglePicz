@@ -50,6 +50,8 @@ fn test_package_all_mock() {
         let version = workspace_version().unwrap();
         let file = artifact_path(&version);
         assert!(file.exists(), "Expected {:?} to exist", file);
+        let data = fs::read(&file).unwrap();
+        assert_eq!(data, b"test");
         fs::remove_file(file).unwrap();
     }
 
@@ -57,6 +59,8 @@ fn test_package_all_mock() {
         let version = workspace_version().unwrap();
         let dmg = artifact_path(&version);
         assert!(dmg.exists(), "Expected {:?} to exist", dmg);
+        let data = fs::read(&dmg).unwrap();
+        assert_eq!(data, b"test");
         fs::remove_file(dmg).unwrap();
     }
 
@@ -64,6 +68,8 @@ fn test_package_all_mock() {
         let version = workspace_version().unwrap();
         let exe = artifact_path(&version);
         assert!(exe.exists(), "Expected {:?} to exist", exe);
+        let data = fs::read(&exe).unwrap();
+        assert_eq!(data, b"test");
         fs::remove_file(exe).unwrap();
     }
 
