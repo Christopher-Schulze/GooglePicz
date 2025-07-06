@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+#![warn(rust_2018_idioms)]
 //! API client module for Google Photos.
 
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};

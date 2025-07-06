@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+#![warn(rust_2018_idioms)]
 //! Face recognition module for GooglePicz.
 //!
 //! The current implementation only provides placeholder functions.

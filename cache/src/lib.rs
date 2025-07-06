@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+#![warn(rust_2018_idioms)]
 //! Cache module for Google Photos data.
 
 use chrono::{DateTime, Utc, TimeZone};

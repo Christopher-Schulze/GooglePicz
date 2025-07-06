@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+#![warn(rust_2018_idioms)]
 //! Packaging module for GooglePicz.
 //!
 //! The packager can sign and notarize macOS builds when the following

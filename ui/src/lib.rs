@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+#![warn(rust_2018_idioms)]
 //! User Interface module for GooglePicz.
 
 mod image_loader;
