@@ -6,8 +6,10 @@ mod video_downloader;
 mod app_config;
 mod style;
 mod icon;
+mod face_recognizer;
 
 pub use icon::{Icon, MaterialSymbol};
+pub use face_recognizer::FaceRecognizer;
 
 pub use image_loader::{ImageLoader, ImageLoaderError};
 pub use video_downloader::{VideoDownloader, VideoDownloadError};
@@ -1615,9 +1617,15 @@ impl Application for GooglePiczUI {
             }
             ViewState::SelectedPhoto { photo, faces } => {
                 let img: Element<Message> = if let Some(handle) = self.full_images.get(&photo.id) {
-                    image(handle.clone())
+                    let base = image(handle.clone())
+                        .width(Length::Fill)
+                        .height(Length::Fill);
+                    let w = photo.media_metadata.width.parse::<u32>().unwrap_or(0);
+                    let h = photo.media_metadata.height.parse::<u32>().unwrap_or(0);
+                    container(base)
                         .width(Length::Fill)
                         .height(Length::Fill)
+                        .overlay(FaceRecognizer::new(faces.clone(), w, h).view())
                         .into()
                 } else {
                     container(text("Loading..."))
