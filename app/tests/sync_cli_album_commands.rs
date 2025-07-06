@@ -31,6 +31,18 @@ fn sample_item(id: &str) -> api_client::MediaItem {
     }
 }
 
+fn sample_album(id: &str) -> api_client::Album {
+    api_client::Album {
+        id: id.to_string(),
+        title: Some("Album".into()),
+        product_url: None,
+        is_writeable: None,
+        media_items_count: None,
+        cover_photo_base_url: None,
+        cover_photo_media_item_id: None,
+    }
+}
+
 #[test]
 fn list_albums_shows_cached_album() {
     let dir = tempdir().unwrap();
@@ -131,4 +143,68 @@ fn cache_stats_reports_counts() {
         .success()
         .stdout(contains("Albums: 1"))
         .stdout(contains("Media items: 1"));
+}
+
+#[test]
+fn rename_album_command_updates_cache() {
+    let dir = tempdir().unwrap();
+    let base = dir.path().join(".googlepicz");
+    std::fs::create_dir_all(&base).unwrap();
+    let db = base.join("cache.sqlite");
+    let cache = CacheManager::new(&db).unwrap();
+    let album = sample_album("1");
+    cache.insert_album(&album).unwrap();
+
+    build_cmd(dir.path())
+        .args(&["rename-album", "1", "Renamed"])
+        .assert()
+        .success()
+        .stdout(contains("Album renamed"));
+
+    let cache = CacheManager::new(&db).unwrap();
+    let albums = cache.get_all_albums().unwrap();
+    assert_eq!(albums[0].title.as_deref(), Some("Renamed"));
+}
+
+#[test]
+fn add_to_album_associates_item() {
+    let dir = tempdir().unwrap();
+    let base = dir.path().join(".googlepicz");
+    std::fs::create_dir_all(&base).unwrap();
+    let db = base.join("cache.sqlite");
+    let cache = CacheManager::new(&db).unwrap();
+    let album = sample_album("1");
+    cache.insert_album(&album).unwrap();
+    let item = sample_item("1");
+    cache.insert_media_item(&item).unwrap();
+
+    build_cmd(dir.path())
+        .args(&["add-to-album", "1", "1"])
+        .assert()
+        .success()
+        .stdout(contains("Added 1 to album 1"));
+
+    let cache = CacheManager::new(&db).unwrap();
+    let items = cache.get_media_items_by_album("1").unwrap();
+    assert_eq!(items.len(), 1);
+}
+
+#[test]
+fn list_album_items_lists_entries() {
+    let dir = tempdir().unwrap();
+    let base = dir.path().join(".googlepicz");
+    std::fs::create_dir_all(&base).unwrap();
+    let db = base.join("cache.sqlite");
+    let cache = CacheManager::new(&db).unwrap();
+    let album = sample_album("1");
+    cache.insert_album(&album).unwrap();
+    let item = sample_item("1");
+    cache.insert_media_item(&item).unwrap();
+    cache.associate_media_item_with_album(&item.id, &album.id).unwrap();
+
+    build_cmd(dir.path())
+        .args(&["list-album-items", "1"])
+        .assert()
+        .success()
+        .stdout(contains("1 - 1.jpg"));
 }
