@@ -57,5 +57,15 @@ name = "list_favorites_e2e"
 path = "tests/list_favorites_e2e.rs"
 harness = false
 
+[[test]]
+name = "rename_album_e2e"
+path = "tests/rename_album_e2e.rs"
+harness = false
+
+[[test]]
+name = "upload_item_e2e"
+path = "tests/upload_item_e2e.rs"
+harness = false
+
 [features]
 trace-spans = []
