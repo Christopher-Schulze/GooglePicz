@@ -39,7 +39,7 @@ use iced::widget::{
 use iced::Border;
 use iced::Color;
 use iced::{event, keyboard, executor, Application, Command, Element, Length, Settings, Subscription, Theme};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::io::Write;
 use std::sync::Arc;
 use sync::{SyncProgress, SyncTaskError};
@@ -151,6 +151,7 @@ pub enum Message {
     SearchStartChanged(String),
     SearchEndChanged(String),
     SearchFavoriteToggled(bool),
+    SearchFacesToggled(bool),
     PerformSearch,
     #[cfg(feature = "gstreamer")]
     PlayVideo(MediaItem),
@@ -208,10 +209,11 @@ pub enum SearchMode {
     MimeType,
     CameraModel,
     CameraMake,
+    Faces,
 }
 
 impl SearchMode {
-    const ALL: [SearchMode; 8] = [
+    const ALL: [SearchMode; 9] = [
         SearchMode::Filename,
         SearchMode::Description,
         SearchMode::Text,
@@ -220,6 +222,7 @@ impl SearchMode {
         SearchMode::MimeType,
         SearchMode::CameraModel,
         SearchMode::CameraMake,
+        SearchMode::Faces,
     ];
 }
 
@@ -234,6 +237,7 @@ impl std::fmt::Display for SearchMode {
             SearchMode::MimeType => "Dateityp",
             SearchMode::CameraModel => "Kamera-Modell",
             SearchMode::CameraMake => "Kamera-Hersteller",
+            SearchMode::Faces => "Gesichter",
         };
         write!(f, "{}", s)
     }
@@ -289,6 +293,7 @@ pub struct GooglePiczUI {
     search_start: String,
     search_end: String,
     search_favorite: bool,
+    search_faces: bool,
     error_log_path: PathBuf,
     settings_open: bool,
     config_path: PathBuf,
@@ -429,6 +434,28 @@ impl GooglePiczUI {
             |_| Message::ClearErrors,
         )
     }
+
+    fn init_cache_manager(
+        cache_path: &Path,
+        error_log_path: &Path,
+        errors: &mut Vec<String>,
+    ) -> Option<Arc<Mutex<CacheManager>>> {
+        match CacheManager::new(cache_path) {
+            Ok(cm) => Some(Arc::new(Mutex::new(cm))),
+            Err(e) => {
+                let msg = format!("Failed to initialize cache: {}", e);
+                errors.push(msg.clone());
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(error_log_path)
+                {
+                    let _ = writeln!(f, "{}", msg);
+                }
+                None
+            }
+        }
+    }
 }
 
 impl Application for GooglePiczUI {
@@ -465,21 +492,7 @@ impl Application for GooglePiczUI {
             init_errors.push(format!("GStreamer initialization failed: {}", e));
         }
 
-        let cache_manager = match CacheManager::new(&cache_path) {
-            Ok(cm) => Some(Arc::new(Mutex::new(cm))),
-            Err(e) => {
-                let msg = format!("Failed to initialize cache: {}", e);
-                init_errors.push(msg.clone());
-                if let Ok(mut f) = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&error_log_path)
-                {
-                    let _ = writeln!(f, "{}", msg);
-                }
-                None
-            }
-        };
+        let cache_manager = Self::init_cache_manager(&cache_path, &error_log_path, &mut init_errors);
 
         let last_synced = if let Some(cm) = &cache_manager {
             let cache = cm.blocking_lock();
@@ -556,6 +569,7 @@ impl Application for GooglePiczUI {
             search_start: String::new(),
             search_end: String::new(),
             search_favorite: false,
+            search_faces: false,
             error_log_path,
             settings_open: open_settings,
             config_path,
@@ -1225,6 +1239,9 @@ impl Application for GooglePiczUI {
             Message::SearchFavoriteToggled(v) => {
                 self.search_favorite = v;
             }
+            Message::SearchFacesToggled(v) => {
+                self.search_faces = v;
+            }
             Message::PerformSearch => {
                 if let Some(cm) = &self.cache_manager {
                     let cm = cm.clone();
@@ -1236,6 +1253,7 @@ impl Application for GooglePiczUI {
                     let fav = self.search_favorite;
                     let make_sel = self.search_camera_make.clone();
                     let mime_sel = self.search_mime.clone();
+                    let faces = self.search_faces;
                     return Command::perform(
                         async move {
                             let cache = {
@@ -1261,8 +1279,6 @@ impl Application for GooglePiczUI {
                                 _ => None,
                             };
 
-                            let start_dt = parse_single_date(&start, false);
-                            let end_dt = parse_single_date(&end, true);
                             let camera_model_param = if mode == SearchMode::CameraModel {
                                 Some(query.clone())
                             } else if camera.is_empty() {
@@ -1286,9 +1302,44 @@ impl Application for GooglePiczUI {
                                 None
                             };
 
+                          
+                          let faces_only = faces;
+let media_items = match search_mode {
+    SearchMode::DateRange => {
+        if let Some((s, e)) = search::parse_date_query(&query) {
+            cache
+                .get_media_items_by_date_range(s, e)
+                .map_err(|e| e.to_string())
+        } else {
+            Ok(Vec::new())
+        }
+    }
+    SearchMode::Description => cache
+        .get_media_items_by_description(&query)
+        .map_err(|e| e.to_string()),
+    SearchMode::Favoriten => cache
+        .get_favorite_media_items()
+        .map_err(|e| e.to_string()),
+    SearchMode::Filename => cache
+        .get_media_items_by_filename(&query)
+        .map_err(|e| e.to_string()),
+    SearchMode::MimeType => cache
+        .get_media_items_by_mime_type(&query)
+        .map_err(|e| e.to_string()),
+    SearchMode::CameraModel => cache
+        .get_media_items_by_camera_model(&query)
+        .map_err(|e| e.to_string()),
+    SearchMode::CameraMake => cache
+        .get_media_items_by_camera_make(&query)
+        .map_err(|e| e.to_string()),
+    SearchMode::Text => cache
+        .get_media_items_by_text(&query)
+        .map_err(|e| e.to_string()),
+}?;
+
                             let start_dt = search::parse_single_date(&start, false);
                             let end_dt = search::parse_single_date(&end, true);
-                            cache
+                            let mut extra = cache
                                 .query_media_items_async(
                                     camera_model_param,
                                     camera_make_param,
@@ -1299,13 +1350,24 @@ impl Application for GooglePiczUI {
                                     if mode == SearchMode::Text { Some(query.clone()) } else { None },
                                 )
                                 .await
-                                .map_err(|e| e.to_string())
-                                .map(|mut extra| {
-                                    if let Some(base) = &base {
-                                        extra.retain(|i| base.iter().any(|b| b.id == i.id));
+                                .map_err(|e| e.to_string())?;
+
+                            if faces_only {
+                                let mut filtered = Vec::new();
+                                for item in extra.into_iter() {
+                                    if let Ok(list) = cache.get_faces_for_media_item(&item.id).await {
+                                        if !list.is_empty() {
+                                            filtered.push(item);
+                                        }
                                     }
-                                    extra
-                                })
+                                }
+                                extra = filtered;
+                            }
+
+                            if let Some(base) = &base {
+                                extra.retain(|i| base.iter().any(|b| b.id == i.id));
+                            }
+                            Ok::<_, String>(extra)
                         },
                         Message::PhotosLoaded,
                     );
