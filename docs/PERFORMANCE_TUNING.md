@@ -31,6 +31,13 @@ requested count and reaches roughly 32&nbsp;s when fetching 5,000 previews.
 Keeping the item count modest helps startup time and full synchronizations
 finish quickly.
 
+### Thumbnail preloading
+
+With parallel thumbnail loading using a semaphore the `preload_thumbnails`
+routine improved noticeably. Loading 5,000 thumbnails now takes roughly
+**25&nbsp;s** instead of **32&nbsp;s** on the same hardware (traced with the
+`preload_time_ms` span).
+
 ### UI startup metrics
 
 With `tokio-console` active and the `trace-spans` feature enabled, the GUI
