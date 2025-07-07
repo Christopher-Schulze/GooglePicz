@@ -6,7 +6,6 @@ use reqwest;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use futures::StreamExt;
 use tracing::Instrument;
 use std::time::Instant;
 use thiserror::Error;
@@ -220,18 +219,29 @@ impl ImageLoader {
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self, media_items)))]
     pub async fn preload_thumbnails(&self, media_items: &[api_client::MediaItem], count: usize) {
         let start = Instant::now();
-        let stream = futures::stream::iter(media_items.iter().take(count));
-        stream
-            .for_each_concurrent(Some(self.threads), |item| {
-                let span = tracing::info_span!("preload_thumbnail", id = %item.id);
-                async move {
-                    if let Err(e) = self.load_thumbnail(&item.id, &item.base_url).await {
-                        tracing::error!("Failed to preload thumbnail for {}: {}", &item.id, e);
+        let tasks: Vec<_> = media_items
+            .iter()
+            .take(count)
+            .map(|item| {
+                let loader = self.clone();
+                let id = item.id.clone();
+                let base = item.base_url.clone();
+                tokio::spawn(async move {
+                    let span = tracing::info_span!("preload_thumbnail", id = %id);
+                    async move {
+                        if let Err(e) = loader.load_thumbnail(&id, &base).await {
+                            tracing::error!("Failed to preload thumbnail for {}: {}", id, e);
+                        }
                     }
-                }
-                .instrument(span)
+                    .instrument(span)
+                    .await;
+                })
             })
-            .await;
+            .collect();
+
+        for t in tasks {
+            let _ = t.await;
+        }
         tracing::info!("preload_time_ms" = %start.elapsed().as_millis(), "count" = count);
     }
 }
