@@ -13,12 +13,42 @@ BIN="target/release/googlepicz"
 run_and_capture() {
   local out_file=$1
   shift
-  xvfb-run -a "$BIN" "$@" &
-  local pid=$!
-  sleep 5
-  import -window root "$out_file"
-  kill $pid
-  wait $pid 2>/dev/null || true
+
+  # Determine platform to choose screenshot method
+  local uname_out="$(uname 2>/dev/null || true)"
+
+  if [[ "${OS:-}" == "Windows_NT" ]]; then
+    # Windows: use PowerShell with System.Windows.Forms
+    "$BIN" "$@" &
+    local pid=$!
+    sleep 5
+    powershell -NoProfile -Command "\
+      Add-Type -AssemblyName System.Windows.Forms;\
+      Add-Type -AssemblyName System.Drawing;\
+      $bmp = New-Object System.Drawing.Bitmap([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width, [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height);\
+      $graphics = [System.Drawing.Graphics]::FromImage($bmp);\
+      $graphics.CopyFromScreen(0,0,0,0,$bmp.Size);\
+      $bmp.Save('$out_file', [System.Drawing.Imaging.ImageFormat]::Png);\
+    "
+    kill $pid
+    wait $pid 2>/dev/null || true
+  elif [[ "$uname_out" == "Darwin" ]] && command -v screencapture >/dev/null; then
+    # macOS: screencapture if available
+    "$BIN" "$@" &
+    local pid=$!
+    sleep 5
+    screencapture -x "$out_file"
+    kill $pid
+    wait $pid 2>/dev/null || true
+  else
+    # Linux or fallback: use xvfb and ImageMagick import
+    xvfb-run -a "$BIN" "$@" &
+    local pid=$!
+    sleep 5
+    import -window root "$out_file"
+    kill $pid
+    wait $pid 2>/dev/null || true
+  fi
 }
 
 # Main screen
