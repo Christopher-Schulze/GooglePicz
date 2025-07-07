@@ -51,5 +51,22 @@ async fn test_additional_endpoints_mock() {
         .unwrap();
     assert_eq!(uploaded.id, "uploaded");
 
+    client
+        .remove_media_item_from_album("1", "1")
+        .await
+        .unwrap();
+
+    std::env::remove_var("MOCK_API_CLIENT");
+}
+
+#[tokio::test]
+#[serial]
+async fn test_remove_media_mock() {
+    std::env::set_var("MOCK_API_CLIENT", "1");
+    let client = ApiClient::new("token".into());
+    client
+        .remove_media_item_from_album("album", "media")
+        .await
+        .unwrap();
     std::env::remove_var("MOCK_API_CLIENT");
 }
