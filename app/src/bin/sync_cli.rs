@@ -21,7 +21,7 @@ mod config;
     author,
     version,
     about = "GooglePicz synchronization CLI",
-    after_help = "EXAMPLES:\n  sync_cli export-faces --file faces.json\n  sync_cli import-faces --file faces.json\n  sync_cli set-favorite <ID> true"
+    after_help = "EXAMPLES:\n  sync_cli export-faces --file faces.json\n  sync_cli import-faces --file faces.json\n  sync_cli set-favorite <ID> true\n  sync_cli upload-item image.jpg --description 'some text'\n  sync_cli update-description <ID> 'new text'"
 )]
 struct Cli {
     /// Override log level (e.g. info, debug)
@@ -202,6 +202,21 @@ enum Commands {
         /// Maximum number of items to display
         #[arg(long)]
         limit: Option<usize>,
+    },
+    /// Upload a new media item
+    UploadItem {
+        /// Path of the file to upload
+        path: PathBuf,
+        /// Description of the media item
+        #[arg(long)]
+        description: String,
+    },
+    /// Update description of a media item
+    UpdateDescription {
+        /// ID of the media item
+        id: String,
+        /// New description text
+        description: String,
     },
 }
 
@@ -519,6 +534,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             for item in items.iter().take(max) {
                 println!("{} - {}", item.id, item.filename);
             }
+        }
+        Commands::UploadItem { path, description } => {
+            if !db_path.exists() {
+                std::fs::create_dir_all(&base_dir)?;
+            }
+            let token = ensure_access_token_valid().await?;
+            let client = ApiClient::new(token);
+            let data = tokio::fs::read(&path).await?;
+            let file_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("upload");
+            let item = client
+                .upload_media_item(&data, file_name, &description)
+                .await?;
+            let cache = CacheManager::new(&db_path)?;
+            cache.insert_media_item(&item)?;
+            println!("Uploaded {} -> {}", file_name, item.id);
+        }
+        Commands::UpdateDescription { id, description } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let token = ensure_access_token_valid().await?;
+            let client = ApiClient::new(token);
+            let item = client
+                .update_media_item_description(&id, &description)
+                .await?;
+            let cache = CacheManager::new(&db_path)?;
+            cache.insert_media_item(&item)?;
+            println!("Updated description for {}", id);
         }
     }
 
