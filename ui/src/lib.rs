@@ -39,7 +39,7 @@ use iced::widget::{
 use iced::Border;
 use iced::Color;
 use iced::{event, keyboard, executor, Application, Command, Element, Length, Settings, Subscription, Theme};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::io::Write;
 use std::sync::Arc;
 use sync::{SyncProgress, SyncTaskError};
@@ -434,6 +434,28 @@ impl GooglePiczUI {
             |_| Message::ClearErrors,
         )
     }
+
+    fn init_cache_manager(
+        cache_path: &Path,
+        error_log_path: &Path,
+        errors: &mut Vec<String>,
+    ) -> Option<Arc<Mutex<CacheManager>>> {
+        match CacheManager::new(cache_path) {
+            Ok(cm) => Some(Arc::new(Mutex::new(cm))),
+            Err(e) => {
+                let msg = format!("Failed to initialize cache: {}", e);
+                errors.push(msg.clone());
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(error_log_path)
+                {
+                    let _ = writeln!(f, "{}", msg);
+                }
+                None
+            }
+        }
+    }
 }
 
 impl Application for GooglePiczUI {
@@ -470,21 +492,7 @@ impl Application for GooglePiczUI {
             init_errors.push(format!("GStreamer initialization failed: {}", e));
         }
 
-        let cache_manager = match CacheManager::new(&cache_path) {
-            Ok(cm) => Some(Arc::new(Mutex::new(cm))),
-            Err(e) => {
-                let msg = format!("Failed to initialize cache: {}", e);
-                init_errors.push(msg.clone());
-                if let Ok(mut f) = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&error_log_path)
-                {
-                    let _ = writeln!(f, "{}", msg);
-                }
-                None
-            }
-        };
+        let cache_manager = Self::init_cache_manager(&cache_path, &error_log_path, &mut init_errors);
 
         let last_synced = if let Some(cm) = &cache_manager {
             let cache = cm.blocking_lock();
