@@ -3,7 +3,9 @@ use serial_test::serial;
 use tokio::sync::mpsc;
 use tokio::time::{timeout, Duration};
 use tempfile::tempdir;
+#[cfg(feature = "ui")]
 use ui::{GooglePiczUI, Message};
+#[cfg(feature = "ui")]
 use iced::Application;
 
 #[tokio::test(flavor = "current_thread")]
@@ -16,7 +18,7 @@ async fn test_token_refresh_task_reports_error() {
     local
         .run_until(async {
             let (handle, shutdown) =
-                Syncer::start_token_refresh_task(Duration::from_millis(10), err_tx, None);
+                Syncer::start_token_refresh_task(Duration::from_millis(10), err_tx, None, None);
             let err = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap();
             assert!(err.is_some());
             let _ = shutdown.send(());
@@ -26,6 +28,7 @@ async fn test_token_refresh_task_reports_error() {
     std::env::remove_var("MOCK_KEYRING");
 }
 
+#[cfg(feature = "ui")]
 #[test]
 #[serial]
 fn test_token_refresh_error_forwarded_to_ui() {
@@ -40,7 +43,7 @@ fn test_token_refresh_error_forwarded_to_ui() {
         local
             .run_until(async move {
                 let (handle, shutdown) =
-                    Syncer::start_token_refresh_task(Duration::from_millis(10), err_tx, None);
+                    Syncer::start_token_refresh_task(Duration::from_millis(10), err_tx, None, None);
                 let err = timeout(Duration::from_secs(5), err_rx.recv()).await.unwrap().unwrap();
                 let _ = shutdown.send(());
                 let _ = handle.await;
