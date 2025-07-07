@@ -14,10 +14,11 @@ pub enum SearchMode {
     MimeType,
     CameraModel,
     CameraMake,
+    Faces,
 }
 
 impl SearchMode {
-    pub const ALL: [SearchMode; 8] = [
+    pub const ALL: [SearchMode; 9] = [
         SearchMode::Filename,
         SearchMode::Description,
         SearchMode::Text,
@@ -26,6 +27,7 @@ impl SearchMode {
         SearchMode::MimeType,
         SearchMode::CameraModel,
         SearchMode::CameraMake,
+        SearchMode::Faces,
     ];
 
     pub fn placeholder(self) -> &'static str {
@@ -37,6 +39,7 @@ impl SearchMode {
             SearchMode::MimeType => "Mime type",
             SearchMode::CameraModel => "Camera model",
             SearchMode::CameraMake => "Camera make",
+            SearchMode::Faces => "Has faces",
             SearchMode::DateRange => "YYYY-MM-DD..YYYY-MM-DD",
         }
     }
@@ -53,6 +56,7 @@ impl std::fmt::Display for SearchMode {
             SearchMode::MimeType => "Dateityp",
             SearchMode::CameraModel => "Kamera-Modell",
             SearchMode::CameraMake => "Kamera-Hersteller",
+            SearchMode::Faces => "Gesichter",
         };
         write!(f, "{}", s)
     }
@@ -103,6 +107,8 @@ pub fn view<'a>(ui: &crate::GooglePiczUI) -> iced::Element<'a, Message> {
             .style(style::text_input())
             .on_input(Message::SearchEndChanged),
         checkbox("Fav", ui.search_favorite, Message::SearchFavoriteToggled)
+            .style(style::checkbox_primary()),
+        checkbox("Faces", ui.search_faces, Message::SearchFacesToggled)
             .style(style::checkbox_primary()),
         pick_list(&SearchMode::ALL[..], Some(ui.search_mode), Message::SearchModeChanged),
         button(Icon::new(MaterialSymbol::Search).color(Palette::ON_PRIMARY))
