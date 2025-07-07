@@ -412,6 +412,7 @@ impl Syncer {
         let forward_ui_err = ui_error_tx.clone();
         let forward_status = status_tx.clone();
 
+        let sync_status_tx = status_tx.clone();
         let sync_task = spawn_local(async move {
             let mut syncer = self;
             let mut backoff = 1u64;
@@ -586,9 +587,11 @@ impl Syncer {
 pub fn start_token_refresh_task(
         interval: Duration,
         error_tx: mpsc::UnboundedSender<SyncTaskError>,
+        status_tx: Option<mpsc::UnboundedSender<SyncTaskError>>,
         ui_error_tx: Option<mpsc::UnboundedSender<SyncTaskError>>,
     ) -> (JoinHandle<Result<(), SyncTaskError>>, oneshot::Sender<()>) {
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
+        let forward_status = status_tx.clone();
         let handle = spawn_local(async move {
             let mut interval = interval;
             let mut last_success = Utc::now();
@@ -620,16 +623,17 @@ pub fn start_token_refresh_task(
                                 },
                                 message: msg.clone(),
                             };
-                            if let Err(send_err) = error_tx.send(err_variant.clone())
-                            {
+                            if let Err(send_err) = error_tx.send(err_variant.clone()) {
                                 tracing::error!(error = ?send_err, "Failed to forward token refresh error");
                             }
                             Self::forward(&ui_error_tx, err_variant.clone());
+                            Self::forward(&forward_status, err_variant.clone());
                             let status = SyncTaskError::Status {
                                 last_synced: last_success,
                                 message: msg.clone(),
                             };
                             let _ = error_tx.send(status.clone());
+                            Self::forward(&forward_status, status.clone());
                             if ui_error_tx
                                 .as_ref()
                                 .map(|u| u.same_channel(&error_tx))
@@ -644,11 +648,14 @@ pub fn start_token_refresh_task(
                                 tracing::error!(error = ?send_err, "Failed to forward restart attempt");
                             }
                             Self::forward(&ui_error_tx, SyncTaskError::RestartAttempt(failures));
+                            Self::forward(&forward_status, SyncTaskError::RestartAttempt(failures));
                             if failures >= MAX_FAILURES {
                                 let abort_msg = format!("token refresh aborted after {} failures", failures);
                                 tracing::error!("{}", abort_msg);
-                                let _ = error_tx.send(SyncTaskError::Aborted(abort_msg.clone()));
-                                Self::forward(&ui_error_tx, SyncTaskError::Aborted(abort_msg.clone()));
+                                let abort_err = SyncTaskError::Aborted(abort_msg.clone());
+                                let _ = error_tx.send(abort_err.clone());
+                                Self::forward(&ui_error_tx, abort_err.clone());
+                                Self::forward(&forward_status, abort_err.clone());
                                 failures = 0;
                                 interval = Duration::from_secs((interval.as_secs() * 2).min(300));
                                 sleep(interval).await;
@@ -661,6 +668,7 @@ pub fn start_token_refresh_task(
                                 message: "Token refreshed".into(),
                             };
                             let _ = error_tx.send(status.clone());
+                            Self::forward(&forward_status, status.clone());
                             if ui_error_tx
                                 .as_ref()
                                 .map(|u| u.same_channel(&error_tx))

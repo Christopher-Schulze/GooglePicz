@@ -357,9 +357,10 @@ impl CacheManager {
                 .map_err(|e| CacheError::DatabaseError(format!("Failed to insert metadata: {}", e)))?;
         }
 
+        drop(item_stmt);
+        drop(meta_stmt);
         tx.commit()
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to commit transaction: {}", e)))?
-        ;
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to commit transaction: {}", e)))?;
         Ok(())
     }
 
