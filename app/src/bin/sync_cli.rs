@@ -21,7 +21,7 @@ mod config;
     author,
     version,
     about = "GooglePicz synchronization CLI",
-    after_help = "EXAMPLES:\n  sync_cli export-faces --file faces.json\n  sync_cli import-faces --file faces.json\n  sync_cli set-favorite <ID> true"
+    after_help = "EXAMPLES:\n  sync_cli export-faces --file faces.json\n  sync_cli import-faces --file faces.json\n  sync_cli set-favorite <ID> true\n  sync_cli upload-item path/to/file.jpg --description \"My photo\"\n  sync_cli update-description <ID> \"New description\""
 )]
 struct Cli {
     /// Override log level (e.g. info, debug)
@@ -195,6 +195,14 @@ enum Commands {
         /// Media item ID
         item_id: String,
     },
+    /// Upload a new media item
+    UploadItem {
+        /// Path to the file to upload
+        path: PathBuf,
+        /// Description for the new item
+        #[arg(long)]
+        description: String,
+    },
     /// List items of an album
     ListAlbumItems {
         /// Album ID
@@ -202,6 +210,13 @@ enum Commands {
         /// Maximum number of items to display
         #[arg(long)]
         limit: Option<usize>,
+    },
+    /// Update the description of a media item
+    UpdateDescription {
+        /// ID of the media item
+        id: String,
+        /// New description
+        description: String,
     },
 }
 
@@ -508,6 +523,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cache.associate_media_item_with_album(&item_id, &album_id)?;
             println!("Added {} to album {}", item_id, album_id);
         }
+        Commands::UploadItem { path, description } => {
+            if !db_path.exists() {
+                std::fs::create_dir_all(&base_dir)?;
+            }
+            let token = ensure_access_token_valid().await?;
+            let client = ApiClient::new(token);
+            let data = tokio::fs::read(&path).await?;
+            let file_name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "upload".to_string());
+            let item = client
+                .upload_media_item(&data, &file_name, &description)
+                .await?;
+            let cache = CacheManager::new(&db_path)?;
+            cache.insert_media_item(&item)?;
+            println!("Uploaded {} (id: {})", file_name, item.id);
+        }
         Commands::ListAlbumItems { album_id, limit } => {
             if !db_path.exists() {
                 println!("No cache found at {:?}", db_path);
@@ -519,6 +552,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             for item in items.iter().take(max) {
                 println!("{} - {}", item.id, item.filename);
             }
+        }
+        Commands::UpdateDescription { id, description } => {
+            if !db_path.exists() {
+                println!("No cache found at {:?}", db_path);
+                return Ok(());
+            }
+            let token = ensure_access_token_valid().await?;
+            let client = ApiClient::new(token);
+            let item = client
+                .update_media_item_description(&id, &description)
+                .await?;
+            let cache = CacheManager::new(&db_path)?;
+            cache.insert_media_item(&item)?;
+            println!("Updated description for {}", id);
         }
     }
 
