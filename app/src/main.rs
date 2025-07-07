@@ -13,6 +13,8 @@ use tracing::{error, info};
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use tracing_subscriber::EnvFilter;
+#[cfg(feature = "trace-spans")]
+use sysinfo::{System, SystemExt};
 #[derive(serde::Deserialize)]
 struct PrevSyncState {
     page_token: Option<String>,
@@ -96,6 +98,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(cfg)))]
 async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Error>> {
     info!("🚀 Starting GooglePicz - Google Photos Manager");
+    #[cfg(feature = "trace-spans")]
+    let start = std::time::Instant::now();
+    #[cfg(feature = "trace-spans")]
+    let mut sys = System::new();
+    #[cfg(feature = "trace-spans")]
+    sys.refresh_memory();
+    #[cfg(feature = "trace-spans")]
+    let mem_before = sys.used_memory();
 
     // Ensure environment variables are set for client ID and secret
     if std::env::var("GOOGLE_CLIENT_ID").is_err() || std::env::var("GOOGLE_CLIENT_SECRET").is_err()
@@ -219,6 +229,13 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
                     Some(err_tx.clone()),
                 );
 
+            #[cfg(feature = "trace-spans")]
+            {
+                sys.refresh_memory();
+                tracing::info!(target = "app", "startup_time_ms" = start.elapsed().as_millis(),
+                               "mem_before_kb" = mem_before, "mem_after_kb" = sys.used_memory());
+            }
+
 
             let ui_thread = std::thread::spawn(move || {
                 if let Err(e) = ui::run(
@@ -244,6 +261,12 @@ async fn main_inner(cfg: config::AppConfig) -> Result<(), Box<dyn std::error::Er
         Err(e) => {
             error!("❌ Failed to initialize syncer: {}", e);
             error!("💡 The UI will still start, but photos may not be available until sync is working.");
+            #[cfg(feature = "trace-spans")]
+            {
+                sys.refresh_memory();
+                tracing::info!(target = "app", "startup_time_ms" = start.elapsed().as_millis(),
+                               "mem_before_kb" = mem_before, "mem_after_kb" = sys.used_memory());
+            }
             ui::run(None, None, None, cfg.thumbnails_preload, cfg.preload_threads, cfg.cache_path.clone())?;
         }
     }

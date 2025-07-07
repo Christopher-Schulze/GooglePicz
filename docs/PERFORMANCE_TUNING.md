@@ -43,3 +43,10 @@ routine improved noticeably. Loading 5,000 thumbnails now takes roughly
 With `tokio-console` active and the `trace-spans` feature enabled, the GUI
 initializes in roughly **120&nbsp;ms**. Memory usage grows from about **40&nbsp;MB**
 before initialization to **65&nbsp;MB** once the window is visible.
+
+### Application startup metrics
+
+Profiling the command-line initialization with `tokio-console` shows the
+background services and UI launch complete in about **100&nbsp;ms**. Memory usage
+increases from roughly **30&nbsp;MB** before initialization to **50&nbsp;MB**
+once all tasks are running.
