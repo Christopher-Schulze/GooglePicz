@@ -62,3 +62,8 @@
 ## 2025-07-07
 - Documented the new `preload_threads` option in `docs/USER_GUIDE.md` and sample config.
 - Updated `docs/targetpicture.md` to mention UI screenshots and highlight `preload_threads`.
+
+## 2025-07-08
+- Added startup profiling using `tokio-console` and `tracing`.
+- Logged initialization time and memory usage in `app/src/main.rs`.
+- Summarized the collected metrics in `docs/PERFORMANCE_TUNING.md`.
