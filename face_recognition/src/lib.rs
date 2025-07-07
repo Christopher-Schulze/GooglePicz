@@ -2,8 +2,8 @@
 #![warn(rust_2018_idioms)]
 //! Face recognition module for GooglePicz.
 //!
-//! The current implementation only provides placeholder functions.
-//! Real face detection will be integrated later.
+//! Faces are detected using OpenCV's Haar cascade classifier. Detected
+//! bounding boxes can be cached and presented in the UI.
 
 use api_client::MediaItem;
 #[cfg(feature = "cache")]
