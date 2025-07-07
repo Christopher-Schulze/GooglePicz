@@ -4,7 +4,7 @@
 
 mod image_loader;
 mod video_downloader;
-#[path = "../app/src/config.rs"]
+#[path = "../../app/src/config.rs"]
 mod app_config;
 mod style;
 mod icon;
@@ -1285,37 +1285,6 @@ impl Application for GooglePiczUI {
                             } else {
                                 None
                             };
-                                SearchMode::DateRange => {
-                                    if let Some((s, e)) = search::parse_date_query(&query) {
-                                        cache
-                                            .get_media_items_by_date_range(s, e)
-                                            .map_err(|e| e.to_string())
-                                    } else {
-                                        Ok(Vec::new())
-                                    }
-                                }
-                                SearchMode::Description => cache
-                                    .get_media_items_by_description(&query)
-                                    .map_err(|e| e.to_string()),
-                                SearchMode::Favoriten => cache
-                                    .get_favorite_media_items()
-                                    .map_err(|e| e.to_string()),
-                                SearchMode::Filename => cache
-                                    .get_media_items_by_filename(&query)
-                                    .map_err(|e| e.to_string()),
-                                SearchMode::MimeType => cache
-                                    .get_media_items_by_mime_type(&query)
-                                    .map_err(|e| e.to_string()),
-                                SearchMode::CameraModel => cache
-                                    .get_media_items_by_camera_model(&query)
-                                    .map_err(|e| e.to_string()),
-                                SearchMode::CameraMake => cache
-                                    .get_media_items_by_camera_make(&query)
-                                    .map_err(|e| e.to_string()),
-                                SearchMode::Text => cache
-                                    .get_media_items_by_text(&query)
-                                    .map_err(|e| e.to_string()),
-                            }?;
 
                             let start_dt = search::parse_single_date(&start, false);
                             let end_dt = search::parse_single_date(&end, true);

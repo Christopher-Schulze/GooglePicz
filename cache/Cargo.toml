@@ -21,6 +21,7 @@ criterion = "0.5"
 
 [features]
 trace-spans = []
+face-recognition = []
 
 [[bench]]
 name = "cache_bench"

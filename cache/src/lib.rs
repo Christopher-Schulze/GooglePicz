@@ -215,7 +215,7 @@ fn apply_migrations(conn: &mut Connection) -> Result<(), CacheError> {
 }
 
 impl CacheManager {
-    pub fn lock_conn(&self) -> Result<std::sync::MutexGuard<Connection>, CacheError> {
+    pub fn lock_conn(&self) -> Result<std::sync::MutexGuard<'_, Connection>, CacheError> {
         self.conn
             .lock()
             .map_err(|_| CacheError::Other("Poisoned lock".into()))
@@ -532,7 +532,7 @@ impl CacheManager {
         mime_type: Option<&str>,
         text: Option<&str>,
     ) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let start = std::time::Instant::now();
+        let timer = std::time::Instant::now();
         let conn = self.lock_conn()?;
         let sql = concat!(
             "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename ",
@@ -597,7 +597,7 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
             })?);
         }
-        tracing::info!("query_time_ms" = %start.elapsed().as_millis(), "query" = "general", "count" = items.len());
+        tracing::info!("query_time_ms" = %timer.elapsed().as_millis(), "query" = "general", "count" = items.len());
         Ok(items)
     }
 
