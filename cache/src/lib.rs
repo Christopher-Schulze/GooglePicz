@@ -420,7 +420,7 @@ impl CacheManager {
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_all_media_items(&self) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let start = std::time::Instant::now();
+        let start_time = std::time::Instant::now();
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare_cached(
@@ -468,7 +468,7 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
             })?);
         }
-        tracing::info!("cache_load_time_ms" = %start.elapsed().as_millis(), "items" = items.len());
+        tracing::info!("cache_load_time_ms" = %start_time.elapsed().as_millis(), "items" = items.len());
         Ok(items)
     }
 
@@ -532,7 +532,7 @@ impl CacheManager {
         mime_type: Option<&str>,
         text: Option<&str>,
     ) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let start = std::time::Instant::now();
+        let start_time = std::time::Instant::now();
         let conn = self.lock_conn()?;
         let sql = concat!(
             "SELECT m.id, m.description, m.product_url, m.base_url, m.mime_type, md.creation_time, md.width, md.height, md.camera_make, md.camera_model, md.fps, md.status, m.filename ",
@@ -597,13 +597,13 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
             })?);
         }
-        tracing::info!("query_time_ms" = %start.elapsed().as_millis(), "query" = "general", "count" = items.len());
+        tracing::info!("query_time_ms" = %start_time.elapsed().as_millis(), "query" = "general", "count" = items.len());
         Ok(items)
     }
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_camera_model(&self, model: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let start = std::time::Instant::now();
+        let start_time = std::time::Instant::now();
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare_cached(
@@ -647,13 +647,13 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
             })?);
         }
-        tracing::info!("query_time_ms" = %start.elapsed().as_millis(), "query" = "camera_model", "count" = items.len());
+        tracing::info!("query_time_ms" = %start_time.elapsed().as_millis(), "query" = "camera_model", "count" = items.len());
         Ok(items)
     }
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_camera_make(&self, make: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let start = std::time::Instant::now();
+        let start_time = std::time::Instant::now();
         let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare_cached(
@@ -697,13 +697,13 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
             })?);
         }
-        tracing::info!("query_time_ms" = %start.elapsed().as_millis(), "query" = "camera_make", "count" = items.len());
+        tracing::info!("query_time_ms" = %start_time.elapsed().as_millis(), "query" = "camera_make", "count" = items.len());
         Ok(items)
     }
 
     #[cfg_attr(feature = "trace-spans", tracing::instrument(skip(self)))]
     pub fn get_media_items_by_filename(&self, pattern: &str) -> Result<Vec<api_client::MediaItem>, CacheError> {
-        let start = std::time::Instant::now();
+        let start_time = std::time::Instant::now();
         let like_pattern = format!("%{}%", pattern);
         let conn = self.lock_conn()?;
         let mut stmt = conn
@@ -748,7 +748,7 @@ impl CacheManager {
                 CacheError::DatabaseError(format!("Failed to retrieve media item from iterator: {}", e))
             })?);
         }
-        tracing::info!("query_time_ms" = %start.elapsed().as_millis(), "query" = "filename", "count" = items.len());
+        tracing::info!("query_time_ms" = %start_time.elapsed().as_millis(), "query" = "filename", "count" = items.len());
         Ok(items)
     }
 
