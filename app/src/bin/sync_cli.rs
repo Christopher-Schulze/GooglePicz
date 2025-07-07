@@ -6,7 +6,7 @@ use api_client::ApiClient;
 use auth::ensure_access_token_valid;
 use std::path::PathBuf;
 use sync::{SyncProgress, Syncer};
-use tokio::sync::mpsc;
+use tokio::{fs, sync::mpsc};
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use tracing_subscriber::EnvFilter;
@@ -187,6 +187,13 @@ enum Commands {
         id: String,
         /// New title
         title: String,
+    },
+    /// Upload a new media item
+    UploadItem {
+        /// Path to the file to upload
+        file: PathBuf,
+        /// Description for the new item
+        description: String,
     },
     /// Add a media item to an album
     AddToAlbum {
@@ -498,6 +505,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cache.rename_album(&id, &title)?;
             let shown = album.title.unwrap_or(title);
             println!("Album renamed: {} (id: {})", shown, id);
+        }
+        Commands::UploadItem { file, description } => {
+            if !db_path.exists() {
+                std::fs::create_dir_all(&base_dir)?;
+            }
+            let token = ensure_access_token_valid().await?;
+            let client = ApiClient::new(token);
+            let data = fs::read(&file).await?;
+            let name = file
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "upload.jpg".into());
+            let item = client
+                .upload_media_item(&data, &name, &description)
+                .await?;
+            let cache = CacheManager::new(&db_path)?;
+            cache.insert_media_item(&item)?;
+            println!("Uploaded item {} (id: {})", item.filename, item.id);
         }
         Commands::AddToAlbum { album_id, item_id } => {
             if !db_path.exists() {
