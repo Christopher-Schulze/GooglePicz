@@ -559,8 +559,8 @@ mod tests {
     #[serial]
     fn test_create_installer() {
         std::env::set_var("MOCK_COMMANDS", "1");
-        // This is a placeholder test for a placeholder function.
-        // In a real scenario, this would involve more complex setup and assertions.
+        // This test runs `create_installer` with mocked commands to ensure it
+        // succeeds without invoking external tools.
         let result = create_installer();
         assert!(result.is_ok());
         std::env::remove_var("MOCK_COMMANDS");
