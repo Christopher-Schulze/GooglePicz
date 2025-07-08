@@ -24,10 +24,11 @@
 - 📂 Local cache for offline access
 - 🎨 Cross-platform UI with Iced
 
-### Planned Features
-- Video playback
-- Advanced search capabilities
-- Face recognition and tagging
+### Implemented Features
+GooglePicz supports:
+- Video playback (GStreamer)
+- Advanced search filters
+- Optional face recognition
 
 ## 🛠️ Technical Stack
 
