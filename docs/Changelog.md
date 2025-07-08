@@ -16,7 +16,6 @@
   - Fixed invalid `use` statements in `main.rs`, `api_client/src/lib.rs`, `sync/src/lib.rs`, and `ui/src/lib.rs` to reflect the corrected crate names.
   - Aligned `KEYRING_SERVICE_NAME` in `auth/src/lib.rs` with the project name for consistency.
   - Refactored `ui/src/image_loader.rs` to remove the in-memory cache and mutable state from `load_thumbnail`, resolving potential concurrency issues.
-  - Created `docs/TODO123.md` to outline next steps and potential improvements.
 ## 2024-07-29
 - Initial project setup: Created Rust workspace and module folders (`auth`, `api_client`, `ui`, `cache`, `sync`, `packaging`).
 - Configured main `Cargo.toml` for workspace and added global dependencies and release profiles.

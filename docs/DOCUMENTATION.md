@@ -3,9 +3,11 @@
 ## 📋 Overview
 GooglePicz is a native Google Photos client being developed in Rust. The application focuses on performance, security, and user experience. The project is structured as a Rust workspace with multiple crates.
 
+
 ## 🚀 Project Status: Stable
 
 GooglePicz is production-ready with advanced search filters, optional video playback and a face recognition module. The APIs are considered stable.
+
 
 ## 🏗️ Architecture
 
@@ -334,5 +336,4 @@ The script builds the `googlepicz` binary, launches it under `xvfb-run` and
 saves images of the main window and the settings dialog into
 `docs/screenshots`.
 
-## ⚠️ Note
-GooglePicz is now stable and production-ready. Ongoing improvements are listed in `Changelog.md`.
+
