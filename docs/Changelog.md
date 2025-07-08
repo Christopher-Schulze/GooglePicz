@@ -66,3 +66,6 @@
 - Added startup profiling using `tokio-console` and `tracing`.
 - Logged initialization time and memory usage in `app/src/main.rs`.
 - Summarized the collected metrics in `docs/PERFORMANCE_TUNING.md`.
+
+## 2025-07-09
+- Release 0.1.1.
