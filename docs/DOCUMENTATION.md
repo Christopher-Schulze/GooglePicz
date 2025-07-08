@@ -93,34 +93,32 @@ dirs = "5.0"
 - [x] Basic project structure
 - [x] Rust workspace setup
 - [x] Module separation
-- [ ] Complete API integration
-- [ ] Full UI implementation
 
 ### Authentication
 - [x] OAuth2 flow structure
-- [ ] Token refresh handling
-- [ ] Secure credential storage
+- [x] Token refresh handling
+- [x] Secure credential storage
 
 ### UI Components
 - [x] Basic window setup
-- [ ] Photo grid view
-- [ ] Album management
-- [ ] Settings panel
+- [x] Photo grid view
+- [x] Album management
+- [x] Settings panel
 
-## 🧪 Testing Strategy (Planned)
+## 🧪 Testing Strategy
 
 ### Unit Testing
-- [ ] Core functionality tests
-- [ ] API client tests
-- [ ] Cache layer tests
+- [x] Core functionality tests
+- [x] API client tests
+- [x] Cache layer tests
 
 ### Integration Testing
-- [ ] Authentication flow
-- [ ] Photo synchronization
-- [ ] UI interactions
+- [x] Authentication flow
+- [x] Photo synchronization
+- [x] UI interactions
 
 ### E2E Tests
-End-to-end tests live under `tests/e2e` and exercise higher level workflows.
+End-to-end tests live under `tests/e2e` and exercise high-level workflows.
 Mocks for the API client and keyring (`MOCK_API_CLIENT`, `MOCK_KEYRING`) avoid
 network access. The scenarios cover starting a sync, creating albums and
 querying the cache via search helpers.
