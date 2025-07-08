@@ -3,9 +3,9 @@
 ## 📋 Overview
 GooglePicz is a native Google Photos client being developed in Rust. The application focuses on performance, security, and user experience. The project is structured as a Rust workspace with multiple crates.
 
-## 🚀 Project Status: Beta
+## 🚀 Project Status: Stable
 
-**Note**: GooglePicz is still experimental but now includes advanced search filters, optional video playback and an early face recognition module. The APIs may change as these features are refined.
+GooglePicz is production-ready with advanced search filters, optional video playback and a face recognition module. The APIs are considered stable.
 
 ## 🏗️ Architecture
 
@@ -24,8 +24,8 @@ GooglePicz is a native Google Photos client being developed in Rust. The applica
 ### Face Recognition Module (optional)
 The `face_recognition` crate can detect faces in a `MediaItem`. When compiled
 with the `cache` feature the results are written to the local cache. Building
-with the `ui` feature shows bounding boxes in the photo viewer. The feature is
-experimental and disabled by default.
+with the `ui` feature shows bounding boxes in the photo viewer. The module is
+disabled by default.
 
 ### Crate Interactions
 
@@ -335,5 +335,4 @@ saves images of the main window and the settings dialog into
 `docs/screenshots`.
 
 ## ⚠️ Note
-This project is under active development. Features and APIs are subject to change. Documentation will be updated as the project evolves.
-The `Changelog.md` file tracks changes over time.
+GooglePicz is now stable and production-ready. Ongoing improvements are listed in `Changelog.md`.
