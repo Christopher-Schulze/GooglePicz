@@ -66,6 +66,24 @@ is opened. The sync process automatically runs face detection and persists the
 boxes, making them available across sessions. This module is experimental and
 disabled by default.
 
+#### Linux Dependencies
+Compiling the `face_recognition` crate requires OpenCV with development headers
+and the LLVM tooling. On Debian/Ubuntu install:
+
+```bash
+sudo apt install libopencv-dev clang libclang-dev llvm-dev
+```
+
+On Fedora/RHEL the packages are named:
+
+```bash
+sudo dnf install opencv-devel clang llvm-devel
+```
+
+If the build fails because `libclang` or `llvm-config` cannot be located, set
+the environment variable `LIBCLANG_PATH` or `LLVM_CONFIG_PATH` to the
+appropriate location.
+
 ### Building Without Extras
 Compile the workspace without the video and face recognition crates:
 
