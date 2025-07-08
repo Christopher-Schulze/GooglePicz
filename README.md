@@ -6,15 +6,9 @@
   [![Rust](https://img.shields.io/badge/Rust-1.70+-orange?logo=rust)](https://www.rust-lang.org/)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![CI](https://github.com/Christopher-Schulze/GooglePicz/actions/workflows/ci.yml/badge.svg)](https://github.com/Christopher-Schulze/GooglePicz/actions/workflows/ci.yml)
-  [![Project Status: Beta](https://img.shields.io/badge/status-Beta-blue)](https://github.com/Christopher-Schulze/GooglePicz)
 </div>
 
-
 > A native Google Photos client for macOS and Windows, built with Rust for maximum performance and efficiency.
-
-## 🚀 Project Status: Beta
-
-**Note**: GooglePicz is still experimental but now includes advanced search filters, optional video playback and an early face recognition module. The APIs may change as these features are refined.
 
 ## 🎯 Project Goals
 
@@ -299,7 +293,6 @@ cargo run --package packaging --bin packager -- --format appimage
 ## Running Tests
 
 Unit tests mock external services using environment variables. Run `cargo test` and everything should pass without Google credentials.
-
 
 ## 📄 License
 
